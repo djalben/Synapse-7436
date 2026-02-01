@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Sidebar } from "../components/sidebar";
 import { ModelSelector } from "../components/model-selector";
 import { ChatInput, SuggestionChips } from "../components/chat-input";
+import { AnimatedBackground } from "../components/animated-background";
 
 function Index() {
   const [activeTab, setActiveTab] = useState("chat");
@@ -64,6 +65,9 @@ function Index() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(99,102,241,0.1),transparent)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(59,130,246,0.05),transparent)]" />
       </div>
+
+      {/* Animated Background Effects - blobs, stars, particles, glows */}
+      <AnimatedBackground />
 
       {/* Sidebar */}
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
