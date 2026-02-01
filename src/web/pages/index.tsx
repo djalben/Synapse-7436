@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Sidebar } from "../components/sidebar";
 import { ModelSelector } from "../components/model-selector";
 import { ChatInput, SuggestionChips } from "../components/chat-input";
@@ -7,6 +7,8 @@ function Index() {
   const [activeTab, setActiveTab] = useState("chat");
   const [selectedModel, setSelectedModel] = useState("gpt-4o");
   const [isLoaded, setIsLoaded] = useState(false);
+  const [videoLoaded, setVideoLoaded] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   // Staggered entrance animation
   useEffect(() => {
@@ -21,8 +23,44 @@ function Index() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* Subtle background pattern */}
-      <div className="fixed inset-0 pointer-events-none">
+      {/* Atmospheric Video Background */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <video
+          ref={videoRef}
+          autoPlay
+          loop
+          muted
+          playsInline
+          onLoadedData={() => setVideoLoaded(true)}
+          className={`
+            absolute inset-0 w-full h-full object-cover
+            blur-sm
+            transition-opacity duration-1000 ease-out
+            ${videoLoaded ? "opacity-[0.12]" : "opacity-0"}
+          `}
+          style={{
+            filter: "blur(4px) saturate(1.2)",
+          }}
+        >
+          <source
+            src="https://videos.pexels.com/video-files/3129671/3129671-uhd_2560_1440_30fps.mp4"
+            type="video/mp4"
+          />
+        </video>
+        {/* Color overlay to enhance blue/purple tones */}
+        <div 
+          className={`
+            absolute inset-0 
+            bg-gradient-to-br from-indigo-950/30 via-transparent to-blue-950/20
+            mix-blend-overlay
+            transition-opacity duration-1000
+            ${videoLoaded ? "opacity-100" : "opacity-0"}
+          `}
+        />
+      </div>
+
+      {/* Subtle background pattern (over video) */}
+      <div className="fixed inset-0 pointer-events-none z-[1]">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(99,102,241,0.1),transparent)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(59,130,246,0.05),transparent)]" />
       </div>
@@ -31,7 +69,7 @@ function Index() {
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
 
       {/* Main Content */}
-      <main className="ml-[240px] min-h-screen flex flex-col">
+      <main className="relative z-10 ml-[240px] min-h-screen flex flex-col">
         {/* Top Bar */}
         <header
           className={`

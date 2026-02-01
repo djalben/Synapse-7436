@@ -31,7 +31,7 @@ export const Sidebar = ({ activeTab, onTabChange }: SidebarProps) => {
   const [hoveredTab, setHoveredTab] = useState<string | null>(null);
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-[240px] bg-black border-r border-[#222] flex flex-col z-50">
+    <aside className="fixed left-0 top-0 h-screen w-[240px] bg-black/90 backdrop-blur-xl border-r border-[#222] flex flex-col z-50">
       {/* Logo Section */}
       <div className="p-6 pb-8">
         <div className="flex items-center gap-3 group cursor-default">
