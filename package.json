@@ -4,7 +4,9 @@
   "private": true,
   "dependencies": {
     "@ai-sdk/openai": "^3.0.7",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-slot": "^1.2.4",
+    "@radix-ui/react-tooltip": "^1.2.8",
     "ai": "^6.0.25",
     "atmn": "^0.0.36",
     "autumn-js": "^0.1.75",

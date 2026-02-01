@@ -1,72 +1,116 @@
-// TODO(agent): This is a temporary "under construction" page.
-// Replace the entire contents of this file with the actual index page implementation
-// as instructed by the user. Delete this comment and the placeholder UI below.
-
 import { useState, useEffect } from "react";
-
-const AGENT_THOUGHTS = [
-	"Crafting the perfect landing page",
-	"Fine-tuning the color palette",
-	"Making buttons actually clickable",
-	"Ensuring it works on your phone too",
-	"Adding just the right amount of whitespace",
-	"Teaching forms to be polite",
-	"Making the logo pixel-perfect",
-	"Optimizing for speed (patience, ironic)",
-	"Writing code that future-me won't hate",
-	"Building something worth the wait",
-];
+import { Sidebar } from "../components/sidebar";
+import { ModelSelector } from "../components/model-selector";
+import { ChatInput, SuggestionChips } from "../components/chat-input";
 
 function Index() {
-	const [thoughtIndex, setThoughtIndex] = useState(0);
+  const [activeTab, setActiveTab] = useState("chat");
+  const [selectedModel, setSelectedModel] = useState("gpt-4o");
+  const [isLoaded, setIsLoaded] = useState(false);
 
-	useEffect(() => {
-		const interval = setInterval(() => {
-			setThoughtIndex((prev) => (prev + 1) % AGENT_THOUGHTS.length);
-		}, 3000);
-		return () => clearInterval(interval);
-	}, []);
+  // Staggered entrance animation
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoaded(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
 
-	return (
-		<div className="min-h-screen bg-[#f5f5f5] flex flex-col items-center justify-center p-8">
+  const handleSendMessage = (message: string) => {
+    console.log("Sending:", message);
+    // Chat functionality would be implemented here
+  };
 
-			<h1 className="text-[clamp(2.5rem,10vw,6rem)] font-black tracking-[-0.03em] text-black leading-none mb-10 text-center">
-				Under
-				<br />
-				Construction
-			</h1>
+  return (
+    <div className="min-h-screen bg-black text-white">
+      {/* Subtle background pattern */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(99,102,241,0.1),transparent)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(59,130,246,0.05),transparent)]" />
+      </div>
 
-			{/* Agent thought with shimmer */}
-			<div className="h-8 flex items-center justify-center">
-				<p className="text-base md:text-lg shimmer-text italic">
-					"{AGENT_THOUGHTS[thoughtIndex]}"
-				</p>
-			</div>
+      {/* Sidebar */}
+      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
 
-			<style>{`
-				.shimmer-text {
-					background: linear-gradient(
-						90deg,
-						#737373 0%,
-						#737373 40%,
-						#d4d4d4 50%,
-						#737373 60%,
-						#737373 100%
-					);
-					background-size: 200% 100%;
-					-webkit-background-clip: text;
-					background-clip: text;
-					-webkit-text-fill-color: transparent;
-					animation: shimmer 2s ease-in-out infinite;
-				}
+      {/* Main Content */}
+      <main className="ml-[240px] min-h-screen flex flex-col">
+        {/* Top Bar */}
+        <header
+          className={`
+            px-6 py-4 border-b border-[#222]
+            flex items-center justify-between
+            transition-all duration-700 ease-out
+            ${isLoaded ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"}
+          `}
+        >
+          <ModelSelector
+            selectedModel={selectedModel}
+            onModelChange={setSelectedModel}
+          />
 
-				@keyframes shimmer {
-					0% { background-position: 100% 0; }
-					100% { background-position: -100% 0; }
-				}
-			`}</style>
-		</div>
-	);
+          {/* Right side - could add more controls here */}
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center text-xs font-semibold">
+              S
+            </div>
+          </div>
+        </header>
+
+        {/* Chat Area */}
+        <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
+          {/* Empty State */}
+          <div
+            className={`
+              max-w-2xl w-full text-center
+              transition-all duration-700 ease-out delay-100
+              ${isLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}
+            `}
+          >
+            {/* Welcome Text */}
+            <div className="mb-12">
+              <h1 className="text-4xl md:text-5xl font-mono font-semibold mb-4 tracking-tight">
+                <span className="gradient-text">What can I help you</span>
+                <br />
+                <span className="text-white">create today?</span>
+              </h1>
+              <p className="text-[#666] text-lg max-w-md mx-auto">
+                Start a conversation with Synapse to explore ideas, write code, or create something new.
+              </p>
+            </div>
+
+            {/* Suggestion Chips */}
+            <div
+              className={`
+                mb-16
+                transition-all duration-700 ease-out delay-200
+                ${isLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}
+              `}
+            >
+              <SuggestionChips onSelect={handleSendMessage} />
+            </div>
+          </div>
+        </div>
+
+        {/* Input Area - Fixed at bottom */}
+        <div
+          className={`
+            sticky bottom-0 left-0 right-0
+            px-6 py-6
+            bg-gradient-to-t from-black via-black/95 to-transparent
+            transition-all duration-700 ease-out delay-300
+            ${isLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}
+          `}
+        >
+          <div className="max-w-3xl mx-auto">
+            <ChatInput onSend={handleSendMessage} />
+            
+            {/* Disclaimer */}
+            <p className="text-center text-[#444] text-xs mt-4">
+              Synapse can make mistakes. Consider checking important information.
+            </p>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
 }
 
 export default Index;
