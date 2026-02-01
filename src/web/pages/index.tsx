@@ -4,7 +4,8 @@ import { ModelSelector } from "../components/model-selector";
 import { ChatInput, SuggestionChips } from "../components/chat-input";
 import { AnimatedBackground } from "../components/animated-background";
 import { MotionLab } from "../components/motion-lab";
-import { ImageStudioPlaceholder, HistoryPlaceholder, SettingsPlaceholder } from "../components/placeholder-pages";
+import { ImageStudio } from "../components/image-studio";
+import { HistoryPlaceholder, SettingsPlaceholder } from "../components/placeholder-pages";
 
 // Chat interface component
 const ChatInterface = () => {
@@ -109,7 +110,7 @@ function Index() {
       case "motion":
         return <MotionLab />;
       case "image":
-        return <ImageStudioPlaceholder />;
+        return <ImageStudio />;
       case "history":
         return <HistoryPlaceholder />;
       case "settings":

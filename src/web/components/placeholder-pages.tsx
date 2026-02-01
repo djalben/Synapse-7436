@@ -1,4 +1,4 @@
-import { ImageIcon, Clock, Settings as SettingsIcon, Sparkles } from "lucide-react";
+import { Clock, Settings as SettingsIcon, Sparkles } from "lucide-react";
 
 // Placeholder content for tabs not yet implemented
 interface PlaceholderPageProps {
@@ -29,14 +29,6 @@ const PlaceholderPage = ({ icon: Icon, title, description }: PlaceholderPageProp
     </div>
   );
 };
-
-export const ImageStudioPlaceholder = () => (
-  <PlaceholderPage
-    icon={ImageIcon}
-    title="Image Studio"
-    description="Generate stunning images from text prompts or transform existing images with AI."
-  />
-);
 
 export const HistoryPlaceholder = () => (
   <PlaceholderPage
