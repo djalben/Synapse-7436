@@ -741,13 +741,13 @@ export const ImageStudio = () => {
   };
 
   return (
-    <div className="flex h-full min-h-screen">
+    <div className="flex flex-col md:flex-row h-full min-h-screen">
       {/* Left Panel - Controls */}
-      <div className="w-[35%] min-w-[360px] border-r border-[#222] p-6 overflow-y-auto">
-        <div className="space-y-6">
+      <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222] p-4 md:p-6 overflow-y-auto">
+        <div className="space-y-5 md:space-y-6">
           {/* Header */}
           <div>
-            <h2 className="font-mono text-2xl font-semibold text-white mb-1">
+            <h2 className="font-mono text-xl md:text-2xl font-semibold text-white mb-1">
               Image Studio
             </h2>
             <p className="text-sm text-[#666]">
@@ -757,7 +757,7 @@ export const ImageStudio = () => {
 
           {/* Error message */}
           {error && (
-            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30">
+            <div className="p-3 md:p-4 rounded-xl bg-red-500/10 border border-red-500/30">
               <p className="text-sm text-red-400">{error}</p>
             </div>
           )}
@@ -809,11 +809,12 @@ export const ImageStudio = () => {
                   bg-[#0a0a0a]/80 backdrop-blur-xl
                   border border-[#333] focus:border-indigo-500/50
                   text-white placeholder-[#555]
-                  text-[15px] leading-relaxed
+                  text-base leading-relaxed
                   resize-none outline-none
                   transition-all duration-300
                   disabled:opacity-50
                 "
+                style={{ fontSize: '16px' }} /* Prevent iOS zoom */
               />
               <div className="absolute bottom-3 right-3 text-xs text-[#555]">
                 {prompt.length}/500
@@ -849,19 +850,20 @@ export const ImageStudio = () => {
                 setShowPaywall(true)
               }}
               className="
-                w-full p-4 rounded-xl
+                w-full p-3 md:p-4 rounded-xl
                 bg-gradient-to-r from-red-500/10 via-amber-500/10 to-red-500/10
                 border border-red-500/30
-                flex items-center justify-center gap-3
+                flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3
                 group transition-all duration-300
                 hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/10
+                active:scale-[0.98]
               "
             >
               <Lock className="w-5 h-5 text-amber-400" />
-              <span className="text-amber-400 font-medium text-sm">
+              <span className="text-amber-400 font-medium text-sm text-center">
                 Free image generations exhausted
               </span>
-              <span className="text-amber-400/60 text-xs ml-1 group-hover:text-amber-400 transition-colors">
+              <span className="text-amber-400/60 text-xs group-hover:text-amber-400 transition-colors">
                 Upgrade →
               </span>
             </button>
@@ -877,6 +879,7 @@ export const ImageStudio = () => {
               transition-all duration-300
               relative overflow-hidden
               group
+              active:scale-[0.98]
               ${prompt.trim() && !isGenerating && !atLimit && isImg2ImgReady
                 ? "bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40"
                 : "bg-[#222] text-[#555] cursor-not-allowed"
@@ -934,9 +937,9 @@ export const ImageStudio = () => {
       </div>
 
       {/* Right Panel - Gallery */}
-      <div className="flex-1 p-6 overflow-y-auto">
+      <div className="flex-1 p-4 md:p-6 overflow-y-auto">
         {/* Gallery Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4 md:mb-6">
           <div>
             <h3 className="font-mono text-lg font-semibold text-white">Gallery</h3>
             <p className="text-sm text-[#666]">
@@ -947,11 +950,11 @@ export const ImageStudio = () => {
 
         {/* Empty state */}
         {generatedImages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-[60vh] text-center">
-            <div className="w-24 h-24 rounded-full bg-white/[0.02] border border-[#333] flex items-center justify-center mb-6">
-              <Sparkles className="w-10 h-10 text-[#444]" />
+          <div className="flex flex-col items-center justify-center h-[40vh] md:h-[60vh] text-center px-4">
+            <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-white/[0.02] border border-[#333] flex items-center justify-center mb-4 md:mb-6">
+              <Sparkles className="w-8 h-8 md:w-10 md:h-10 text-[#444]" />
             </div>
-            <h3 className="text-lg font-medium text-white/80 mb-2">No images yet</h3>
+            <h3 className="text-base md:text-lg font-medium text-white/80 mb-2">No images yet</h3>
             <p className="text-sm text-[#666] max-w-xs">
               {mode === "image-to-image" 
                 ? "Upload a reference image and describe how to transform it"
@@ -963,7 +966,7 @@ export const ImageStudio = () => {
 
         {/* Masonry Grid */}
         {generatedImages.length > 0 && (
-          <div className="columns-2 lg:columns-3 gap-4">
+          <div className="columns-1 sm:columns-2 lg:columns-3 gap-4">
             {generatedImages.map((image) => (
               <ImageCard
                 key={image.id}

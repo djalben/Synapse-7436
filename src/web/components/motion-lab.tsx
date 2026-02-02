@@ -733,13 +733,13 @@ export const MotionLab = () => {
   };
 
   return (
-    <div className="flex h-full min-h-screen">
+    <div className="flex flex-col md:flex-row h-full min-h-screen">
       {/* Left Panel - Controls */}
-      <div className="w-[40%] border-r border-[#222] p-6 overflow-y-auto">
-        <div className="space-y-6">
+      <div className="w-full md:w-[40%] border-b md:border-b-0 md:border-r border-[#222] p-4 md:p-6 overflow-y-auto">
+        <div className="space-y-5 md:space-y-6">
           {/* Header */}
           <div>
-            <h2 className="font-mono text-2xl font-semibold text-white mb-1">
+            <h2 className="font-mono text-xl md:text-2xl font-semibold text-white mb-1">
               Motion Lab
             </h2>
             <p className="text-sm text-[#666]">
@@ -749,7 +749,7 @@ export const MotionLab = () => {
 
           {/* Error message */}
           {error && (
-            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30">
+            <div className="p-3 md:p-4 rounded-xl bg-red-500/10 border border-red-500/30">
               <p className="text-sm text-red-400">{error}</p>
             </div>
           )}
@@ -791,11 +791,12 @@ export const MotionLab = () => {
                   bg-[#0a0a0a]/80 backdrop-blur-xl
                   border border-[#333] focus:border-indigo-500/50
                   text-white placeholder-[#555]
-                  text-[15px] leading-relaxed
+                  text-base leading-relaxed
                   resize-none outline-none
                   transition-all duration-300
                   disabled:opacity-50
                 "
+                style={{ fontSize: '16px' }} /* Prevent iOS zoom */
               />
               <div className="absolute bottom-3 right-3 text-xs text-[#555]">
                 {prompt.length}/1000
@@ -826,19 +827,20 @@ export const MotionLab = () => {
                 setShowPaywall(true)
               }}
               className="
-                w-full p-4 rounded-xl
+                w-full p-3 md:p-4 rounded-xl
                 bg-gradient-to-r from-red-500/10 via-amber-500/10 to-red-500/10
                 border border-red-500/30
-                flex items-center justify-center gap-3
+                flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3
                 group transition-all duration-300
                 hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/10
+                active:scale-[0.98]
               "
             >
               <Lock className="w-5 h-5 text-amber-400" />
-              <span className="text-amber-400 font-medium text-sm">
+              <span className="text-amber-400 font-medium text-sm text-center">
                 Video generation requires Studio plan
               </span>
-              <span className="text-amber-400/60 text-xs ml-1 group-hover:text-amber-400 transition-colors">
+              <span className="text-amber-400/60 text-xs group-hover:text-amber-400 transition-colors">
                 Upgrade →
               </span>
             </button>
@@ -854,6 +856,7 @@ export const MotionLab = () => {
               transition-all duration-300
               relative overflow-hidden
               group
+              active:scale-[0.98]
               ${prompt.trim() && !isGenerating && !atLimit && isReady
                 ? "bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40"
                 : "bg-[#222] text-[#555] cursor-not-allowed"
@@ -914,18 +917,18 @@ export const MotionLab = () => {
       </div>
 
       {/* Right Panel - Preview & History */}
-      <div className="flex-1 p-6 overflow-y-auto">
-        <div className="space-y-8">
+      <div className="flex-1 p-4 md:p-6 overflow-y-auto">
+        <div className="space-y-6 md:space-y-8">
           {/* Main Video Player */}
           <div>
-            <h3 className="font-mono text-lg font-medium text-white mb-4">Preview</h3>
+            <h3 className="font-mono text-lg font-medium text-white mb-3 md:mb-4">Preview</h3>
             <VideoPlayer video={currentVideo} isGenerating={isGenerating} />
           </div>
 
           {/* Recent Generations */}
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-mono text-lg font-medium text-white flex items-center gap-2">
+            <div className="flex items-center justify-between mb-3 md:mb-4">
+              <h3 className="font-mono text-base md:text-lg font-medium text-white flex items-center gap-2">
                 <Clock className="w-4 h-4 text-[#666]" />
                 Recent Generations
               </h3>
@@ -935,9 +938,9 @@ export const MotionLab = () => {
             </div>
             
             {recentVideos.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="w-16 h-16 rounded-full bg-white/[0.02] border border-[#333] flex items-center justify-center mb-4">
-                  <Film className="w-7 h-7 text-[#444]" />
+              <div className="flex flex-col items-center justify-center py-8 md:py-12 text-center">
+                <div className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-white/[0.02] border border-[#333] flex items-center justify-center mb-4">
+                  <Film className="w-6 h-6 md:w-7 md:h-7 text-[#444]" />
                 </div>
                 <p className="text-sm text-[#666]">No videos generated yet</p>
                 <p className="text-xs text-[#555] mt-1">
@@ -948,7 +951,7 @@ export const MotionLab = () => {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
                 {recentVideos.map((video, index) => (
                   <Thumbnail 
                     key={video.id} 

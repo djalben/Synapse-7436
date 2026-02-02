@@ -7,6 +7,8 @@ import { HistoryPlaceholder, SettingsPlaceholder } from "../components/placehold
 import { ChatInterface } from "../components/chat-interface";
 import { UsageProvider } from "../components/usage-context";
 import { PaywallModal } from "../components/paywall-modal";
+import { MobileNav, MobileTopBar } from "../components/mobile-nav";
+import { PWAInstallBanner } from "../components/pwa-install-banner";
 
 function Index() {
   const [activeTab, setActiveTab] = useState("chat");
@@ -33,7 +35,7 @@ function Index() {
 
   return (
     <UsageProvider>
-      <div className="min-h-screen bg-black text-white">
+      <div className="min-h-screen bg-black text-white overflow-x-hidden">
         {/* Atmospheric Video Background */}
         <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
           <video
@@ -78,16 +80,29 @@ function Index() {
         {/* Animated Background Effects */}
         <AnimatedBackground />
 
-        {/* Sidebar */}
+        {/* Mobile Navigation */}
+        <MobileNav activeTab={activeTab} onTabChange={setActiveTab} />
+        
+        {/* Mobile Top Bar */}
+        <MobileTopBar activeTab={activeTab} />
+
+        {/* Desktop Sidebar */}
         <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
 
         {/* Main Content */}
-        <main className="relative z-10 ml-[240px] min-h-screen flex flex-col">
+        <main className="
+          relative z-10 min-h-screen flex flex-col
+          md:ml-[240px]
+          pt-16 md:pt-0
+        ">
           {renderContent()}
         </main>
 
         {/* Paywall Modal */}
         <PaywallModal />
+
+        {/* PWA Install Banner */}
+        <PWAInstallBanner />
       </div>
     </UsageProvider>
   );

@@ -207,7 +207,7 @@ interface SuggestionChipsProps {
 
 const SuggestionChips = ({ onSelect }: SuggestionChipsProps) => {
   return (
-    <div className="flex flex-wrap gap-2 justify-center">
+    <div className="flex flex-wrap gap-2 justify-center px-2">
       {suggestions.map((suggestion) => {
         const Icon = suggestion.icon
         return (
@@ -215,7 +215,7 @@ const SuggestionChips = ({ onSelect }: SuggestionChipsProps) => {
             key={suggestion.label}
             onClick={() => onSelect(suggestion.prompt)}
             className="
-              flex items-center gap-2 px-4 py-2.5
+              flex items-center gap-2 px-3 md:px-4 py-2 md:py-2.5
               bg-white/[0.03] hover:bg-white/[0.06]
               border border-[#333] hover:border-[#444]
               rounded-xl
@@ -223,6 +223,7 @@ const SuggestionChips = ({ onSelect }: SuggestionChipsProps) => {
               text-sm font-medium
               transition-all duration-200
               group
+              active:scale-95
             "
           >
             <Icon className="w-4 h-4 text-[#666] group-hover:text-indigo-400 transition-colors" />
@@ -288,15 +289,16 @@ const ChatInputComponent = ({ value, onChange, onSubmit, disabled }: ChatInputPr
           ${isFocused ? "border-[#444] shadow-lg shadow-indigo-500/5" : "border-[#333]"}
         `}
       >
-        <div className="flex items-end gap-2 p-3">
+        <div className="flex items-end gap-1.5 md:gap-2 p-2.5 md:p-3">
           {/* Attachment Button */}
           <button
             className="
-              p-2 rounded-lg
+              p-2.5 md:p-2 rounded-lg
               text-[#666] hover:text-white/80
               hover:bg-white/[0.04]
               transition-all duration-200
               flex-shrink-0
+              active:scale-95
             "
           >
             <Paperclip className="w-5 h-5" />
@@ -317,23 +319,26 @@ const ChatInputComponent = ({ value, onChange, onSubmit, disabled }: ChatInputPr
               className="
                 w-full bg-transparent
                 text-white placeholder-[#555]
-                text-[15px] leading-relaxed
+                text-base leading-relaxed
                 resize-none outline-none
                 py-2 px-1
                 max-h-[200px]
               "
+              style={{ fontSize: '16px' }} /* Prevent iOS zoom */
             />
           </div>
 
           {/* Right side buttons */}
-          <div className="flex items-center gap-1 flex-shrink-0">
-            {/* Voice Input */}
+          <div className="flex items-center gap-0.5 md:gap-1 flex-shrink-0">
+            {/* Voice Input - hidden on small mobile */}
             <button
               className="
-                p-2 rounded-lg
+                hidden sm:flex
+                p-2.5 md:p-2 rounded-lg
                 text-[#666] hover:text-white/80
                 hover:bg-white/[0.04]
                 transition-all duration-200
+                active:scale-95
               "
             >
               <Mic className="w-5 h-5" />
@@ -344,8 +349,9 @@ const ChatInputComponent = ({ value, onChange, onSubmit, disabled }: ChatInputPr
               onClick={handleSubmit}
               disabled={!value.trim() || disabled}
               className={`
-                p-2.5 rounded-xl
+                p-3 md:p-2.5 rounded-xl
                 transition-all duration-300
+                active:scale-95
                 ${
                   value.trim() && !disabled
                     ? "bg-white text-black hover:bg-white/90 shadow-lg shadow-white/10"
@@ -421,7 +427,7 @@ export const ChatInterface = () => {
       {/* Top Bar */}
       <header
         className={`
-          px-6 py-4 border-b border-[#222]
+          px-4 md:px-6 py-3 md:py-4 border-b border-[#222]
           flex items-center justify-between
           transition-all duration-700 ease-out
           ${isLoaded ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"}
@@ -432,7 +438,7 @@ export const ChatInterface = () => {
           onModelChange={setSelectedModel}
         />
 
-        <div className="flex items-center gap-3">
+        <div className="hidden md:flex items-center gap-3">
           <div className="h-8 w-8 rounded-full bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center text-xs font-semibold">
             S
           </div>
@@ -440,7 +446,7 @@ export const ChatInterface = () => {
       </header>
 
       {/* Chat Messages Area */}
-      <div className="flex-1 overflow-y-auto px-6 py-6">
+      <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 md:py-6">
         {!hasMessages ? (
           // Empty state
           <div
@@ -450,14 +456,14 @@ export const ChatInterface = () => {
               ${isLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}
             `}
           >
-            <div className="max-w-2xl w-full text-center">
-              <div className="mb-12">
-                <h1 className="text-4xl md:text-5xl font-mono font-semibold mb-4 tracking-tight">
+            <div className="max-w-2xl w-full text-center px-4">
+              <div className="mb-8 md:mb-12">
+                <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-mono font-semibold mb-4 tracking-tight">
                   <span className="gradient-text">What can I help you</span>
                   <br />
                   <span className="text-white">create today?</span>
                 </h1>
-                <p className="text-[#666] text-lg max-w-md mx-auto">
+                <p className="text-[#666] text-base md:text-lg max-w-md mx-auto">
                   Start a conversation with Synapse to explore ideas, write code, or create something new.
                 </p>
               </div>
@@ -520,7 +526,7 @@ export const ChatInterface = () => {
       <div
         className={`
           sticky bottom-0 left-0 right-0
-          px-6 py-6
+          px-4 md:px-6 py-4 md:py-6
           bg-gradient-to-t from-black via-black/95 to-transparent
           transition-all duration-700 ease-out delay-300
           ${isLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}
@@ -535,19 +541,19 @@ export const ChatInterface = () => {
                 setShowPaywall(true)
               }}
               className="
-                w-full mb-4 p-4 rounded-xl
+                w-full mb-3 md:mb-4 p-3 md:p-4 rounded-xl
                 bg-gradient-to-r from-red-500/10 via-amber-500/10 to-red-500/10
                 border border-red-500/30
-                flex items-center justify-center gap-3
+                flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3
                 group transition-all duration-300
                 hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/10
               "
             >
               <Lock className="w-5 h-5 text-amber-400" />
-              <span className="text-amber-400 font-medium">
+              <span className="text-amber-400 font-medium text-sm md:text-base text-center">
                 You've reached your free message limit. Upgrade to continue chatting.
               </span>
-              <span className="text-amber-400/60 text-sm ml-2 group-hover:text-amber-400 transition-colors">
+              <span className="text-amber-400/60 text-sm group-hover:text-amber-400 transition-colors">
                 View plans →
               </span>
             </button>
@@ -559,7 +565,7 @@ export const ChatInterface = () => {
             onSubmit={handleSendMessage}
             disabled={isLoading || atLimit}
           />
-          <p className="text-center text-[#444] text-xs mt-4">
+          <p className="text-center text-[#444] text-xs mt-3 md:mt-4">
             {atLimit 
               ? `${messageCount}/${limits.maxMessages} free messages used`
               : "Synapse can make mistakes. Consider checking important information."
