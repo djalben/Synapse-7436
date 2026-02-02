@@ -9,6 +9,8 @@ import {
   Square,
   RectangleHorizontal,
   RectangleVertical,
+  X,
+  Loader2,
 } from "lucide-react";
 
 // Style option interface
@@ -38,6 +40,16 @@ const aspectRatios: AspectRatio[] = [
   { id: "16:9", label: "Landscape", icon: RectangleHorizontal },
   { id: "9:16", label: "Portrait", icon: RectangleVertical },
 ];
+
+// Generated image interface
+interface GeneratedImage {
+  id: string;
+  url: string;
+  prompt: string;
+  aspectRatio: string;
+  style: string;
+  createdAt: string;
+}
 
 // Style selector component
 interface StyleSelectorProps {
@@ -206,52 +218,156 @@ const ImageCountSlider = ({ value, onChange }: ImageCountSliderProps) => {
   );
 };
 
-// Dummy images for the gallery with varying heights for masonry effect
-const dummyImages = [
-  { id: 1, src: "https://images.unsplash.com/photo-1675426513824-77813c06de50?w=400&h=600&fit=crop", height: "h-72" },
-  { id: 2, src: "https://images.unsplash.com/photo-1686191128892-3b37add4ad2e?w=400&h=300&fit=crop", height: "h-48" },
-  { id: 3, src: "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=400&h=500&fit=crop", height: "h-64" },
-  { id: 4, src: "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=400&h=400&fit=crop", height: "h-56" },
-  { id: 5, src: "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=400&h=550&fit=crop", height: "h-68" },
-  { id: 6, src: "https://images.unsplash.com/photo-1696258686454-60082b2c33e2?w=400&h=350&fit=crop", height: "h-52" },
-  { id: 7, src: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=400&h=600&fit=crop", height: "h-72" },
-  { id: 8, src: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=450&fit=crop", height: "h-60" },
-  { id: 9, src: "https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?w=400&h=380&fit=crop", height: "h-52" },
-  { id: 10, src: "https://images.unsplash.com/photo-1534972195531-d756b9bfa9f2?w=400&h=520&fit=crop", height: "h-64" },
-];
+// Lightbox modal component
+interface LightboxProps {
+  image: GeneratedImage | null;
+  onClose: () => void;
+}
+
+const Lightbox = ({ image, onClose }: LightboxProps) => {
+  if (!image) return null;
+
+  const handleDownload = async () => {
+    try {
+      const response = await fetch(image.url);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `synapse-${image.id}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Download failed:", error);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      onClick={onClose}
+    >
+      {/* Dark overlay */}
+      <div className="absolute inset-0 bg-black/90 backdrop-blur-sm" />
+      
+      {/* Content */}
+      <div
+        className="relative z-10 max-w-[90vw] max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="
+            absolute -top-12 right-0 p-2 rounded-lg
+            bg-white/10 backdrop-blur-md border border-white/20
+            text-white/80 hover:text-white hover:bg-white/20
+            transition-all duration-200
+          "
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        {/* Image */}
+        <div className="relative rounded-xl overflow-hidden border border-[#333]">
+          <img
+            src={image.url}
+            alt={image.prompt}
+            className="max-w-full max-h-[75vh] object-contain"
+          />
+        </div>
+
+        {/* Info panel */}
+        <div className="mt-4 p-4 rounded-xl bg-white/5 backdrop-blur-md border border-[#333]">
+          <p className="text-sm text-white/80 line-clamp-2">{image.prompt}</p>
+          <div className="flex items-center gap-4 mt-3">
+            <span className="text-xs text-[#666]">Style: <span className="text-white/60 capitalize">{image.style}</span></span>
+            <span className="text-xs text-[#666]">Ratio: <span className="text-white/60">{image.aspectRatio}</span></span>
+            <button
+              onClick={handleDownload}
+              className="
+                ml-auto flex items-center gap-2 px-4 py-2 rounded-lg
+                bg-gradient-to-r from-indigo-600 to-blue-600
+                text-white text-sm font-medium
+                hover:shadow-lg hover:shadow-indigo-500/30
+                transition-all duration-200
+              "
+            >
+              <Download className="w-4 h-4" />
+              Download
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // Image card component
 interface ImageCardProps {
-  image: typeof dummyImages[0];
+  image: GeneratedImage;
+  onImageClick: (image: GeneratedImage) => void;
 }
 
-const ImageCard = ({ image }: ImageCardProps) => {
+const ImageCard = ({ image, onImageClick }: ImageCardProps) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const response = await fetch(image.url);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `synapse-${image.id}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Download failed:", error);
+    }
+  };
+
+  // Calculate height based on aspect ratio
+  const getHeightClass = () => {
+    switch (image.aspectRatio) {
+      case "9:16": return "h-80";
+      case "16:9": return "h-44";
+      default: return "h-64";
+    }
+  };
 
   return (
     <div
       className={`
         relative rounded-xl overflow-hidden
-        ${image.height}
+        ${getHeightClass()}
         border border-[#222] hover:border-[#444]
         group cursor-pointer
         transition-all duration-300
         hover:scale-[1.02] hover:shadow-xl hover:shadow-indigo-500/10
         mb-4
       `}
+      onClick={() => onImageClick(image)}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Skeleton loader */}
       {!isLoaded && (
-        <div className="absolute inset-0 bg-gradient-to-br from-[#1a1a1a] to-[#0a0a0a] animate-pulse" />
+        <div className="absolute inset-0 bg-gradient-to-br from-[#1a1a1a] to-[#0a0a0a] animate-pulse flex items-center justify-center">
+          <Loader2 className="w-6 h-6 text-indigo-500/50 animate-spin" />
+        </div>
       )}
 
       {/* Image */}
       <img
-        src={image.src}
-        alt={`Generated image ${image.id}`}
+        src={image.url}
+        alt={image.prompt}
         className={`
           w-full h-full object-cover
           transition-all duration-500
@@ -280,6 +396,7 @@ const ImageCard = ({ image }: ImageCardProps) => {
           `}
         >
           <button
+            onClick={handleDownload}
             className="
               flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg
               bg-white/10 backdrop-blur-md border border-white/20
@@ -291,6 +408,10 @@ const ImageCard = ({ image }: ImageCardProps) => {
             <span>Download</span>
           </button>
           <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onImageClick(image);
+            }}
             className="
               px-3 py-2.5 rounded-lg
               bg-white/10 backdrop-blur-md border border-white/20
@@ -314,15 +435,49 @@ export const ImageStudio = () => {
   const [prompt, setPrompt] = useState("");
   const [selectedStyle, setSelectedStyle] = useState("photorealistic");
   const [aspectRatio, setAspectRatio] = useState("1:1");
-  const [imageCount, setImageCount] = useState(2);
+  const [imageCount, setImageCount] = useState(1);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
+  const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
 
-  const handleGenerate = () => {
-    console.log("Generating images with:", {
-      prompt,
-      style: selectedStyle,
-      aspectRatio,
-      count: imageCount,
-    });
+  const handleGenerate = async () => {
+    if (!prompt.trim() || isGenerating) return;
+
+    setIsGenerating(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/image", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: prompt.trim(),
+          aspectRatio,
+          numImages: imageCount,
+          style: selectedStyle,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to generate images");
+      }
+
+      // Add new images to the top of the gallery
+      setGeneratedImages((prev) => [...data.images, ...prev]);
+      
+      // Clear prompt after successful generation
+      setPrompt("");
+    } catch (err) {
+      console.error("Generation error:", err);
+      setError(err instanceof Error ? err.message : "Failed to generate images");
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -340,6 +495,13 @@ export const ImageStudio = () => {
             </p>
           </div>
 
+          {/* Error message */}
+          {error && (
+            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30">
+              <p className="text-sm text-red-400">{error}</p>
+            </div>
+          )}
+
           {/* Prompt Area */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-[#888]">Prompt</label>
@@ -349,6 +511,7 @@ export const ImageStudio = () => {
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="Describe your image in detail..."
                 rows={4}
+                disabled={isGenerating}
                 className="
                   w-full p-4 rounded-xl
                   bg-[#0a0a0a]/80 backdrop-blur-xl
@@ -357,6 +520,7 @@ export const ImageStudio = () => {
                   text-[15px] leading-relaxed
                   resize-none outline-none
                   transition-all duration-300
+                  disabled:opacity-50
                 "
               />
               <div className="absolute bottom-3 right-3 text-xs text-[#555]">
@@ -388,27 +552,36 @@ export const ImageStudio = () => {
           {/* Generate Button */}
           <button
             onClick={handleGenerate}
-            disabled={!prompt.trim()}
+            disabled={!prompt.trim() || isGenerating}
             className={`
               w-full py-4 rounded-xl
               font-medium text-base
               transition-all duration-300
               relative overflow-hidden
               group
-              ${prompt.trim()
+              ${prompt.trim() && !isGenerating
                 ? "bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40"
                 : "bg-[#222] text-[#555] cursor-not-allowed"
               }
             `}
           >
             {/* Shimmer effect */}
-            {prompt.trim() && (
+            {prompt.trim() && !isGenerating && (
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
             )}
             
             <div className="relative flex items-center justify-center gap-2">
-              <Sparkles className={`w-5 h-5 ${prompt.trim() ? "text-white/90" : "text-[#555]"}`} />
-              <span>Generate Images</span>
+              {isGenerating ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Generating...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className={`w-5 h-5 ${prompt.trim() ? "text-white/90" : "text-[#555]"}`} />
+                  <span>Generate Images</span>
+                </>
+              )}
             </div>
           </button>
 
@@ -416,7 +589,7 @@ export const ImageStudio = () => {
           <div className="flex items-center justify-center gap-2 py-3 px-4 rounded-lg bg-white/[0.02] border border-[#222]">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <span className="text-xs text-[#666]">
-              <span className="text-white/80 font-medium">47</span> credits remaining
+              <span className="text-white/80 font-medium">∞</span> credits available
             </span>
           </div>
         </div>
@@ -428,25 +601,44 @@ export const ImageStudio = () => {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h3 className="font-mono text-lg font-semibold text-white">Gallery</h3>
-            <p className="text-sm text-[#666]">{dummyImages.length} images generated</p>
-          </div>
-          <div className="flex gap-2">
-            <button className="px-4 py-2 rounded-lg bg-white/[0.05] border border-[#333] text-sm text-[#888] hover:text-white hover:border-[#444] transition-colors">
-              All
-            </button>
-            <button className="px-4 py-2 rounded-lg text-sm text-[#666] hover:text-white transition-colors">
-              Favorites
-            </button>
+            <p className="text-sm text-[#666]">
+              {generatedImages.length} {generatedImages.length === 1 ? "image" : "images"} generated
+            </p>
           </div>
         </div>
 
+        {/* Empty state */}
+        {generatedImages.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-[60vh] text-center">
+            <div className="w-24 h-24 rounded-full bg-white/[0.02] border border-[#333] flex items-center justify-center mb-6">
+              <Sparkles className="w-10 h-10 text-[#444]" />
+            </div>
+            <h3 className="text-lg font-medium text-white/80 mb-2">No images yet</h3>
+            <p className="text-sm text-[#666] max-w-xs">
+              Enter a prompt and click "Generate Images" to create your first masterpiece
+            </p>
+          </div>
+        )}
+
         {/* Masonry Grid */}
-        <div className="columns-2 lg:columns-3 gap-4">
-          {dummyImages.map((image) => (
-            <ImageCard key={image.id} image={image} />
-          ))}
-        </div>
+        {generatedImages.length > 0 && (
+          <div className="columns-2 lg:columns-3 gap-4">
+            {generatedImages.map((image) => (
+              <ImageCard
+                key={image.id}
+                image={image}
+                onImageClick={setSelectedImage}
+              />
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* Lightbox Modal */}
+      <Lightbox
+        image={selectedImage}
+        onClose={() => setSelectedImage(null)}
+      />
     </div>
   );
 };
