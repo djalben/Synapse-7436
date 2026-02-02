@@ -4,6 +4,7 @@ import { chatRoutes } from './routes/chat'
 import { imageRoutes } from './routes/image'
 import { videoRoutes } from './routes/video'
 import { enhanceRoutes } from './routes/enhance'
+import { audioRoutes } from './routes/audio'
 
 const app = new Hono()
   .basePath('api');
@@ -17,5 +18,6 @@ app.route('/chat', chatRoutes);
 app.route('/image', imageRoutes);
 app.route('/video', videoRoutes);
 app.route('/enhance', enhanceRoutes);
+app.route('/audio', audioRoutes);
 
 export default app;

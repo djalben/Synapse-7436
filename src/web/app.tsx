@@ -1,5 +1,6 @@
 import { Route, Switch } from "wouter";
 import Index from "./pages/index";
+import AdminDashboard from "./pages/admin";
 import { Provider } from "./components/provider";
 
 function App() {
@@ -7,6 +8,7 @@ function App() {
 		<Provider>
 			<Switch>
 				<Route path="/" component={Index} />
+				<Route path="/admin" component={AdminDashboard} />
 			</Switch>
 		</Provider>
 	);

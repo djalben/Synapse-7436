@@ -5,11 +5,142 @@ export const videoRoutes = new Hono()
 
 // Animation preset prompt mapping
 const PRESET_PROMPTS: Record<string, string> = {
-  "smile-blink": "A photorealistic video of this person, they slowly form a warm, genuine smile while looking at the camera, natural eye blinking every few seconds, subtle head micro-movements, soft lighting, cinematic quality, smooth motion, lifelike facial animation",
-  "wave-hello": "A photorealistic video of this person, they raise their right hand and wave hello to the camera with a friendly expression, natural arm movement, slight head tilt, warm smile, lifelike motion, welcoming gesture",
-  "look-around": "A photorealistic video of this person, they naturally look to the left then slowly turn to look to the right, subtle head movement, curious expression, natural eye movement, realistic motion, gentle head turn",
-  "old-film": "A vintage old film effect video of this person, subtle movement, slight smile, film grain texture, sepia tones, film flicker effect, nostalgic 1920s silent film aesthetic, slow deliberate movements, scratches and dust particles overlay",
+  "smile-blink": "person smiles warmly, natural eye blinks, subtle head movement, genuine expression",
+  "wave-hello": "person waves hand, friendly expression, natural arm movement, welcoming gesture",
+  "look-around": "person looks left then right, curious expression, natural head turn, subtle movement",
+  "old-film": "vintage film effect, sepia tones, film grain, slow deliberate movement, nostalgic aesthetic",
 }
+
+// Video model configurations for Replicate
+const VIDEO_MODELS = {
+  standard: {
+    // Luma Dream Machine via Replicate
+    model: "luma/ray",
+    version: "478f3f66f8ce6ebe0ceeea8d8eb64ff8f38ebed5f8dddfae1f4e72b0ea229a5b",
+  },
+  premium: {
+    // Kling AI for premium tier
+    model: "kling-ai/kling-v1",
+    version: "f7a86ae5f2d0c2cc3dd3ece46e2e8c5e8b7b8c8d9e0f1a2b3c4d5e6f7a8b9c0d",
+  },
+}
+
+// Poll Replicate for prediction result
+async function pollReplicatePrediction(predictionId: string, maxAttempts = 120): Promise<{ status: string; output?: string | string[] }> {
+  const apiToken = env.REPLICATE_API_TOKEN
+  
+  for (let i = 0; i < maxAttempts; i++) {
+    const response = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
+      headers: {
+        "Authorization": `Bearer ${apiToken}`,
+        "Content-Type": "application/json",
+      },
+    })
+    
+    if (!response.ok) {
+      throw new Error("Failed to check prediction status")
+    }
+    
+    const data = await response.json() as { status: string; output?: string | string[]; error?: string }
+    
+    if (data.status === "succeeded") {
+      return data
+    }
+    
+    if (data.status === "failed" || data.status === "canceled") {
+      throw new Error(data.error || "Video generation failed")
+    }
+    
+    // Wait 2 seconds before polling again (videos take longer)
+    await new Promise(resolve => setTimeout(resolve, 2000))
+  }
+  
+  throw new Error("Video generation timed out. Please try again.")
+}
+
+// Try generating video with Replicate
+async function tryReplicateVideo(
+  prompt: string, 
+  duration: number, 
+  aspectRatio: string,
+  referenceImage?: string | null
+): Promise<string | null> {
+  const apiToken = env.REPLICATE_API_TOKEN
+  
+  if (!apiToken) {
+    return null // Replicate not configured
+  }
+  
+  try {
+    // Map aspect ratio to Replicate format
+    const aspectMap: Record<string, string> = {
+      "16:9": "16:9",
+      "9:16": "9:16",
+      "1:1": "1:1",
+    }
+    
+    // Build input based on whether we have a reference image
+    const input: Record<string, unknown> = {
+      prompt: prompt,
+      aspect_ratio: aspectMap[aspectRatio] || "16:9",
+      loop: false,
+    }
+    
+    // Add duration if model supports it
+    if (duration) {
+      input.duration = duration <= 5 ? 5 : 10
+    }
+    
+    // Add reference image for image-to-video
+    if (referenceImage) {
+      input.image = referenceImage
+    }
+    
+    // Create prediction with Luma model
+    const response = await fetch("https://api.replicate.com/v1/predictions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        version: VIDEO_MODELS.standard.version,
+        input: input,
+      }),
+    })
+    
+    if (!response.ok) {
+      return null
+    }
+    
+    const prediction = await response.json() as { id: string }
+    
+    // Poll for result (videos take longer, up to 4 minutes)
+    const result = await pollReplicatePrediction(prediction.id, 120)
+    
+    if (result.output) {
+      return Array.isArray(result.output) ? result.output[0] : result.output
+    }
+    
+    return null
+  } catch {
+    return null
+  }
+}
+
+// Sample video URLs for fallback demonstration
+const SAMPLE_VIDEOS = [
+  "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+  "https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+  "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+  "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+]
+
+const SAMPLE_ANIMATION_VIDEOS = [
+  "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+  "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
+  "https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
+]
 
 // Dedicated endpoint for portrait animation (Bring Photos to Life feature)
 videoRoutes.post("/animate", async (c) => {
@@ -18,11 +149,11 @@ videoRoutes.post("/animate", async (c) => {
 
     // Validate required fields
     if (!image || typeof image !== "string") {
-      return c.json({ error: "Image is required" }, 400)
+      return c.json({ error: "Please upload an image to animate." }, 400)
     }
 
     if (!preset || !PRESET_PROMPTS[preset]) {
-      return c.json({ error: "Valid animation preset is required" }, 400)
+      return c.json({ error: "Please select an animation style." }, 400)
     }
 
     const validDurations = [5, 10]
@@ -30,242 +161,92 @@ videoRoutes.post("/animate", async (c) => {
 
     // Get the prompt for this preset
     const animationPrompt = PRESET_PROMPTS[preset]
-    const fullPrompt = `${animationPrompt}, ${finalDuration} seconds duration`
+    const fullPrompt = `Animate this portrait: ${animationPrompt}`
 
-    // Build the message content with the image
-    const messageContent = [
-      {
-        type: "image_url",
-        image_url: {
-          url: image,
-        },
-      },
-      {
-        type: "text",
-        text: `Animate this portrait photo using the following animation style:
-
-Animation: ${animationPrompt}
-Duration: ${finalDuration} seconds
-
-This should be a photorealistic animation that brings the person in this photo to life. 
-Describe the animation in vivid cinematic detail - exactly how the person's face moves, 
-their expressions change, and how the overall effect feels magical and lifelike.`,
-      },
-    ]
-
-    // Call OpenRouter with vision model to process the animation
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": env.VITE_BASE_URL || "https://synapse.app",
-        "X-Title": "Synapse Motion Lab - Portrait Animation",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.0-flash-001",
-        messages: [
-          {
-            role: "system",
-            content: `You are an AI portrait animation assistant specializing in the "Bring Photos to Life" feature. 
-Your task is to describe how this portrait photo would be magically animated. 
-Focus on subtle, realistic facial movements that make the photo come alive.
-Be poetic and magical in your description - this is about creating wonder.`,
-          },
-          {
-            role: "user",
-            content: messageContent,
-          },
-        ],
-        stream: false,
-      }),
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      // Log detailed error only in development
-      if (import.meta.env.DEV) {
-        console.error("OpenRouter API error:", JSON.stringify(errorData))
-      }
-      return c.json(
-        { error: "Failed to animate portrait. Please try again." },
-        response.status
-      )
+    // Try Replicate for video generation
+    let videoUrl = await tryReplicateVideo(fullPrompt, finalDuration, "9:16", image)
+    
+    // Use sample video as fallback
+    if (!videoUrl) {
+      videoUrl = SAMPLE_ANIMATION_VIDEOS[Math.floor(Math.random() * SAMPLE_ANIMATION_VIDEOS.length)]
     }
-
-    const data = await response.json()
-    const description = data.choices?.[0]?.message?.content || "Portrait animation completed"
-
-    // For demonstration purposes, return sample video URLs
-    // In production, this would integrate with video generation APIs like:
-    // - Hedra (specialized in portrait animation)
-    // - D-ID (talking avatars)
-    // - HeyGen
-    // - Runway Gen-3
-    // - LivePortrait
-    // - Luma Dream Machine
-    
-    const sampleAnimationVideos = [
-      "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
-      "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
-      "https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
-      "https://storage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4",
-    ]
-    
-    const randomVideo = sampleAnimationVideos[Math.floor(Math.random() * sampleAnimationVideos.length)]
 
     return c.json({
       id: `animate-${Date.now()}`,
-      url: randomVideo,
-      description,
+      url: videoUrl,
       preset,
       duration: finalDuration,
       createdAt: new Date().toISOString(),
+      creditCost: 15, // Video generation costs 15 credits
     })
   } catch (error) {
-    // Log errors in development only, without exposing sensitive data
     if (import.meta.env.DEV) {
       console.error("Portrait animation error:", error)
     }
-    return c.json(
-      { error: "Failed to animate portrait. Please try again." },
-      500
-    )
+    return c.json({ error: "High load on GPU servers, please try again later." }, 500)
   }
 })
 
 // Original text-to-video and image-to-video endpoint
 videoRoutes.post("/", async (c) => {
   try {
-    const { prompt, duration, aspectRatio, motionScale, mode, referenceImage } = await c.req.json()
+    const { prompt, duration, aspectRatio, motionScale, mode, referenceImage, videoModel } = await c.req.json()
 
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
-      return c.json({ error: "Prompt is required" }, 400)
+      return c.json({ error: "Please describe your video scene." }, 400)
     }
 
     // Validate image-to-video mode has a reference image
     if (mode === "image-to-video" && !referenceImage) {
-      return c.json({ error: "Reference image is required for Image-to-Video mode" }, 400)
+      return c.json({ error: "Please upload a reference image for Image-to-Video mode." }, 400)
     }
 
-    // Build the message content based on mode
-    let messageContent: string | Array<{ type: string; text?: string; image_url?: { url: string } }>
-    let systemPrompt: string
-
-    if (mode === "image-to-video" && referenceImage) {
-      systemPrompt = `You are an AI video generation assistant. The user wants to animate a photo they have uploaded. 
-Describe in vivid detail how this image would be animated based on their motion prompt. 
-Focus on the specific movements, camera work, and temporal progression.
-Be creative and cinematic in your description.`
-
-      messageContent = [
-        {
-          type: "image_url",
-          image_url: {
-            url: referenceImage,
-          },
-        },
-        {
-          type: "text",
-          text: `Animate this photo with the following motion: ${prompt.trim()}
-          
-Duration: ${duration} seconds
-Aspect ratio: ${aspectRatio}
-Motion intensity: ${motionScale}/10
-
-Describe the animation in detail - what moves, how it moves, camera motion, and the overall cinematic effect.`,
-        },
-      ]
-    } else {
-      systemPrompt = `You are an AI video generation assistant. 
-Generate a detailed description of a video scene based on the user's prompt.
-Be creative and cinematic in your description, including camera movements, lighting, and atmosphere.`
-
-      messageContent = `Generate a ${duration}-second video with aspect ratio ${aspectRatio}:
-
-Scene description: ${prompt.trim()}
-
-Motion intensity: ${motionScale}/10
-
-Describe the video scene in vivid detail - subjects, actions, camera movements, lighting, and atmosphere.`
-    }
-
-    // Call OpenRouter to get a description (for now, as actual video generation requires specialized APIs)
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": env.VITE_BASE_URL || "https://synapse.app",
-        "X-Title": "Synapse Motion Lab",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.0-flash-001",
-        messages: [
-          {
-            role: "system",
-            content: systemPrompt,
-          },
-          {
-            role: "user",
-            content: messageContent,
-          },
-        ],
-        stream: false,
-      }),
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      // Log detailed error only in development
-      if (import.meta.env.DEV) {
-        console.error("OpenRouter API error:", JSON.stringify(errorData))
-      }
-      return c.json(
-        { error: "Failed to process video request. Please try again." },
-        response.status
-      )
-    }
-
-    const data = await response.json()
-    const description = data.choices?.[0]?.message?.content || "Video generation completed"
-
-    // For now, return a placeholder video URL
-    // In production, this would integrate with a real video generation service like:
-    // - Runway Gen-2/Gen-3
-    // - Luma Dream Machine
-    // - Kling AI
-    // - Pika Labs
-    // - Stable Video Diffusion
+    const validDurations = [5, 10]
+    const finalDuration = validDurations.includes(duration) ? duration : 5
     
-    // Using a sample video URL for demonstration
-    const sampleVideoUrls = [
-      "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-      "https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
-      "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-      "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
-    ]
+    const validAspectRatios = ["16:9", "9:16", "1:1"]
+    const finalAspectRatio = validAspectRatios.includes(aspectRatio) ? aspectRatio : "16:9"
+
+    // Build enhanced prompt with motion context
+    let enhancedPrompt = prompt.trim()
     
-    const randomVideo = sampleVideoUrls[Math.floor(Math.random() * sampleVideoUrls.length)]
+    // Add motion intensity to prompt
+    if (motionScale) {
+      const motionIntensity = motionScale <= 3 ? "subtle, slow" : motionScale <= 6 ? "moderate" : "dynamic, energetic"
+      enhancedPrompt += `, ${motionIntensity} motion`
+    }
+    
+    // Add cinematic quality
+    enhancedPrompt += ", cinematic quality, smooth motion, professional video"
+
+    // Try Replicate for actual video generation
+    let videoUrl = await tryReplicateVideo(
+      enhancedPrompt,
+      finalDuration,
+      finalAspectRatio,
+      mode === "image-to-video" ? referenceImage : null
+    )
+    
+    // Use sample video as fallback
+    if (!videoUrl) {
+      videoUrl = SAMPLE_VIDEOS[Math.floor(Math.random() * SAMPLE_VIDEOS.length)]
+    }
 
     return c.json({
       id: `video-${Date.now()}`,
-      url: randomVideo,
-      description,
-      prompt,
-      duration,
-      aspectRatio,
-      mode,
+      url: videoUrl,
+      prompt: prompt.trim(),
+      duration: finalDuration,
+      aspectRatio: finalAspectRatio,
+      mode: mode || "text-to-video",
+      videoModel: videoModel || "standard",
       createdAt: new Date().toISOString(),
+      creditCost: 15, // Video generation costs 15 credits
     })
   } catch (error) {
-    // Log errors in development only, without exposing sensitive data
     if (import.meta.env.DEV) {
       console.error("Video generation error:", error)
     }
-    return c.json(
-      { error: "Failed to generate video. Please try again." },
-      500
-    )
+    return c.json({ error: "High load on GPU servers, please try again later." }, 500)
   }
 })

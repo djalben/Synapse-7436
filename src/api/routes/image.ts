@@ -3,152 +3,195 @@ import { env } from "cloudflare:workers"
 
 export const imageRoutes = new Hono()
 
-// Aspect ratio to OpenRouter format mapping
-const ASPECT_RATIO_MAP: Record<string, string> = {
-  "1:1": "1:1",
-  "16:9": "16:9",
-  "9:16": "9:16",
+// Aspect ratio to size mapping for Flux model
+const ASPECT_RATIO_MAP: Record<string, { width: number; height: number }> = {
+  "1:1": { width: 1024, height: 1024 },
+  "16:9": { width: 1344, height: 768 },
+  "9:16": { width: 768, height: 1344 },
 }
 
-// Style prompts for enhancing the base prompt
-const stylePrompts: Record<string, string> = {
-  photorealistic: "ultra realistic, photorealistic, high detail, 8k photography",
-  anime: "anime style, manga art, vibrant colors, japanese animation style",
-  "3d": "3D render, CGI, octane render, cinema 4D, high quality 3D graphics",
-  cyberpunk: "cyberpunk style, neon lights, futuristic, blade runner aesthetic, neon city",
+// Style prompt enhancements
+const STYLE_PROMPTS: Record<string, string> = {
+  photorealistic: ", photorealistic, 8k, ultra detailed, professional photography, sharp focus, realistic lighting",
+  anime: ", anime style, manga art, vibrant colors, detailed anime illustration",
+  "3d": ", 3D render, Pixar style, CGI, high quality 3D graphics, octane render, cinema 4D",
+  cyberpunk: ", cyberpunk, neon lights, futuristic, blade runner aesthetic, dark sci-fi, neon city",
 }
+
+// Nana Banana (niji-v6) anime enhancement
+const NANA_BANANA_PROMPT = ", anime masterpiece, niji style, vibrant colors, high quality anime art, detailed anime illustration, professional anime artwork, beautiful anime aesthetic"
 
 imageRoutes.post("/", async (c) => {
   try {
-    const { prompt, aspectRatio, numImages, style, mode, referenceImage } = await c.req.json()
+    const { prompt, aspectRatio, numImages, style, mode, referenceImage, specializedEngine } = await c.req.json()
 
+    // Validate prompt
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
-      return c.json({ error: "Prompt is required" }, 400)
+      return c.json({ error: "Please enter a prompt to generate an image." }, 400)
     }
 
     // Validate image-to-image mode has a reference image
     if (mode === "image-to-image" && !referenceImage) {
-      return c.json({ error: "Reference image is required for Image-to-Image mode" }, 400)
+      return c.json({ error: "Please upload a reference image for Image-to-Image mode." }, 400)
     }
 
-    // Enhance prompt with style if provided
-    const styleEnhancement = style && stylePrompts[style] ? `, ${stylePrompts[style]}` : ""
-    
-    // Build the prompt based on mode
-    let enhancedPrompt: string
+    // Get size from aspect ratio
+    const size = ASPECT_RATIO_MAP[aspectRatio] || ASPECT_RATIO_MAP["1:1"]
+
+    // Build enhanced prompt based on style or specialized engine
+    let enhancedPrompt = prompt.trim()
+
+    // Check if Nana Banana (niji-v6) specialized engine is active
+    if (specializedEngine === "niji-v6") {
+      // Nana Banana mode - premium anime engine
+      enhancedPrompt += NANA_BANANA_PROMPT
+    } else if (style && STYLE_PROMPTS[style]) {
+      // Standard style enhancement
+      enhancedPrompt += STYLE_PROMPTS[style]
+    }
+
+    // For image-to-image mode, add transformation context
     if (mode === "image-to-image") {
-      // For image-to-image, focus on transformation
-      enhancedPrompt = `Transform this image: ${prompt.trim()}${styleEnhancement}. Maintain the core subject/person while applying the transformation.`
-    } else {
-      enhancedPrompt = `Generate an image of: ${prompt.trim()}${styleEnhancement}`
+      enhancedPrompt = `Transform the reference image: ${enhancedPrompt}. Maintain the core subject while applying the transformation.`
     }
 
-    // Generate images one at a time (most models only generate one image per request)
+    // Generate images (flux-1-schnell generates one image per request)
     const numToGenerate = Math.min(Math.max(numImages || 1, 1), 4)
     const generatedImages = []
 
     for (let i = 0; i < numToGenerate; i++) {
-      // Build the message content based on mode
-      let messageContent: string | Array<{ type: string; text?: string; image_url?: { url: string } }>
-      
+      // For image-to-image mode, use a multimodal model
+      // For text-to-image, use flux-1-schnell
       if (mode === "image-to-image" && referenceImage) {
-        // For image-to-image, include both the reference image and the prompt
-        messageContent = [
-          {
-            type: "image_url",
-            image_url: {
-              url: referenceImage, // This is already a base64 data URL
-            },
+        // Use Google's multimodal model for image-to-image
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${env.OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": env.VITE_BASE_URL || "https://synapse.app",
+            "X-Title": "Synapse Image Studio",
           },
-          {
-            type: "text",
-            text: enhancedPrompt,
-          },
-        ]
+          body: JSON.stringify({
+            model: "google/gemini-2.0-flash-exp:free",
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "image_url",
+                    image_url: {
+                      url: referenceImage,
+                    },
+                  },
+                  {
+                    type: "text",
+                    text: `Generate a new image based on this reference: ${enhancedPrompt}`,
+                  },
+                ],
+              },
+            ],
+            modalities: ["image", "text"],
+            stream: false,
+          }),
+        })
+
+        if (!response.ok) {
+          if (generatedImages.length > 0) break
+          return c.json({ error: "Image transformation is experiencing high demand. Please try again later." }, 500)
+        }
+
+        const data = await response.json()
+        const message = data.choices?.[0]?.message
+        
+        if (message?.images && message.images.length > 0) {
+          for (const image of message.images) {
+            const imageUrl = image.image_url?.url || image.imageUrl?.url
+            if (imageUrl) {
+              generatedImages.push({
+                id: `${Date.now()}-${generatedImages.length}`,
+                url: imageUrl,
+                prompt: prompt.trim(),
+                aspectRatio,
+                style: specializedEngine === "niji-v6" ? "nana-banana" : style,
+                mode: mode || "text-to-image",
+                createdAt: new Date().toISOString(),
+                creditCost: 1,
+              })
+            }
+          }
+        }
       } else {
-        // For text-to-image, just use the prompt
-        messageContent = enhancedPrompt
-      }
-
-      // Call OpenRouter chat completions API with image modality
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${env.OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": env.VITE_BASE_URL || "https://synapse.app",
-          "X-Title": "Synapse Image Studio",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash-image",
-          messages: [
-            {
-              role: "user",
-              content: messageContent,
-            },
-          ],
-          modalities: ["image", "text"],
-          stream: false,
-          image_config: {
-            aspect_ratio: ASPECT_RATIO_MAP[aspectRatio] || "1:1",
+        // Text-to-image: Use flux-1-schnell model
+        const response = await fetch("https://openrouter.ai/api/v1/images/generations", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${env.OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": env.VITE_BASE_URL || "https://synapse.app",
+            "X-Title": "Synapse Image Studio",
           },
-        }),
-      })
+          body: JSON.stringify({
+            model: "black-forest-labs/flux-1-schnell",
+            prompt: enhancedPrompt,
+            n: 1,
+            size: `${size.width}x${size.height}`,
+          }),
+        })
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        // Log detailed error only in development
-        if (import.meta.env.DEV) {
-          console.error("OpenRouter API error:", JSON.stringify(errorData))
+        if (!response.ok) {
+          // Handle specific error cases with user-friendly messages
+          const status = response.status
+          
+          if (generatedImages.length > 0) break
+          
+          if (status === 429) {
+            return c.json({ error: "High demand right now. Please wait a moment and try again." }, 429)
+          }
+          if (status === 402 || status === 403) {
+            return c.json({ error: "High load on GPU servers, please try again later." }, 500)
+          }
+          
+          return c.json({ error: "Failed to generate image. Please try again." }, 500)
         }
-        
-        // If we already have some images, return them
-        if (generatedImages.length > 0) {
-          break
-        }
-        
-        return c.json(
-          { error: "Failed to generate image. Please try again." },
-          response.status
-        )
-      }
 
-      const data = await response.json()
+        const data = await response.json()
 
-      // Extract image URL from the response
-      // The response format is: choices[0].message.images[].image_url.url (base64 data URL)
-      const message = data.choices?.[0]?.message
-      if (message?.images && message.images.length > 0) {
-        for (const image of message.images) {
-          const imageUrl = image.image_url?.url || image.imageUrl?.url
-          if (imageUrl) {
-            generatedImages.push({
-              id: `${Date.now()}-${generatedImages.length}`,
-              url: imageUrl,
-              prompt: enhancedPrompt,
-              aspectRatio,
-              style,
-              mode: mode || "text-to-image",
-              createdAt: new Date().toISOString(),
-            })
+        // Extract image URL from the response
+        // Format: data[0].url or data[0].b64_json
+        if (data.data && data.data.length > 0) {
+          for (const image of data.data) {
+            const imageUrl = image.url || (image.b64_json ? `data:image/png;base64,${image.b64_json}` : null)
+            if (imageUrl) {
+              generatedImages.push({
+                id: `${Date.now()}-${generatedImages.length}`,
+                url: imageUrl,
+                prompt: prompt.trim(),
+                aspectRatio,
+                style: specializedEngine === "niji-v6" ? "nana-banana" : style,
+                mode: mode || "text-to-image",
+                createdAt: new Date().toISOString(),
+                creditCost: 1,
+              })
+            }
           }
         }
       }
     }
 
     if (generatedImages.length === 0) {
-      return c.json({ error: "No images were generated. The model may not have returned any images." }, 500)
+      return c.json({ error: "Unable to generate images at this time. Please try a different prompt or try again later." }, 500)
     }
 
-    return c.json({ images: generatedImages })
+    return c.json({ 
+      images: generatedImages,
+      totalCreditCost: generatedImages.length,
+    })
   } catch (error) {
-    // Log errors in development only, without exposing sensitive data
+    // Log errors in development only
     if (import.meta.env.DEV) {
       console.error("Image generation error:", error)
     }
-    return c.json(
-      { error: "Failed to generate image. Please try again." },
-      500
-    )
+    return c.json({ error: "Generation is taking longer than expected. Please try again." }, 500)
   }
 })

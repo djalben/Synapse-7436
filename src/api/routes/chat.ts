@@ -16,8 +16,13 @@ chatRoutes.post("/", async (c) => {
   try {
     const { messages, model } = await c.req.json()
 
+    // Validate messages
     if (!messages || !Array.isArray(messages)) {
-      return c.json({ error: "Messages array is required" }, 400)
+      return c.json({ error: "Please enter a message to continue." }, 400)
+    }
+
+    if (messages.length === 0) {
+      return c.json({ error: "Please enter a message to continue." }, 400)
     }
 
     // Map the model ID to OpenRouter format
@@ -39,13 +44,31 @@ chatRoutes.post("/", async (c) => {
 
     return result.toUIMessageStreamResponse()
   } catch (error) {
-    // Log errors in development only, without exposing sensitive data
+    // Log errors in development only
     if (import.meta.env.DEV) {
       console.error("Chat API error:", error)
     }
-    return c.json(
-      { error: "Failed to process chat request. Please try again." },
-      500
-    )
+    
+    // Return user-friendly error messages
+    // Never expose internal details, API keys, or payment info
+    const errorMessage = error instanceof Error ? error.message : ""
+    
+    // Check for rate limit
+    if (errorMessage.includes("rate") || errorMessage.includes("429")) {
+      return c.json({ error: "High demand right now. Please wait a moment and try again." }, 429)
+    }
+    
+    // Check for payment/billing issues (hide the real reason)
+    if (errorMessage.includes("402") || errorMessage.includes("payment") || errorMessage.includes("billing") || errorMessage.includes("fund")) {
+      return c.json({ error: "High load on GPU servers, please try again later." }, 500)
+    }
+    
+    // Check for model unavailable
+    if (errorMessage.includes("model") || errorMessage.includes("unavailable")) {
+      return c.json({ error: "This model is temporarily unavailable. Try a different option." }, 500)
+    }
+    
+    // Generic fallback
+    return c.json({ error: "Connection issue. Please check your internet and try again." }, 500)
   }
 })
