@@ -13,6 +13,8 @@ import { MobileNav, MobileTopBar } from "../components/mobile-nav";
 import { PWAInstallBanner } from "../components/pwa-install-banner";
 import { CookieConsentBanner } from "../components/cookie-consent-banner";
 import { Footer } from "../components/footer";
+import { AuthModal } from "../components/auth-modal";
+import { UserAvatar } from "../components/user-avatar";
 
 function Index() {
   const [activeTab, setActiveTab] = useState("chat");
@@ -89,11 +91,18 @@ function Index() {
         {/* Mobile Navigation */}
         <MobileNav activeTab={activeTab} onTabChange={setActiveTab} />
         
-        {/* Mobile Top Bar */}
-        <MobileTopBar activeTab={activeTab} />
+        {/* Mobile Top Bar with User Avatar */}
+        <MobileTopBar activeTab={activeTab}>
+          <UserAvatar onSettingsClick={() => setActiveTab("settings")} />
+        </MobileTopBar>
 
         {/* Desktop Sidebar */}
         <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+
+        {/* Desktop User Avatar - Top Right */}
+        <div className="hidden md:block fixed top-4 right-4 z-50">
+          <UserAvatar onSettingsClick={() => setActiveTab("settings")} />
+        </div>
 
         {/* Main Content */}
         <main className="
@@ -118,6 +127,9 @@ function Index() {
 
         {/* Cookie Consent Banner */}
         <CookieConsentBanner />
+
+        {/* Auth Modal - Must be logged in to use the app */}
+        <AuthModal />
       </div>
     </UsageProvider>
   );

@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Metadata } from "./metadata";
 import { Toaster } from "./ui/sonner";
+import { AuthProvider } from "./auth-context";
 
 interface ProviderProps {
   children: React.ReactNode;
@@ -33,10 +34,10 @@ export function Provider({ children }: ProviderProps) {
   useReferralTracking();
 
   return (
-    <>
+    <AuthProvider>
       <Metadata />
       {children}
       <Toaster />
-    </>
+    </AuthProvider>
   );
 }
