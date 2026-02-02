@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import {
   Camera,
   Sparkles,
@@ -16,8 +16,22 @@ import {
   ImageIcon,
   Wand2,
   Trash2,
+  Palette,
+  Star,
+  Crown,
 } from "lucide-react";
 import { useUsage } from "./usage-context";
+
+// ===== TYPES & INTERFACES =====
+
+// Studio mode - top level
+type StudioMode = "generate" | "enhance";
+
+// Generation mode type
+type GenerationMode = "text-to-image" | "image-to-image";
+
+// Enhancement tool type
+type EnhancementTool = "face-restore" | "colorize" | "beauty-retouch";
 
 // Style option interface
 interface StyleOption {
@@ -27,13 +41,6 @@ interface StyleOption {
   description: string;
 }
 
-const styleOptions: StyleOption[] = [
-  { id: "photorealistic", label: "Photorealistic", icon: Camera, description: "Ultra-realistic photography" },
-  { id: "anime", label: "Anime/Manga", icon: Sparkles, description: "Japanese art style" },
-  { id: "3d", label: "3D Render", icon: Box, description: "CGI quality renders" },
-  { id: "cyberpunk", label: "Cyberpunk", icon: Zap, description: "Neon-lit futurism" },
-];
-
 // Aspect ratio interface
 interface AspectRatio {
   id: string;
@@ -41,14 +48,15 @@ interface AspectRatio {
   icon: React.ComponentType<{ className?: string }>;
 }
 
-const aspectRatios: AspectRatio[] = [
-  { id: "1:1", label: "Square", icon: Square },
-  { id: "16:9", label: "Landscape", icon: RectangleHorizontal },
-  { id: "9:16", label: "Portrait", icon: RectangleVertical },
-];
-
-// Generation mode type
-type GenerationMode = "text-to-image" | "image-to-image";
+// Enhancement tool interface
+interface EnhancementToolOption {
+  id: EnhancementTool;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  description: string;
+  badge: string;
+  accentColor: string;
+}
 
 // Generated image interface
 interface GeneratedImage {
@@ -60,7 +68,106 @@ interface GeneratedImage {
   createdAt: string;
 }
 
-// Mode toggle component
+// Enhanced image result interface
+interface EnhancedResult {
+  originalUrl: string;
+  enhancedUrl: string;
+  tool: EnhancementTool;
+}
+
+// ===== CONSTANTS =====
+
+const styleOptions: StyleOption[] = [
+  { id: "photorealistic", label: "Photorealistic", icon: Camera, description: "Ultra-realistic photography" },
+  { id: "anime", label: "Anime/Manga", icon: Sparkles, description: "Japanese art style" },
+  { id: "3d", label: "3D Render", icon: Box, description: "CGI quality renders" },
+  { id: "cyberpunk", label: "Cyberpunk", icon: Zap, description: "Neon-lit futurism" },
+];
+
+const aspectRatios: AspectRatio[] = [
+  { id: "1:1", label: "Square", icon: Square },
+  { id: "16:9", label: "Landscape", icon: RectangleHorizontal },
+  { id: "9:16", label: "Portrait", icon: RectangleVertical },
+];
+
+const enhancementTools: EnhancementToolOption[] = [
+  {
+    id: "face-restore",
+    label: "Face Restore",
+    icon: Wand2,
+    description: "Fix blurry faces and enhance details",
+    badge: "AI Powered",
+    accentColor: "blue",
+  },
+  {
+    id: "colorize",
+    label: "Colorize",
+    icon: Palette,
+    description: "Turn B&W photos into vivid color",
+    badge: "Classic Photos",
+    accentColor: "rainbow",
+  },
+  {
+    id: "beauty-retouch",
+    label: "Beauty Retouch",
+    icon: Star,
+    description: "Smooth skin, fix lighting, pro finish",
+    badge: "Portrait Pro",
+    accentColor: "pink",
+  },
+];
+
+// ===== STUDIO MODE TOGGLE (Top Level) =====
+
+interface StudioModeToggleProps {
+  mode: StudioMode;
+  onChange: (mode: StudioMode) => void;
+}
+
+const StudioModeToggle = ({ mode, onChange }: StudioModeToggleProps) => {
+  return (
+    <div className="relative flex rounded-2xl bg-[#0a0a0a] border border-[#333] p-1.5 mb-6">
+      {/* Sliding background indicator */}
+      <div 
+        className={`
+          absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] rounded-xl
+          bg-gradient-to-r from-indigo-600/40 to-blue-600/40
+          border border-indigo-500/40
+          shadow-lg shadow-indigo-500/20
+          transition-transform duration-300 ease-out
+          ${mode === "enhance" ? "translate-x-[calc(100%+6px)]" : "translate-x-0"}
+        `}
+      />
+      
+      <button
+        onClick={() => onChange("generate")}
+        className={`
+          relative flex-1 flex items-center justify-center gap-2.5 py-4 px-6 rounded-xl
+          transition-all duration-300
+          ${mode === "generate" ? "text-white" : "text-[#666] hover:text-[#888]"}
+        `}
+      >
+        <Sparkles className="w-5 h-5" />
+        <span className="text-sm font-semibold tracking-wide">Generate New</span>
+      </button>
+      
+      <button
+        onClick={() => onChange("enhance")}
+        className={`
+          relative flex-1 flex items-center justify-center gap-2.5 py-4 px-6 rounded-xl
+          transition-all duration-300
+          ${mode === "enhance" ? "text-white" : "text-[#666] hover:text-[#888]"}
+        `}
+      >
+        <Wand2 className="w-5 h-5" />
+        <span className="text-sm font-semibold tracking-wide">Enhance Photo</span>
+      </button>
+    </div>
+  );
+};
+
+// ===== GENERATION MODE TOGGLE =====
+
 interface ModeToggleProps {
   mode: GenerationMode;
   onChange: (mode: GenerationMode) => void;
@@ -107,15 +214,27 @@ const ModeToggle = ({ mode, onChange }: ModeToggleProps) => {
   );
 };
 
-// Image upload dropzone component
+// ===== IMAGE UPLOAD DROPZONE =====
+
 interface ImageUploadProps {
   image: string | null;
   onImageChange: (image: string | null) => void;
   required?: boolean;
   disabled?: boolean;
+  large?: boolean;
+  title?: string;
+  subtitle?: string;
 }
 
-const ImageUpload = ({ image, onImageChange, required, disabled }: ImageUploadProps) => {
+const ImageUpload = ({ 
+  image, 
+  onImageChange, 
+  required, 
+  disabled, 
+  large = false,
+  title = "Upload Reference Image",
+  subtitle = "Drag & drop or click to browse"
+}: ImageUploadProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -178,11 +297,11 @@ const ImageUpload = ({ image, onImageChange, required, disabled }: ImageUploadPr
 
   if (image) {
     return (
-      <div className="relative rounded-xl overflow-hidden border border-[#333] group">
+      <div className={`relative rounded-xl overflow-hidden border border-[#333] group ${large ? "aspect-square" : ""}`}>
         <img 
           src={image} 
           alt="Reference" 
-          className="w-full h-48 object-cover"
+          className={`w-full object-cover ${large ? "h-full" : "h-48"}`}
         />
         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
           <button
@@ -197,11 +316,11 @@ const ImageUpload = ({ image, onImageChange, required, disabled }: ImageUploadPr
             "
           >
             <Trash2 className="w-4 h-4" />
-            Remove
+            Change Photo
           </button>
         </div>
         <div className="absolute top-2 right-2 px-2 py-1 rounded-md bg-black/60 backdrop-blur-sm">
-          <span className="text-xs text-emerald-400">Reference Image</span>
+          <span className="text-xs text-emerald-400">Photo Ready</span>
         </div>
       </div>
     );
@@ -222,11 +341,12 @@ const ImageUpload = ({ image, onImageChange, required, disabled }: ImageUploadPr
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         className={`
-          relative p-8 rounded-xl
+          relative rounded-xl
           border-2 border-dashed
           flex flex-col items-center justify-center gap-3
           cursor-pointer
           transition-all duration-300
+          ${large ? "p-12 py-16" : "p-8"}
           ${disabled ? "opacity-50 cursor-not-allowed" : ""}
           ${isDragging 
             ? "border-indigo-500/60 bg-indigo-500/10" 
@@ -242,8 +362,9 @@ const ImageUpload = ({ image, onImageChange, required, disabled }: ImageUploadPr
         )}
         
         <div className={`
-          relative w-14 h-14 rounded-xl flex items-center justify-center
+          relative rounded-2xl flex items-center justify-center
           transition-all duration-300
+          ${large ? "w-20 h-20" : "w-14 h-14"}
           ${isDragging 
             ? "bg-indigo-500/20" 
             : required 
@@ -252,7 +373,8 @@ const ImageUpload = ({ image, onImageChange, required, disabled }: ImageUploadPr
           }
         `}>
           <Upload className={`
-            w-6 h-6 transition-colors
+            transition-colors
+            ${large ? "w-10 h-10" : "w-6 h-6"}
             ${isDragging 
               ? "text-indigo-400" 
               : required 
@@ -264,15 +386,16 @@ const ImageUpload = ({ image, onImageChange, required, disabled }: ImageUploadPr
         
         <div className="relative text-center">
           <p className={`
-            text-sm font-medium
+            font-medium
+            ${large ? "text-base" : "text-sm"}
             ${required ? "text-amber-400" : "text-white/80"}
           `}>
-            {required ? "Upload Reference Image (Required)" : "Upload Reference Image"}
+            {required ? `${title} (Required)` : title}
           </p>
-          <p className="text-xs text-[#666] mt-1">
-            Drag & drop or click to browse
+          <p className={`text-[#666] mt-1 ${large ? "text-sm" : "text-xs"}`}>
+            {subtitle}
           </p>
-          <p className="text-xs text-[#555] mt-0.5">
+          <p className={`text-[#555] mt-0.5 ${large ? "text-xs" : "text-xs"}`}>
             JPG, PNG, WebP up to 10MB
           </p>
         </div>
@@ -281,7 +404,125 @@ const ImageUpload = ({ image, onImageChange, required, disabled }: ImageUploadPr
   );
 };
 
-// Style selector component
+// ===== ENHANCEMENT TOOL SELECTOR =====
+
+interface EnhancementToolSelectorProps {
+  selected: EnhancementTool | null;
+  onChange: (tool: EnhancementTool) => void;
+}
+
+const EnhancementToolSelector = ({ selected, onChange }: EnhancementToolSelectorProps) => {
+  const getAccentClasses = (tool: EnhancementToolOption, isSelected: boolean) => {
+    if (!isSelected) return {
+      bg: "bg-white/[0.05] group-hover:bg-white/[0.08]",
+      icon: "text-[#666] group-hover:text-[#888]",
+      badge: "bg-white/5 text-[#666]"
+    };
+    
+    switch (tool.accentColor) {
+      case "blue":
+        return {
+          bg: "bg-gradient-to-br from-blue-500/30 to-cyan-500/20",
+          icon: "text-blue-400",
+          badge: "bg-blue-500/20 text-blue-300 border-blue-500/30"
+        };
+      case "rainbow":
+        return {
+          bg: "bg-gradient-to-br from-pink-500/20 via-purple-500/20 to-blue-500/20",
+          icon: "text-purple-400",
+          badge: "bg-purple-500/20 text-purple-300 border-purple-500/30"
+        };
+      case "pink":
+        return {
+          bg: "bg-gradient-to-br from-pink-500/30 to-rose-500/20",
+          icon: "text-pink-400",
+          badge: "bg-pink-500/20 text-pink-300 border-pink-500/30"
+        };
+      default:
+        return {
+          bg: "bg-gradient-to-br from-indigo-500/30 to-blue-500/20",
+          icon: "text-indigo-400",
+          badge: "bg-indigo-500/20 text-indigo-300 border-indigo-500/30"
+        };
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      {enhancementTools.map((tool) => {
+        const Icon = tool.icon;
+        const isSelected = selected === tool.id;
+        const accentClasses = getAccentClasses(tool, isSelected);
+
+        return (
+          <button
+            key={tool.id}
+            onClick={() => onChange(tool.id)}
+            className={`
+              relative w-full p-4 rounded-xl text-left
+              transition-all duration-300
+              group
+              ${isSelected
+                ? `bg-gradient-to-br from-white/[0.08] to-white/[0.02] border border-white/20 shadow-lg shadow-${tool.accentColor === 'blue' ? 'blue' : tool.accentColor === 'pink' ? 'pink' : 'purple'}-500/10`
+                : "bg-white/[0.02] border border-[#333] hover:border-[#444] hover:bg-white/[0.04]"
+              }
+            `}
+          >
+            {/* Glow effect for selected */}
+            {isSelected && (
+              <div className={`absolute inset-0 rounded-xl blur-xl opacity-40
+                ${tool.accentColor === 'blue' ? 'bg-blue-500/20' : 
+                  tool.accentColor === 'pink' ? 'bg-pink-500/20' : 
+                  'bg-purple-500/20'}
+              `} />
+            )}
+
+            <div className="relative flex items-center gap-4">
+              {/* Icon */}
+              <div className={`
+                w-12 h-12 rounded-xl flex items-center justify-center
+                transition-all duration-300
+                ${accentClasses.bg}
+              `}>
+                <Icon className={`w-6 h-6 transition-colors ${accentClasses.icon}`} />
+              </div>
+
+              {/* Text content */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <p className={`font-semibold transition-colors ${isSelected ? "text-white" : "text-white/80"}`}>
+                    {tool.label}
+                  </p>
+                  <span className={`
+                    px-2 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-wide
+                    border transition-colors
+                    ${accentClasses.badge}
+                  `}>
+                    {tool.badge}
+                  </span>
+                </div>
+                <p className="text-xs text-[#666]">{tool.description}</p>
+              </div>
+
+              {/* Selected indicator */}
+              {isSelected && (
+                <div className={`
+                  w-3 h-3 rounded-full animate-pulse
+                  ${tool.accentColor === 'blue' ? 'bg-blue-500' : 
+                    tool.accentColor === 'pink' ? 'bg-pink-500' : 
+                    'bg-purple-500'}
+                `} />
+              )}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
+// ===== STYLE SELECTOR =====
+
 interface StyleSelectorProps {
   selected: string;
   onChange: (value: string) => void;
@@ -351,7 +592,157 @@ const StyleSelector = ({ selected, onChange }: StyleSelectorProps) => {
   );
 };
 
-// Aspect ratio selector
+// ===== SPECIALIZED ENGINE SELECTOR (NIJI V6) =====
+
+interface SpecializedEngineSelectorProps {
+  isActive: boolean;
+  onToggle: () => void;
+  disabled?: boolean;
+}
+
+const SpecializedEngineSelector = ({ isActive, onToggle, disabled }: SpecializedEngineSelectorProps) => {
+  return (
+    <div className="space-y-3">
+      {/* Section divider */}
+      <div className="flex items-center gap-3">
+        <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#333] to-transparent" />
+        <span className="text-xs text-[#555] uppercase tracking-widest font-medium">Specialized Engines</span>
+        <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#333] to-transparent" />
+      </div>
+
+      {/* Niji V6 Premium Button */}
+      <button
+        onClick={onToggle}
+        disabled={disabled}
+        className={`
+          relative w-full p-4 rounded-xl
+          transition-all duration-500
+          group
+          overflow-hidden
+          disabled:opacity-50 disabled:cursor-not-allowed
+          ${isActive
+            ? "bg-gradient-to-br from-amber-500/20 via-yellow-500/15 to-orange-500/10 border-2 border-amber-500/50 shadow-lg shadow-amber-500/20"
+            : "bg-white/[0.02] border-2 border-[#333] hover:border-amber-500/30 hover:bg-amber-500/5"
+          }
+        `}
+      >
+        {/* Shimmer effect for active state */}
+        {isActive && (
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-amber-300/10 to-transparent translate-x-[-100%] animate-shimmer" />
+        )}
+        
+        {/* Animated glow for active */}
+        {isActive && (
+          <div className="absolute inset-0 bg-amber-500/10 blur-xl opacity-60 animate-pulse" />
+        )}
+
+        <div className="relative flex items-center gap-4">
+          {/* Icon with special styling */}
+          <div 
+            className={`
+              w-12 h-12 rounded-xl flex items-center justify-center
+              transition-all duration-300
+              ${isActive 
+                ? "bg-gradient-to-br from-amber-500/40 to-yellow-500/30 shadow-lg shadow-amber-500/30" 
+                : "bg-white/[0.05] group-hover:bg-amber-500/10"
+              }
+            `}
+          >
+            <Sparkles 
+              className={`
+                w-6 h-6 transition-all duration-300
+                ${isActive 
+                  ? "text-amber-300 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]" 
+                  : "text-[#666] group-hover:text-amber-400"
+                }
+              `} 
+            />
+          </div>
+
+          {/* Text content */}
+          <div className="flex-1 text-left">
+            <div className="flex items-center gap-2">
+              <span 
+                className={`
+                  text-base font-semibold transition-colors
+                  ${isActive ? "text-amber-200" : "text-white/90 group-hover:text-amber-200"}
+                `}
+              >
+                ✨ Niji Anime V6
+              </span>
+              <span 
+                className={`
+                  px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide
+                  ${isActive 
+                    ? "bg-amber-500/30 text-amber-200 border border-amber-500/40" 
+                    : "bg-[#333] text-[#888] group-hover:bg-amber-500/20 group-hover:text-amber-300"
+                  }
+                `}
+              >
+                Pro
+              </span>
+            </div>
+            <p 
+              className={`
+                text-xs mt-1 transition-colors
+                ${isActive ? "text-amber-300/70" : "text-[#555] group-hover:text-amber-300/50"}
+              `}
+            >
+              Top-tier anime & illustration engine
+            </p>
+          </div>
+
+          {/* Status indicator */}
+          <div className={`
+            flex items-center gap-1.5 px-3 py-1.5 rounded-full
+            transition-all duration-300
+            ${isActive 
+              ? "bg-emerald-500/20 border border-emerald-500/40" 
+              : "bg-white/[0.03] border border-[#333]"
+            }
+          `}>
+            <div className={`
+              w-2 h-2 rounded-full transition-all duration-300
+              ${isActive ? "bg-emerald-400 animate-pulse" : "bg-[#555]"}
+            `} />
+            <span className={`
+              text-xs font-medium
+              ${isActive ? "text-emerald-400" : "text-[#666]"}
+            `}>
+              {isActive ? "Active" : "Off"}
+            </span>
+          </div>
+        </div>
+
+        {/* Premium crown icon in corner */}
+        <div className={`
+          absolute -top-1 -right-1 w-7 h-7 rounded-full 
+          flex items-center justify-center
+          transition-all duration-300
+          ${isActive 
+            ? "bg-gradient-to-br from-amber-500 to-yellow-600 shadow-lg shadow-amber-500/50" 
+            : "bg-[#222] border border-[#444] group-hover:bg-amber-500/20 group-hover:border-amber-500/30"
+          }
+        `}>
+          <Crown className={`w-3.5 h-3.5 ${isActive ? "text-white" : "text-[#666] group-hover:text-amber-400"}`} />
+        </div>
+      </button>
+
+      {/* Info text when active */}
+      {isActive && (
+        <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/10">
+          <Sparkles className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-amber-300/70 leading-relaxed">
+            <span className="text-amber-300 font-medium">Niji Mode Active</span> — Standard styles are bypassed. Your prompt will be processed by the premium anime engine.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ===== ASPECT RATIO SELECTOR =====
+
 interface AspectRatioSelectorProps {
   selected: string;
   onChange: (value: string) => void;
@@ -394,7 +785,8 @@ const AspectRatioSelector = ({ selected, onChange }: AspectRatioSelectorProps) =
   );
 };
 
-// Image count slider
+// ===== IMAGE COUNT SLIDER =====
+
 interface ImageCountSliderProps {
   value: number;
   onChange: (value: number) => void;
@@ -448,7 +840,8 @@ const ImageCountSlider = ({ value, onChange }: ImageCountSliderProps) => {
   );
 };
 
-// Lightbox modal component
+// ===== LIGHTBOX MODAL =====
+
 interface LightboxProps {
   image: GeneratedImage | null;
   onClose: () => void;
@@ -535,7 +928,8 @@ const Lightbox = ({ image, onClose }: LightboxProps) => {
   );
 };
 
-// Image card component
+// ===== IMAGE CARD =====
+
 interface ImageCardProps {
   image: GeneratedImage;
   onImageClick: (image: GeneratedImage) => void;
@@ -660,8 +1054,587 @@ const ImageCard = ({ image, onImageClick }: ImageCardProps) => {
   );
 };
 
-// Main Image Studio component
-export const ImageStudio = () => {
+// ===== BEFORE/AFTER SLIDER COMPONENT =====
+
+interface BeforeAfterSliderProps {
+  beforeImage: string;
+  afterImage: string;
+}
+
+const BeforeAfterSlider = ({ beforeImage, afterImage }: BeforeAfterSliderProps) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [sliderPosition, setSliderPosition] = useState(50);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isLoaded, setIsLoaded] = useState({ before: false, after: false });
+
+  const handleMove = useCallback((clientX: number) => {
+    if (!containerRef.current) return;
+    
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
+    setSliderPosition(percentage);
+  }, []);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    handleMove(e.clientX);
+  }, [handleMove]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDragging) return;
+    handleMove(e.clientX);
+  }, [isDragging, handleMove]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    setIsDragging(true);
+    handleMove(e.touches[0].clientX);
+  }, [handleMove]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isDragging) return;
+    handleMove(e.touches[0].clientX);
+  }, [isDragging, handleMove]);
+
+  const handleTouchEnd = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  // Add global mouse up listener for better UX
+  const handleGlobalMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
+    if (!isDragging) return;
+    handleMove(e.clientX);
+  }, [isDragging, handleMove]);
+
+  // Attach global listeners when dragging
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+    window.addEventListener('mousemove', handleGlobalMouseMove);
+    
+    return () => {
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
+      window.removeEventListener('mousemove', handleGlobalMouseMove);
+    };
+  }, [handleGlobalMouseUp, handleGlobalMouseMove]);
+
+  const allLoaded = isLoaded.before && isLoaded.after;
+
+  return (
+    <div 
+      ref={containerRef}
+      className={`
+        relative w-full aspect-square rounded-xl overflow-hidden 
+        border border-[#333] cursor-ew-resize select-none
+        ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}
+      `}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Loading skeleton */}
+      {!allLoaded && (
+        <div className="absolute inset-0 bg-gradient-to-br from-[#1a1a1a] to-[#0a0a0a] animate-pulse flex items-center justify-center z-20">
+          <Loader2 className="w-8 h-8 text-indigo-500/50 animate-spin" />
+        </div>
+      )}
+
+      {/* After Image (Full) - Bottom layer */}
+      <img
+        src={afterImage}
+        alt="After enhancement"
+        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${allLoaded ? 'opacity-100' : 'opacity-0'}`}
+        onLoad={() => setIsLoaded(prev => ({ ...prev, after: true }))}
+        draggable={false}
+      />
+
+      {/* Before Image (Clipped) - Top layer */}
+      <div 
+        className="absolute inset-0 overflow-hidden"
+        style={{ clipPath: `inset(0 ${100 - sliderPosition}% 0 0)` }}
+      >
+        <img
+          src={beforeImage}
+          alt="Before enhancement"
+          className={`w-full h-full object-cover transition-opacity duration-300 ${allLoaded ? 'opacity-100' : 'opacity-0'}`}
+          onLoad={() => setIsLoaded(prev => ({ ...prev, before: true }))}
+          draggable={false}
+        />
+      </div>
+
+      {/* Slider Handle */}
+      <div 
+        className={`
+          absolute top-0 bottom-0 w-1 -translate-x-1/2 z-10
+          transition-opacity duration-300
+          ${allLoaded ? 'opacity-100' : 'opacity-0'}
+        `}
+        style={{ left: `${sliderPosition}%` }}
+      >
+        {/* Vertical line */}
+        <div className="absolute inset-0 bg-white shadow-lg shadow-black/50" />
+        
+        {/* Handle circle */}
+        <div 
+          className={`
+            absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
+            w-12 h-12 rounded-full
+            bg-white/10 backdrop-blur-md border-2 border-white
+            flex items-center justify-center
+            shadow-xl shadow-black/30
+            transition-all duration-200
+            ${isDragging ? 'scale-110 shadow-2xl shadow-indigo-500/30' : 'hover:scale-105'}
+          `}
+        >
+          {/* Arrows */}
+          <div className="flex items-center gap-1 text-white">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+            </svg>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+            </svg>
+          </div>
+        </div>
+
+        {/* Glow effect */}
+        {isDragging && (
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full bg-indigo-500/30 blur-xl pointer-events-none" />
+        )}
+      </div>
+
+      {/* Labels */}
+      <div 
+        className={`
+          absolute top-4 left-4 px-3 py-1.5 rounded-lg 
+          bg-black/60 backdrop-blur-sm
+          transition-all duration-300
+          ${allLoaded ? 'opacity-100' : 'opacity-0'}
+          ${sliderPosition < 15 ? 'opacity-0' : ''}
+        `}
+      >
+        <span className="text-xs font-medium text-white/80">Before</span>
+      </div>
+      
+      <div 
+        className={`
+          absolute top-4 right-4 px-3 py-1.5 rounded-lg 
+          bg-gradient-to-r from-indigo-600/80 to-blue-600/80 backdrop-blur-sm
+          transition-all duration-300
+          ${allLoaded ? 'opacity-100' : 'opacity-0'}
+          ${sliderPosition > 85 ? 'opacity-0' : ''}
+        `}
+      >
+        <span className="text-xs font-medium text-white">After</span>
+      </div>
+
+      {/* Hint text */}
+      {allLoaded && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-lg bg-black/40 backdrop-blur-sm opacity-60 pointer-events-none">
+          <span className="text-[10px] text-white/70">Drag to compare</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ===== BEFORE/AFTER COMPARISON WRAPPER =====
+
+interface BeforeAfterComparisonProps {
+  result: EnhancedResult;
+  onDownload: (url: string, type: 'before' | 'after') => void;
+}
+
+const BeforeAfterComparison = ({ result, onDownload }: BeforeAfterComparisonProps) => {
+  const getToolLabel = (tool: EnhancementTool) => {
+    switch (tool) {
+      case "face-restore": return "Face Restored";
+      case "colorize": return "Colorized";
+      case "beauty-retouch": return "Retouched";
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Slider Component */}
+      <BeforeAfterSlider 
+        beforeImage={result.originalUrl} 
+        afterImage={result.enhancedUrl} 
+      />
+
+      {/* Enhancement Info */}
+      <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-[#333]">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center">
+            <Sparkles className="w-5 h-5 text-indigo-400" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-white">{getToolLabel(result.tool)}</p>
+            <p className="text-xs text-[#666]">AI Enhancement Complete</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30">
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="text-xs text-emerald-400 font-medium">Done</span>
+        </div>
+      </div>
+
+      {/* Download Buttons */}
+      <div className="grid grid-cols-2 gap-3">
+        <button
+          onClick={() => onDownload(result.originalUrl, 'before')}
+          className="
+            py-3 rounded-xl bg-white/5 border border-[#333] 
+            text-sm text-[#888] font-medium
+            hover:bg-white/10 hover:border-[#444] 
+            transition-all duration-200 
+            flex items-center justify-center gap-2
+            active:scale-[0.98]
+          "
+        >
+          <Download className="w-4 h-4" />
+          Original
+        </button>
+        
+        <button
+          onClick={() => onDownload(result.enhancedUrl, 'after')}
+          className="
+            py-3 rounded-xl 
+            bg-gradient-to-r from-indigo-600 to-blue-600 
+            text-sm text-white font-medium
+            hover:shadow-lg hover:shadow-indigo-500/30 
+            transition-all duration-200 
+            flex items-center justify-center gap-2
+            active:scale-[0.98]
+          "
+        >
+          <Download className="w-4 h-4" />
+          Enhanced
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ===== ENHANCE PHOTO PANEL =====
+
+interface EnhancePhotoPanelProps {
+  imageCount: number;
+  limits: { maxImages: number };
+  atLimit: boolean;
+  checkImageLimit: () => boolean;
+  incrementImages: () => void;
+  setShowPaywall: (show: boolean) => void;
+  setPaywallReason: (reason: string) => void;
+}
+
+const EnhancePhotoPanel = ({ 
+  imageCount, 
+  limits, 
+  atLimit, 
+  checkImageLimit,
+  incrementImages,
+  setShowPaywall, 
+  setPaywallReason 
+}: EnhancePhotoPanelProps) => {
+  const [enhanceImage, setEnhanceImage] = useState<string | null>(null);
+  const [selectedTool, setSelectedTool] = useState<EnhancementTool | null>(null);
+  const [isEnhancing, setIsEnhancing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [enhancedResult, setEnhancedResult] = useState<EnhancedResult | null>(null);
+
+  const canEnhance = enhanceImage && selectedTool && !isEnhancing && !atLimit;
+
+  const handleEnhance = async () => {
+    if (!canEnhance) return;
+    
+    // Check limit before processing (enhancement costs 2 credits, but we check for at least 1)
+    if (!checkImageLimit()) return;
+    
+    setIsEnhancing(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/enhance", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          image: enhanceImage,
+          tool: selectedTool,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to enhance image");
+      }
+
+      setEnhancedResult({
+        originalUrl: enhanceImage,
+        enhancedUrl: data.enhancedUrl,
+        tool: selectedTool,
+      });
+      
+      // Increment usage after successful enhancement (costs 2 credits)
+      incrementImages();
+      incrementImages();
+    } catch (err) {
+      console.error("Enhancement error:", err);
+      setError(err instanceof Error ? err.message : "Failed to enhance image");
+    } finally {
+      setIsEnhancing(false);
+    }
+  };
+
+  const handleDownload = async (url: string, type: 'before' | 'after') => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const downloadUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      a.download = `synapse-${type}-${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      console.error("Download failed:", error);
+    }
+  };
+
+  const handleNewEnhancement = () => {
+    setEnhancedResult(null);
+    setEnhanceImage(null);
+    setSelectedTool(null);
+  };
+
+  return (
+    <div className="flex flex-col md:flex-row h-full min-h-screen">
+      {/* Left Panel - Controls */}
+      <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222] p-4 md:p-6 overflow-y-auto">
+        <div className="space-y-5 md:space-y-6">
+          {/* Header */}
+          <div>
+            <h2 className="font-mono text-xl md:text-2xl font-semibold text-white mb-1 flex items-center gap-3">
+              <span className="text-2xl">✨</span>
+              Enhance Photo
+            </h2>
+            <p className="text-sm text-[#666]">
+              Works with blurry, old, or B&W photos
+            </p>
+          </div>
+
+          {/* Error message */}
+          {error && (
+            <div className="p-3 md:p-4 rounded-xl bg-red-500/10 border border-red-500/30">
+              <p className="text-sm text-red-400">{error}</p>
+            </div>
+          )}
+
+          {/* Upload Zone */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-[#888]">
+              Your Photo
+              <span className="text-indigo-400 ml-1">*</span>
+            </label>
+            <ImageUpload
+              image={enhanceImage}
+              onImageChange={(img) => {
+                setEnhanceImage(img);
+                setEnhancedResult(null);
+              }}
+              required
+              disabled={isEnhancing}
+              large
+              title="Upload a photo to enhance"
+              subtitle="Drop your photo here or click to browse"
+            />
+          </div>
+
+          {/* Magic Tools Section */}
+          {enhanceImage && (
+            <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <label className="text-sm font-medium text-[#888]">Choose Enhancement</label>
+              <EnhancementToolSelector
+                selected={selectedTool}
+                onChange={(tool) => {
+                  setSelectedTool(tool);
+                  setEnhancedResult(null);
+                }}
+              />
+            </div>
+          )}
+
+          {/* Limit warning */}
+          {atLimit && (
+            <button
+              onClick={() => {
+                setPaywallReason("images");
+                setShowPaywall(true);
+              }}
+              className="
+                w-full p-3 md:p-4 rounded-xl
+                bg-gradient-to-r from-red-500/10 via-amber-500/10 to-red-500/10
+                border border-red-500/30
+                flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3
+                group transition-all duration-300
+                hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/10
+                active:scale-[0.98]
+              "
+            >
+              <Lock className="w-5 h-5 text-amber-400" />
+              <span className="text-amber-400 font-medium text-sm text-center">
+                Free enhancements exhausted
+              </span>
+              <span className="text-amber-400/60 text-xs group-hover:text-amber-400 transition-colors">
+                Upgrade →
+              </span>
+            </button>
+          )}
+
+          {/* Enhance Button */}
+          <button
+            onClick={enhancedResult ? handleNewEnhancement : handleEnhance}
+            disabled={!enhancedResult && !canEnhance}
+            className={`
+              w-full py-4 rounded-xl
+              font-medium text-base
+              transition-all duration-300
+              relative overflow-hidden
+              group
+              active:scale-[0.98]
+              ${enhancedResult
+                ? "bg-white/10 border border-white/20 text-white hover:bg-white/15"
+                : canEnhance
+                  ? "bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40"
+                  : "bg-[#222] text-[#555] cursor-not-allowed"
+              }
+            `}
+          >
+            {/* Shimmer effect */}
+            {canEnhance && !enhancedResult && (
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+            )}
+            
+            <div className="relative flex items-center justify-center gap-2">
+              {isEnhancing ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Enhancing...</span>
+                </>
+              ) : enhancedResult ? (
+                <>
+                  <Sparkles className="w-5 h-5" />
+                  <span>Enhance Another Photo</span>
+                </>
+              ) : atLimit ? (
+                <>
+                  <Lock className="w-5 h-5 text-[#555]" />
+                  <span>Upgrade to Enhance</span>
+                </>
+              ) : (
+                <>
+                  <Wand2 className={`w-5 h-5 ${canEnhance ? "text-white/90" : "text-[#555]"}`} />
+                  <span>Enhance Photo ⚡</span>
+                </>
+              )}
+            </div>
+          </button>
+
+          {/* Credits Note */}
+          <div className="flex items-center justify-center gap-2 py-3 px-4 rounded-lg bg-white/[0.02] border border-[#222]">
+            <span className="text-xs text-[#666]">
+              Uses <span className="text-indigo-400 font-medium">2 credits</span> per enhancement
+            </span>
+            <span className="text-[#444]">•</span>
+            <span className={`text-xs ${atLimit ? "text-red-400" : "text-[#666]"}`}>
+              <span className={`font-medium ${atLimit ? "text-red-400" : "text-white/80"}`}>
+                {imageCount}/{limits.maxImages}
+              </span> used
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Right Panel - Results */}
+      <div className="flex-1 p-4 md:p-6 overflow-y-auto">
+        <div className="max-w-2xl mx-auto">
+          {/* Header */}
+          <div className="mb-6">
+            <h3 className="font-mono text-lg font-semibold text-white">Results</h3>
+            <p className="text-sm text-[#666]">
+              {enhancedResult ? "Your enhanced photo is ready" : "Enhancement results will appear here"}
+            </p>
+          </div>
+
+          {/* Enhanced Result */}
+          {enhancedResult ? (
+            <BeforeAfterComparison result={enhancedResult} onDownload={handleDownload} />
+          ) : (
+            /* Empty State */
+            <div className="flex flex-col items-center justify-center h-[40vh] md:h-[60vh] text-center px-4">
+              <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-[#333] flex items-center justify-center mb-4 md:mb-6">
+                <Wand2 className="w-8 h-8 md:w-10 md:h-10 text-[#444]" />
+              </div>
+              <h3 className="text-base md:text-lg font-medium text-white/80 mb-2">
+                {enhanceImage 
+                  ? "Select an enhancement tool"
+                  : "Upload a photo to enhance"
+                }
+              </h3>
+              <p className="text-sm text-[#666] max-w-xs">
+                {enhanceImage 
+                  ? "Choose Face Restore, Colorize, or Beauty Retouch to transform your photo"
+                  : "Our AI will restore blurry faces, add color to B&W photos, or apply professional retouching"
+                }
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ===== GENERATE PANEL =====
+
+interface GeneratePanelProps {
+  imageCount: number;
+  limits: { maxImages: number };
+  atLimit: boolean;
+  checkImageLimit: () => boolean;
+  incrementImages: () => void;
+  setShowPaywall: (show: boolean) => void;
+  setPaywallReason: (reason: string) => void;
+}
+
+const GeneratePanel = ({
+  imageCount: usedImages,
+  limits,
+  atLimit,
+  checkImageLimit,
+  incrementImages,
+  setShowPaywall,
+  setPaywallReason,
+}: GeneratePanelProps) => {
   const [prompt, setPrompt] = useState("");
   const [mode, setMode] = useState<GenerationMode>("text-to-image");
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
@@ -672,9 +1645,7 @@ export const ImageStudio = () => {
   const [error, setError] = useState<string | null>(null);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
-  
-  const { checkImageLimit, incrementImages, canGenerateImage, imageCount: usedImages, limits, setShowPaywall, setPaywallReason } = useUsage();
-  const atLimit = !canGenerateImage;
+  const [nijiModeActive, setNijiModeActive] = useState(false);
 
   // Check if image-to-image mode is ready
   const isImg2ImgReady = mode === "text-to-image" || (mode === "image-to-image" && referenceImage);
@@ -704,9 +1675,10 @@ export const ImageStudio = () => {
           prompt: prompt.trim(),
           aspectRatio,
           numImages: imageCount,
-          style: selectedStyle,
+          style: nijiModeActive ? "niji-v6" : selectedStyle,
           mode,
           referenceImage: mode === "image-to-image" ? referenceImage : null,
+          specializedEngine: nijiModeActive ? "niji-v6" : null,
         }),
       });
 
@@ -823,10 +1795,22 @@ export const ImageStudio = () => {
           </div>
 
           {/* Style Selector */}
-          <div className="space-y-3">
-            <label className="text-sm font-medium text-[#888]">Style</label>
+          <div className={`space-y-3 transition-all duration-300 ${nijiModeActive ? "opacity-40 pointer-events-none" : ""}`}>
+            <label className="text-sm font-medium text-[#888] flex items-center gap-2">
+              Style
+              {nijiModeActive && (
+                <span className="text-xs text-amber-400/70">(Overridden by Niji)</span>
+              )}
+            </label>
             <StyleSelector selected={selectedStyle} onChange={setSelectedStyle} />
           </div>
+
+          {/* Specialized Engines - Niji V6 */}
+          <SpecializedEngineSelector 
+            isActive={nijiModeActive}
+            onToggle={() => setNijiModeActive(!nijiModeActive)}
+            disabled={isGenerating}
+          />
 
           {/* Aspect Ratio */}
           <div className="space-y-3">
@@ -881,21 +1865,23 @@ export const ImageStudio = () => {
               group
               active:scale-[0.98]
               ${prompt.trim() && !isGenerating && !atLimit && isImg2ImgReady
-                ? "bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40"
+                ? nijiModeActive 
+                  ? "bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-600 text-white shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40"
+                  : "bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40"
                 : "bg-[#222] text-[#555] cursor-not-allowed"
               }
             `}
           >
             {/* Shimmer effect */}
             {prompt.trim() && !isGenerating && !atLimit && isImg2ImgReady && (
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+              <div className={`absolute inset-0 bg-gradient-to-r from-transparent ${nijiModeActive ? "via-amber-300/10" : "via-white/10"} to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000`} />
             )}
             
             <div className="relative flex items-center justify-center gap-2">
               {isGenerating ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Generating...</span>
+                  <span>{nijiModeActive ? "Creating with Niji..." : "Generating..."}</span>
                 </>
               ) : atLimit ? (
                 <>
@@ -906,6 +1892,11 @@ export const ImageStudio = () => {
                 <>
                   <Upload className="w-5 h-5 text-[#555]" />
                   <span>Upload Reference Image</span>
+                </>
+              ) : nijiModeActive ? (
+                <>
+                  <Sparkles className={`w-5 h-5 ${prompt.trim() ? "text-amber-200" : "text-[#555]"}`} />
+                  <span>✨ Generate with Niji V6</span>
                 </>
               ) : (
                 <>
@@ -983,6 +1974,46 @@ export const ImageStudio = () => {
         image={selectedImage}
         onClose={() => setSelectedImage(null)}
       />
+    </div>
+  );
+};
+
+// ===== MAIN IMAGE STUDIO COMPONENT =====
+
+export const ImageStudio = () => {
+  const [studioMode, setStudioMode] = useState<StudioMode>("generate");
+  const { checkImageLimit, incrementImages, canGenerateImage, imageCount, limits, setShowPaywall, setPaywallReason } = useUsage();
+  const atLimit = !canGenerateImage;
+
+  return (
+    <div className="h-full">
+      {/* Top-level Mode Toggle */}
+      <div className="p-4 md:p-6 pb-0">
+        <StudioModeToggle mode={studioMode} onChange={setStudioMode} />
+      </div>
+
+      {/* Content based on mode */}
+      {studioMode === "generate" ? (
+        <GeneratePanel
+          imageCount={imageCount}
+          limits={limits}
+          atLimit={atLimit}
+          checkImageLimit={checkImageLimit}
+          incrementImages={incrementImages}
+          setShowPaywall={setShowPaywall}
+          setPaywallReason={setPaywallReason}
+        />
+      ) : (
+        <EnhancePhotoPanel
+          imageCount={imageCount}
+          limits={limits}
+          atLimit={atLimit}
+          checkImageLimit={checkImageLimit}
+          incrementImages={incrementImages}
+          setShowPaywall={setShowPaywall}
+          setPaywallReason={setPaywallReason}
+        />
+      )}
     </div>
   );
 };

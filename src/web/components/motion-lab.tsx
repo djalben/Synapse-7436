@@ -16,8 +16,14 @@ import {
   Clapperboard,
   ImageIcon,
   X,
+  ChevronDown,
+  Star,
+  Crown,
 } from "lucide-react";
 import { useUsage } from "./usage-context";
+
+// Video model type
+type VideoModel = "standard" | "veo";
 
 // Animation preset type
 type AnimationPreset = "smile-blink" | "wave-hello" | "look-around" | "old-film";
@@ -81,6 +87,199 @@ const ANIMATION_PRESETS: {
     borderColor: "border-amber-500/40",
   },
 ];
+
+// Video model data
+const VIDEO_MODELS: {
+  id: VideoModel;
+  name: string;
+  subtitle: string;
+  isPremium: boolean;
+  badge?: string;
+}[] = [
+  {
+    id: "standard",
+    name: "Standard Motion",
+    subtitle: "Runway / Luma",
+    isPremium: false,
+  },
+  {
+    id: "veo",
+    name: "Google Veo",
+    subtitle: "Photoreal Pro",
+    isPremium: true,
+    badge: "Ultra Plan",
+  },
+];
+
+// Video Model Selector Component
+interface VideoModelSelectorProps {
+  selected: VideoModel;
+  onChange: (model: VideoModel) => void;
+  disabled?: boolean;
+  onUpgradeClick?: () => void;
+}
+
+const VideoModelSelector = ({ selected, onChange, disabled, onUpgradeClick }: VideoModelSelectorProps) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const selectedModel = VIDEO_MODELS.find(m => m.id === selected) || VIDEO_MODELS[0];
+
+  const handleSelect = (model: typeof VIDEO_MODELS[0]) => {
+    if (model.isPremium) {
+      // For premium models, show upgrade prompt
+      onUpgradeClick?.();
+    } else {
+      onChange(model.id);
+    }
+    setIsOpen(false);
+  };
+
+  return (
+    <div className="space-y-2">
+      <label className="text-sm font-medium text-[#888] flex items-center gap-2">
+        <Film className="w-4 h-4 text-indigo-400" />
+        Video Model
+      </label>
+      
+      <div className="relative">
+        {/* Dropdown Trigger */}
+        <button
+          onClick={() => !disabled && setIsOpen(!isOpen)}
+          disabled={disabled}
+          className={`
+            w-full p-4 rounded-xl
+            bg-[#0a0a0a]/80 backdrop-blur-xl
+            border transition-all duration-300
+            text-left flex items-center justify-between
+            disabled:opacity-50 disabled:cursor-not-allowed
+            ${isOpen 
+              ? "border-indigo-500/50 shadow-lg shadow-indigo-500/10" 
+              : "border-[#333] hover:border-[#444]"
+            }
+          `}
+        >
+          <div className="flex items-center gap-3">
+            {/* Model icon */}
+            <div className={`
+              w-10 h-10 rounded-lg flex items-center justify-center
+              ${selectedModel.isPremium 
+                ? "bg-gradient-to-br from-amber-500/30 to-yellow-500/20" 
+                : "bg-white/[0.05]"
+              }
+            `}>
+              {selectedModel.isPremium ? (
+                <Star className="w-5 h-5 text-amber-400" fill="currentColor" />
+              ) : (
+                <Film className="w-5 h-5 text-[#666]" />
+              )}
+            </div>
+            
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-white">{selectedModel.name}</span>
+                {selectedModel.badge && (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    {selectedModel.badge}
+                  </span>
+                )}
+              </div>
+              <span className="text-xs text-[#666]">{selectedModel.subtitle}</span>
+            </div>
+          </div>
+          
+          <ChevronDown className={`w-5 h-5 text-[#666] transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
+        </button>
+
+        {/* Dropdown Menu */}
+        {isOpen && (
+          <>
+            {/* Backdrop */}
+            <div 
+              className="fixed inset-0 z-40" 
+              onClick={() => setIsOpen(false)}
+            />
+            
+            {/* Menu */}
+            <div className="
+              absolute top-full left-0 right-0 mt-2 z-50
+              bg-[#0a0a0a]/95 backdrop-blur-xl
+              border border-[#333] rounded-xl
+              shadow-2xl shadow-black/50
+              overflow-hidden
+              animate-in fade-in slide-in-from-top-2 duration-200
+            ">
+              {VIDEO_MODELS.map((model) => {
+                const isSelected = model.id === selected;
+                
+                return (
+                  <button
+                    key={model.id}
+                    onClick={() => handleSelect(model)}
+                    className={`
+                      w-full p-4 flex items-center gap-3
+                      transition-all duration-200
+                      ${isSelected 
+                        ? "bg-indigo-500/10" 
+                        : "hover:bg-white/[0.03]"
+                      }
+                      ${model.isPremium ? "cursor-pointer" : ""}
+                    `}
+                  >
+                    {/* Model icon */}
+                    <div className={`
+                      w-10 h-10 rounded-lg flex items-center justify-center
+                      ${model.isPremium 
+                        ? "bg-gradient-to-br from-amber-500/30 to-yellow-500/20" 
+                        : "bg-white/[0.05]"
+                      }
+                    `}>
+                      {model.isPremium ? (
+                        <Star className="w-5 h-5 text-amber-400" fill="currentColor" />
+                      ) : (
+                        <Film className="w-5 h-5 text-[#666]" />
+                      )}
+                    </div>
+                    
+                    <div className="flex-1 text-left">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-sm font-medium ${model.isPremium ? "text-amber-200" : "text-white"}`}>
+                          {model.isPremium && "⭐ "}{model.name}
+                        </span>
+                        {model.badge && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            {model.badge}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-[#666]">{model.subtitle}</span>
+                    </div>
+
+                    {/* Selected indicator or lock */}
+                    {isSelected ? (
+                      <div className="w-2 h-2 rounded-full bg-indigo-500" />
+                    ) : model.isPremium ? (
+                      <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-amber-500/10 border border-amber-500/20">
+                        <Crown className="w-3 h-3 text-amber-400" />
+                        <span className="text-[10px] text-amber-400 font-medium">Upgrade</span>
+                      </div>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Helper text */}
+      <p className="text-xs text-[#555] px-1">
+        {selected === "veo" 
+          ? "Veo offers unmatched realism for professional use"
+          : "High-quality video generation with consistent results"
+        }
+      </p>
+    </div>
+  );
+};
 
 // Large upload dropzone component
 interface UploadDropzoneProps {
@@ -569,12 +768,18 @@ export const MotionLab = () => {
   const [error, setError] = useState<string | null>(null);
   const [currentVideo, setCurrentVideo] = useState<GeneratedVideo | null>(null);
   const [recentVideos, setRecentVideos] = useState<GeneratedVideo[]>([]);
+  const [selectedVideoModel, setSelectedVideoModel] = useState<VideoModel>("standard");
   
   const { checkVideoLimit, incrementVideos, canGenerateVideo, videoCount: usedVideos, limits, setShowPaywall, setPaywallReason } = useUsage();
   const atLimit = !canGenerateVideo;
 
   // Check if ready to generate
   const isReady = uploadedImage && selectedPreset;
+
+  const handleVeoUpgradeClick = () => {
+    setPaywallReason("videos");
+    setShowPaywall(true);
+  };
 
   const handleGenerate = async () => {
     if (!uploadedImage || !selectedPreset || isGenerating) return;
@@ -648,6 +853,14 @@ export const MotionLab = () => {
               Bring your photos to life with AI magic ✨
             </p>
           </div>
+
+          {/* Video Model Selector */}
+          <VideoModelSelector
+            selected={selectedVideoModel}
+            onChange={setSelectedVideoModel}
+            disabled={isGenerating}
+            onUpgradeClick={handleVeoUpgradeClick}
+          />
 
           {/* Error message */}
           {error && (
