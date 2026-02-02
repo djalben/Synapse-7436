@@ -79,10 +79,10 @@ interface EnhancedResult {
 // ===== CONSTANTS =====
 
 const styleOptions: StyleOption[] = [
-  { id: "photorealistic", label: "Photorealistic", icon: Camera, description: "Ultra-realistic photography" },
-  { id: "anime", label: "Anime/Manga", icon: Sparkles, description: "Japanese art style" },
-  { id: "3d", label: "3D Render", icon: Box, description: "CGI quality renders" },
-  { id: "cyberpunk", label: "Cyberpunk", icon: Zap, description: "Neon-lit futurism" },
+  { id: "photorealistic", label: "Photorealistic", icon: Camera, description: "Indistinguishable from reality." },
+  { id: "anime", label: "Anime/Manga", icon: Sparkles, description: "Japanese animation style." },
+  { id: "3d", label: "3D Render", icon: Box, description: "Pixar-level CGI & characters." },
+  { id: "cyberpunk", label: "Cyberpunk", icon: Zap, description: "Neon lights & future tech." },
 ];
 
 const aspectRatios: AspectRatio[] = [
@@ -611,7 +611,7 @@ const SpecializedEngineSelector = ({ isActive, onToggle, disabled }: Specialized
         <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#333] to-transparent" />
       </div>
 
-      {/* Niji V6 Premium Button */}
+      {/* Nana Banana Premium Button */}
       <button
         onClick={onToggle}
         disabled={disabled}
@@ -669,7 +669,7 @@ const SpecializedEngineSelector = ({ isActive, onToggle, disabled }: Specialized
                   ${isActive ? "text-amber-200" : "text-white/90 group-hover:text-amber-200"}
                 `}
               >
-                ✨ Niji Anime V6
+                ✨ Nana Banana
               </span>
               <span 
                 className={`
@@ -689,7 +689,7 @@ const SpecializedEngineSelector = ({ isActive, onToggle, disabled }: Specialized
                 ${isActive ? "text-amber-300/70" : "text-[#555] group-hover:text-amber-300/50"}
               `}
             >
-              Top-tier anime & illustration engine
+              Top-tier anime & illustration engine 🍌
             </p>
           </div>
 
@@ -734,7 +734,7 @@ const SpecializedEngineSelector = ({ isActive, onToggle, disabled }: Specialized
         <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/10">
           <Sparkles className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
           <p className="text-xs text-amber-300/70 leading-relaxed">
-            <span className="text-amber-300 font-medium">Niji Mode Active</span> — Standard styles are bypassed. Your prompt will be processed by the premium anime engine.
+            <span className="text-amber-300 font-medium">Nana Banana Active</span> — Standard styles are bypassed. Your prompt will be processed by the premium anime engine.
           </p>
         </div>
       )}
@@ -1805,13 +1805,13 @@ const GeneratePanel = ({
             <label className="text-sm font-medium text-[#888] flex items-center gap-2">
               Style
               {nijiModeActive && (
-                <span className="text-xs text-amber-400/70">(Overridden by Niji)</span>
+                <span className="text-xs text-amber-400/70">(Overridden by Nana Banana)</span>
               )}
             </label>
             <StyleSelector selected={selectedStyle} onChange={setSelectedStyle} />
           </div>
 
-          {/* Specialized Engines - Niji V6 */}
+          {/* Specialized Engines - Nana Banana */}
           <SpecializedEngineSelector 
             isActive={nijiModeActive}
             onToggle={() => setNijiModeActive(!nijiModeActive)}
@@ -1887,7 +1887,7 @@ const GeneratePanel = ({
               {isGenerating ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>{nijiModeActive ? "Creating with Niji..." : "Generating..."}</span>
+                  <span>{nijiModeActive ? "Creating with Nana Banana..." : "Generating..."}</span>
                 </>
               ) : atLimit ? (
                 <>
@@ -1902,7 +1902,7 @@ const GeneratePanel = ({
               ) : nijiModeActive ? (
                 <>
                   <Sparkles className={`w-5 h-5 ${prompt.trim() ? "text-amber-200" : "text-[#555]"}`} />
-                  <span>✨ Generate with Niji V6</span>
+                  <span>🍌 Generate with Nana Banana</span>
                 </>
               ) : (
                 <>
