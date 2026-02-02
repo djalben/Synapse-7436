@@ -11,7 +11,9 @@ import {
   RectangleVertical,
   X,
   Loader2,
+  Lock,
 } from "lucide-react";
+import { useUsage } from "./usage-context";
 
 // Style option interface
 interface StyleOption {
@@ -440,9 +442,15 @@ export const ImageStudio = () => {
   const [error, setError] = useState<string | null>(null);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
+  
+  const { checkImageLimit, incrementImages, canGenerateImage, imageCount: usedImages, limits, setShowPaywall, setPaywallReason } = useUsage();
+  const atLimit = !canGenerateImage;
 
   const handleGenerate = async () => {
     if (!prompt.trim() || isGenerating) return;
+    
+    // Check usage limit before generating
+    if (!checkImageLimit()) return;
 
     setIsGenerating(true);
     setError(null);
@@ -469,6 +477,9 @@ export const ImageStudio = () => {
 
       // Add new images to the top of the gallery
       setGeneratedImages((prev) => [...data.images, ...prev]);
+      
+      // Increment usage count after successful generation
+      incrementImages();
       
       // Clear prompt after successful generation
       setPrompt("");
@@ -549,24 +560,50 @@ export const ImageStudio = () => {
             </div>
           </div>
 
+          {/* Limit warning */}
+          {atLimit && (
+            <button
+              onClick={() => {
+                setPaywallReason("images")
+                setShowPaywall(true)
+              }}
+              className="
+                w-full p-4 rounded-xl
+                bg-gradient-to-r from-red-500/10 via-amber-500/10 to-red-500/10
+                border border-red-500/30
+                flex items-center justify-center gap-3
+                group transition-all duration-300
+                hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/10
+              "
+            >
+              <Lock className="w-5 h-5 text-amber-400" />
+              <span className="text-amber-400 font-medium text-sm">
+                Free image generations exhausted
+              </span>
+              <span className="text-amber-400/60 text-xs ml-1 group-hover:text-amber-400 transition-colors">
+                Upgrade →
+              </span>
+            </button>
+          )}
+
           {/* Generate Button */}
           <button
             onClick={handleGenerate}
-            disabled={!prompt.trim() || isGenerating}
+            disabled={!prompt.trim() || isGenerating || atLimit}
             className={`
               w-full py-4 rounded-xl
               font-medium text-base
               transition-all duration-300
               relative overflow-hidden
               group
-              ${prompt.trim() && !isGenerating
+              ${prompt.trim() && !isGenerating && !atLimit
                 ? "bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40"
                 : "bg-[#222] text-[#555] cursor-not-allowed"
               }
             `}
           >
             {/* Shimmer effect */}
-            {prompt.trim() && !isGenerating && (
+            {prompt.trim() && !isGenerating && !atLimit && (
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
             )}
             
@@ -575,6 +612,11 @@ export const ImageStudio = () => {
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
                   <span>Generating...</span>
+                </>
+              ) : atLimit ? (
+                <>
+                  <Lock className="w-5 h-5 text-[#555]" />
+                  <span>Upgrade to Generate</span>
                 </>
               ) : (
                 <>
@@ -586,10 +628,20 @@ export const ImageStudio = () => {
           </button>
 
           {/* Credits indicator */}
-          <div className="flex items-center justify-center gap-2 py-3 px-4 rounded-lg bg-white/[0.02] border border-[#222]">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <div 
+            className={`
+              flex items-center justify-center gap-2 py-3 px-4 rounded-lg border
+              ${atLimit 
+                ? "bg-red-500/5 border-red-500/20" 
+                : "bg-white/[0.02] border-[#222]"
+              }
+            `}
+          >
+            <div className={`w-2 h-2 rounded-full ${atLimit ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
             <span className="text-xs text-[#666]">
-              <span className="text-white/80 font-medium">∞</span> credits available
+              <span className={`font-medium ${atLimit ? "text-red-400" : "text-white/80"}`}>
+                {usedImages}/{limits.maxImages}
+              </span> free generations used
             </span>
           </div>
         </div>

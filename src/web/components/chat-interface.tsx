@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from "react"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
 import { ModelSelector } from "./model-selector"
-import { Paperclip, Mic, ArrowUp, Sparkles, Zap, Lightbulb, Code, Bot, User, Copy, Check } from "lucide-react"
+import { Paperclip, Mic, ArrowUp, Sparkles, Zap, Lightbulb, Code, Bot, User, Copy, Check, Lock } from "lucide-react"
+import { useUsage } from "./usage-context"
 
 // Provider logos as SVG components
 const OpenAILogo = () => (
@@ -368,6 +369,7 @@ export const ChatInterface = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [inputValue, setInputValue] = useState("")
   const selectedModelRef = useRef(selectedModel)
+  const { checkMessageLimit, incrementMessages, canSendMessage, messageCount, limits, setShowPaywall, setPaywallReason } = useUsage()
   
   // Keep ref in sync with state
   useEffect(() => {
@@ -379,6 +381,10 @@ export const ChatInterface = () => {
       api: "/api/chat",
       body: () => ({ model: selectedModelRef.current })
     }),
+    onFinish: () => {
+      // Increment usage count after successful response
+      incrementMessages()
+    }
   })
 
   const isLoading = status === "streaming" || status === "submitted"
@@ -395,6 +401,10 @@ export const ChatInterface = () => {
 
   const handleSendMessage = () => {
     if (!inputValue.trim() || isLoading) return
+    
+    // Check usage limit before sending
+    if (!checkMessageLimit()) return
+    
     sendMessage({ text: inputValue })
     setInputValue("")
   }
@@ -404,6 +414,7 @@ export const ChatInterface = () => {
   }
 
   const hasMessages = messages.length > 0
+  const atLimit = !canSendMessage
 
   return (
     <div className="flex-1 flex flex-col h-full">
@@ -516,14 +527,43 @@ export const ChatInterface = () => {
         `}
       >
         <div className="max-w-3xl mx-auto">
+          {/* Limit warning banner */}
+          {atLimit && (
+            <button
+              onClick={() => {
+                setPaywallReason("messages")
+                setShowPaywall(true)
+              }}
+              className="
+                w-full mb-4 p-4 rounded-xl
+                bg-gradient-to-r from-red-500/10 via-amber-500/10 to-red-500/10
+                border border-red-500/30
+                flex items-center justify-center gap-3
+                group transition-all duration-300
+                hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/10
+              "
+            >
+              <Lock className="w-5 h-5 text-amber-400" />
+              <span className="text-amber-400 font-medium">
+                You've reached your free message limit. Upgrade to continue chatting.
+              </span>
+              <span className="text-amber-400/60 text-sm ml-2 group-hover:text-amber-400 transition-colors">
+                View plans →
+              </span>
+            </button>
+          )}
+          
           <ChatInputComponent
             value={inputValue}
             onChange={setInputValue}
             onSubmit={handleSendMessage}
-            disabled={isLoading}
+            disabled={isLoading || atLimit}
           />
           <p className="text-center text-[#444] text-xs mt-4">
-            Synapse can make mistakes. Consider checking important information.
+            {atLimit 
+              ? `${messageCount}/${limits.maxMessages} free messages used`
+              : "Synapse can make mistakes. Consider checking important information."
+            }
           </p>
         </div>
       </div>
