@@ -1,4 +1,4 @@
-import { Clock, Settings as SettingsIcon, Sparkles } from "lucide-react";
+import { Clock, Sparkles } from "lucide-react";
 
 // Placeholder content for tabs not yet implemented
 interface PlaceholderPageProps {
@@ -35,13 +35,5 @@ export const HistoryPlaceholder = () => (
     icon={Clock}
     title="History"
     description="View and manage your past generations, conversations, and creative projects."
-  />
-);
-
-export const SettingsPlaceholder = () => (
-  <PlaceholderPage
-    icon={SettingsIcon}
-    title="Settings"
-    description="Customize your Synapse experience, manage API keys, and configure preferences."
   />
 );

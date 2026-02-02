@@ -4,7 +4,8 @@ import { AnimatedBackground } from "../components/animated-background";
 import { MotionLab } from "../components/motion-lab";
 import { ImageStudio } from "../components/image-studio";
 import { AudioStudio } from "../components/audio-studio";
-import { HistoryPlaceholder, SettingsPlaceholder } from "../components/placeholder-pages";
+import { HistoryPlaceholder } from "../components/placeholder-pages";
+import { SettingsPage } from "../components/settings-page";
 import { ChatInterface } from "../components/chat-interface";
 import { UsageProvider } from "../components/usage-context";
 import { PaywallModal } from "../components/paywall-modal";
@@ -32,7 +33,7 @@ function Index() {
       case "history":
         return <HistoryPlaceholder />;
       case "settings":
-        return <SettingsPlaceholder />;
+        return <SettingsPage />;
       default:
         return <ChatInterface />;
     }

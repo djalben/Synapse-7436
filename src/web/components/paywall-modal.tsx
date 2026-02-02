@@ -1,6 +1,47 @@
 import { useState } from "react";
 import { X, Check, Sparkles, Zap, Crown, Rocket, XCircle } from "lucide-react";
 import { useUsage } from "./usage-context";
+import { toast } from "sonner";
+
+// Process referral reward
+const processReferralReward = () => {
+  const referredBy = localStorage.getItem("referredBy");
+  
+  if (referredBy) {
+    // In a real app, this would be an API call to the server
+    // For now, we simulate by storing rewards in localStorage with referrer ID
+    
+    // Get current referrer stats (or create new)
+    const referrerStatsKey = `referrer_${referredBy}`;
+    const currentStats = JSON.parse(localStorage.getItem(referrerStatsKey) || '{"friends": 0, "credits": 0}');
+    
+    // Add reward
+    currentStats.friends += 1;
+    currentStats.credits += 500;
+    
+    localStorage.setItem(referrerStatsKey, JSON.stringify(currentStats));
+    
+    // Also update global stats if this is the referrer's browser
+    const userId = localStorage.getItem("userId");
+    if (userId === referredBy) {
+      const newFriendsInvited = parseInt(localStorage.getItem("friendsInvited") || "0") + 1;
+      const newCreditsEarned = parseInt(localStorage.getItem("creditsEarned") || "0") + 500;
+      localStorage.setItem("friendsInvited", newFriendsInvited.toString());
+      localStorage.setItem("creditsEarned", newCreditsEarned.toString());
+    }
+    
+    // Clear referredBy so it doesn't trigger again
+    localStorage.removeItem("referredBy");
+    
+    toast.success("Your referrer earned 500 credits! 🎉", {
+      description: "Thanks for joining through their link!",
+    });
+    
+    return true;
+  }
+  
+  return false;
+};
 
 interface Feature {
   text: string;
@@ -230,6 +271,10 @@ export const PaywallModal = () => {
 
   const handleSelect = (tierId: string) => {
     const tierName = tierId.charAt(0).toUpperCase() + tierId.slice(1);
+    
+    // Process referral reward when someone subscribes
+    processReferralReward();
+    
     // For now, just show an alert - in production, this would redirect to payment
     alert(`Спасибо за интерес к тарифу ${tierName}! Интеграция платежей скоро будет доступна.`);
   };
