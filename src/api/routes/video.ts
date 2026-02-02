@@ -3,6 +3,132 @@ import { env } from "cloudflare:workers"
 
 export const videoRoutes = new Hono()
 
+// Animation preset prompt mapping
+const PRESET_PROMPTS: Record<string, string> = {
+  "smile-blink": "A photorealistic video of this person, they slowly form a warm, genuine smile while looking at the camera, natural eye blinking every few seconds, subtle head micro-movements, soft lighting, cinematic quality, smooth motion, lifelike facial animation",
+  "wave-hello": "A photorealistic video of this person, they raise their right hand and wave hello to the camera with a friendly expression, natural arm movement, slight head tilt, warm smile, lifelike motion, welcoming gesture",
+  "look-around": "A photorealistic video of this person, they naturally look to the left then slowly turn to look to the right, subtle head movement, curious expression, natural eye movement, realistic motion, gentle head turn",
+  "old-film": "A vintage old film effect video of this person, subtle movement, slight smile, film grain texture, sepia tones, film flicker effect, nostalgic 1920s silent film aesthetic, slow deliberate movements, scratches and dust particles overlay",
+}
+
+// Dedicated endpoint for portrait animation (Bring Photos to Life feature)
+videoRoutes.post("/animate", async (c) => {
+  try {
+    const { image, preset, duration } = await c.req.json()
+
+    // Validate required fields
+    if (!image || typeof image !== "string") {
+      return c.json({ error: "Image is required" }, 400)
+    }
+
+    if (!preset || !PRESET_PROMPTS[preset]) {
+      return c.json({ error: "Valid animation preset is required" }, 400)
+    }
+
+    const validDurations = [5, 10]
+    const finalDuration = validDurations.includes(duration) ? duration : 5
+
+    // Get the prompt for this preset
+    const animationPrompt = PRESET_PROMPTS[preset]
+    const fullPrompt = `${animationPrompt}, ${finalDuration} seconds duration`
+
+    // Build the message content with the image
+    const messageContent = [
+      {
+        type: "image_url",
+        image_url: {
+          url: image,
+        },
+      },
+      {
+        type: "text",
+        text: `Animate this portrait photo using the following animation style:
+
+Animation: ${animationPrompt}
+Duration: ${finalDuration} seconds
+
+This should be a photorealistic animation that brings the person in this photo to life. 
+Describe the animation in vivid cinematic detail - exactly how the person's face moves, 
+their expressions change, and how the overall effect feels magical and lifelike.`,
+      },
+    ]
+
+    // Call OpenRouter with vision model to process the animation
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${env.OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": env.VITE_BASE_URL || "https://synapse.app",
+        "X-Title": "Synapse Motion Lab - Portrait Animation",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.0-flash-001",
+        messages: [
+          {
+            role: "system",
+            content: `You are an AI portrait animation assistant specializing in the "Bring Photos to Life" feature. 
+Your task is to describe how this portrait photo would be magically animated. 
+Focus on subtle, realistic facial movements that make the photo come alive.
+Be poetic and magical in your description - this is about creating wonder.`,
+          },
+          {
+            role: "user",
+            content: messageContent,
+          },
+        ],
+        stream: false,
+      }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      console.error("OpenRouter API error:", JSON.stringify(errorData))
+      return c.json(
+        { error: errorData.error?.message || "Failed to animate portrait" },
+        response.status
+      )
+    }
+
+    const data = await response.json()
+    const description = data.choices?.[0]?.message?.content || "Portrait animation completed"
+
+    // For demonstration purposes, return sample video URLs
+    // In production, this would integrate with video generation APIs like:
+    // - Hedra (specialized in portrait animation)
+    // - D-ID (talking avatars)
+    // - HeyGen
+    // - Runway Gen-3
+    // - LivePortrait
+    // - Luma Dream Machine
+    
+    const sampleAnimationVideos = [
+      "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+      "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
+      "https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
+      "https://storage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4",
+    ]
+    
+    const randomVideo = sampleAnimationVideos[Math.floor(Math.random() * sampleAnimationVideos.length)]
+
+    return c.json({
+      id: `animate-${Date.now()}`,
+      url: randomVideo,
+      description,
+      preset,
+      duration: finalDuration,
+      createdAt: new Date().toISOString(),
+    })
+  } catch (error) {
+    console.error("Portrait animation error:", error)
+    return c.json(
+      { error: error instanceof Error ? error.message : "Failed to animate portrait" },
+      500
+    )
+  }
+})
+
+// Original text-to-video and image-to-video endpoint
 videoRoutes.post("/", async (c) => {
   try {
     const { prompt, duration, aspectRatio, motionScale, mode, referenceImage } = await c.req.json()
