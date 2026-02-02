@@ -97,7 +97,10 @@ imageRoutes.post("/", async (c) => {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        console.error("OpenRouter API error:", JSON.stringify(errorData))
+        // Log detailed error only in development
+        if (import.meta.env.DEV) {
+          console.error("OpenRouter API error:", JSON.stringify(errorData))
+        }
         
         // If we already have some images, return them
         if (generatedImages.length > 0) {
@@ -105,7 +108,7 @@ imageRoutes.post("/", async (c) => {
         }
         
         return c.json(
-          { error: errorData.error?.message || "Failed to generate image" },
+          { error: "Failed to generate image. Please try again." },
           response.status
         )
       }
@@ -139,9 +142,12 @@ imageRoutes.post("/", async (c) => {
 
     return c.json({ images: generatedImages })
   } catch (error) {
-    console.error("Image generation error:", error)
+    // Log errors in development only, without exposing sensitive data
+    if (import.meta.env.DEV) {
+      console.error("Image generation error:", error)
+    }
     return c.json(
-      { error: error instanceof Error ? error.message : "Failed to generate image" },
+      { error: "Failed to generate image. Please try again." },
       500
     )
   }

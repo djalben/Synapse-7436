@@ -99,9 +99,12 @@ enhanceRoutes.post("/", async (c) => {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      console.error("OpenRouter API error:", JSON.stringify(errorData))
+      // Log detailed error only in development
+      if (import.meta.env.DEV) {
+        console.error("OpenRouter API error:", JSON.stringify(errorData))
+      }
       return c.json(
-        { error: errorData.error?.message || "Failed to enhance image" },
+        { error: "Failed to enhance image. Please try again." },
         response.status
       )
     }
@@ -128,9 +131,12 @@ enhanceRoutes.post("/", async (c) => {
     // If no image was returned, return an error
     return c.json({ error: "Enhancement failed. No image was returned by the model." }, 500)
   } catch (error) {
-    console.error("Image enhancement error:", error)
+    // Log errors in development only, without exposing sensitive data
+    if (import.meta.env.DEV) {
+      console.error("Image enhancement error:", error)
+    }
     return c.json(
-      { error: error instanceof Error ? error.message : "Failed to enhance image" },
+      { error: "Failed to enhance image. Please try again." },
       500
     )
   }

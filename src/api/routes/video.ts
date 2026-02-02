@@ -83,9 +83,12 @@ Be poetic and magical in your description - this is about creating wonder.`,
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      console.error("OpenRouter API error:", JSON.stringify(errorData))
+      // Log detailed error only in development
+      if (import.meta.env.DEV) {
+        console.error("OpenRouter API error:", JSON.stringify(errorData))
+      }
       return c.json(
-        { error: errorData.error?.message || "Failed to animate portrait" },
+        { error: "Failed to animate portrait. Please try again." },
         response.status
       )
     }
@@ -120,9 +123,12 @@ Be poetic and magical in your description - this is about creating wonder.`,
       createdAt: new Date().toISOString(),
     })
   } catch (error) {
-    console.error("Portrait animation error:", error)
+    // Log errors in development only, without exposing sensitive data
+    if (import.meta.env.DEV) {
+      console.error("Portrait animation error:", error)
+    }
     return c.json(
-      { error: error instanceof Error ? error.message : "Failed to animate portrait" },
+      { error: "Failed to animate portrait. Please try again." },
       500
     )
   }
@@ -211,9 +217,12 @@ Describe the video scene in vivid detail - subjects, actions, camera movements, 
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      console.error("OpenRouter API error:", JSON.stringify(errorData))
+      // Log detailed error only in development
+      if (import.meta.env.DEV) {
+        console.error("OpenRouter API error:", JSON.stringify(errorData))
+      }
       return c.json(
-        { error: errorData.error?.message || "Failed to process video request" },
+        { error: "Failed to process video request. Please try again." },
         response.status
       )
     }
@@ -250,9 +259,12 @@ Describe the video scene in vivid detail - subjects, actions, camera movements, 
       createdAt: new Date().toISOString(),
     })
   } catch (error) {
-    console.error("Video generation error:", error)
+    // Log errors in development only, without exposing sensitive data
+    if (import.meta.env.DEV) {
+      console.error("Video generation error:", error)
+    }
     return c.json(
-      { error: error instanceof Error ? error.message : "Failed to generate video" },
+      { error: "Failed to generate video. Please try again." },
       500
     )
   }

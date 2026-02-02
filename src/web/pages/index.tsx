@@ -9,6 +9,8 @@ import { UsageProvider } from "../components/usage-context";
 import { PaywallModal } from "../components/paywall-modal";
 import { MobileNav, MobileTopBar } from "../components/mobile-nav";
 import { PWAInstallBanner } from "../components/pwa-install-banner";
+import { CookieConsentBanner } from "../components/cookie-consent-banner";
+import { Footer } from "../components/footer";
 
 function Index() {
   const [activeTab, setActiveTab] = useState("chat");
@@ -94,8 +96,14 @@ function Index() {
           relative z-10 min-h-screen flex flex-col
           md:ml-[240px]
           pt-16 md:pt-0
+          pb-20 md:pb-0
         ">
-          {renderContent()}
+          <div className="flex-1">
+            {renderContent()}
+          </div>
+          
+          {/* Footer */}
+          <Footer />
         </main>
 
         {/* Paywall Modal */}
@@ -103,6 +111,9 @@ function Index() {
 
         {/* PWA Install Banner */}
         <PWAInstallBanner />
+
+        {/* Cookie Consent Banner */}
+        <CookieConsentBanner />
       </div>
     </UsageProvider>
   );

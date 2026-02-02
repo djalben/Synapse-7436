@@ -39,9 +39,12 @@ chatRoutes.post("/", async (c) => {
 
     return result.toUIMessageStreamResponse()
   } catch (error) {
-    console.error("Chat API error:", error)
+    // Log errors in development only, without exposing sensitive data
+    if (import.meta.env.DEV) {
+      console.error("Chat API error:", error)
+    }
     return c.json(
-      { error: error instanceof Error ? error.message : "Failed to process chat request" },
+      { error: "Failed to process chat request. Please try again." },
       500
     )
   }
