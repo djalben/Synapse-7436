@@ -3,6 +3,7 @@ import { Sidebar } from "../components/sidebar";
 import { AnimatedBackground } from "../components/animated-background";
 import { MotionLab } from "../components/motion-lab";
 import { ImageStudio } from "../components/image-studio";
+import { AudioStudio } from "../components/audio-studio";
 import { HistoryPlaceholder, SettingsPlaceholder } from "../components/placeholder-pages";
 import { ChatInterface } from "../components/chat-interface";
 import { UsageProvider } from "../components/usage-context";
@@ -26,6 +27,8 @@ function Index() {
         return <MotionLab />;
       case "image":
         return <ImageStudio />;
+      case "audio":
+        return <AudioStudio />;
       case "history":
         return <HistoryPlaceholder />;
       case "settings":

@@ -3,6 +3,7 @@ import {
   MessageSquare,
   Image,
   Video,
+  Music,
   Clock,
   Settings,
   Sparkles,
@@ -19,6 +20,7 @@ const navItems: NavItem[] = [
   { id: "chat", label: "Chat", icon: MessageSquare },
   { id: "image", label: "Image Studio", icon: Image },
   { id: "motion", label: "Motion Lab", icon: Video },
+  { id: "audio", label: "Audio Studio", icon: Music },
   { id: "history", label: "History", icon: Clock },
   { id: "settings", label: "Settings", icon: Settings },
 ];

@@ -3,11 +3,13 @@ import {
   MessageSquare,
   Image,
   Video,
+  Music,
   Clock,
   Settings,
   Sparkles,
   Menu,
   X,
+  Crown,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useUsage } from "./usage-context";
@@ -22,6 +24,7 @@ const navItems: NavItem[] = [
   { id: "chat", label: "Chat", icon: MessageSquare },
   { id: "image", label: "Image Studio", icon: Image },
   { id: "motion", label: "Motion Lab", icon: Video },
+  { id: "audio", label: "Audio Studio", icon: Music },
   { id: "history", label: "History", icon: Clock },
   { id: "settings", label: "Settings", icon: Settings },
 ];
@@ -257,15 +260,23 @@ interface MobileTopBarProps {
 }
 
 export const MobileTopBar = ({ activeTab, children }: MobileTopBarProps) => {
+  const { setShowPaywall, setPaywallReason } = useUsage();
+
   const getTabTitle = () => {
     switch (activeTab) {
       case "chat": return "Chat";
       case "image": return "Image Studio";
       case "motion": return "Motion Lab";
+      case "audio": return "Audio Studio";
       case "history": return "History";
       case "settings": return "Settings";
       default: return "Synapse";
     }
+  };
+
+  const handlePremiumClick = () => {
+    setPaywallReason("messages");
+    setShowPaywall(true);
   };
 
   return (
@@ -280,7 +291,45 @@ export const MobileTopBar = ({ activeTab, children }: MobileTopBarProps) => {
       <h1 className="font-mono text-lg font-semibold text-white truncate">
         {getTabTitle()}
       </h1>
-      {children}
+      <div className="flex items-center gap-2">
+        {/* Mobile Premium Button */}
+        <button
+          onClick={handlePremiumClick}
+          className="
+            relative group overflow-hidden
+            px-3 py-2 rounded-lg
+            bg-gradient-to-r from-amber-500 to-orange-500
+            text-white font-medium text-sm
+            shadow-lg shadow-amber-500/20
+            active:scale-95
+            transition-all duration-300
+          "
+          style={{
+            animation: "premium-pulse 3s ease-in-out infinite",
+          }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+          <span className="relative flex items-center gap-1.5">
+            <Crown className="w-3.5 h-3.5" />
+            <span className="hidden xs:inline">Premium</span>
+          </span>
+        </button>
+        {children}
+      </div>
+      
+      {/* Premium pulse animation styles */}
+      <style>{`
+        @keyframes premium-pulse {
+          0%, 100% {
+            box-shadow: 0 10px 20px -5px rgba(245, 158, 11, 0.2);
+            transform: scale(1);
+          }
+          50% {
+            box-shadow: 0 10px 30px -5px rgba(245, 158, 11, 0.35);
+            transform: scale(1.02);
+          }
+        }
+      `}</style>
     </div>
   );
 };

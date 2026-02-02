@@ -21,6 +21,7 @@ import {
   Crown,
 } from "lucide-react";
 import { useUsage } from "./usage-context";
+import { PremiumButtonWithStyles } from "./premium-button";
 
 // ===== TYPES & INTERFACES =====
 
@@ -1718,13 +1719,18 @@ const GeneratePanel = ({
       <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222] p-4 md:p-6 overflow-y-auto">
         <div className="space-y-5 md:space-y-6">
           {/* Header */}
-          <div>
-            <h2 className="font-mono text-xl md:text-2xl font-semibold text-white mb-1">
-              Image Studio
-            </h2>
-            <p className="text-sm text-[#666]">
-              Generate and transform images with AI
-            </p>
+          <div className="flex items-start justify-between">
+            <div>
+              <h2 className="font-mono text-xl md:text-2xl font-semibold text-white mb-1">
+                Image Studio
+              </h2>
+              <p className="text-sm text-[#666]">
+                Generate and transform images with AI
+              </p>
+            </div>
+            <div className="hidden md:block">
+              <PremiumButtonWithStyles />
+            </div>
           </div>
 
           {/* Error message */}

@@ -21,6 +21,7 @@ import {
   Crown,
 } from "lucide-react";
 import { useUsage } from "./usage-context";
+import { PremiumButtonWithStyles } from "./premium-button";
 
 // Video model type
 type VideoModel = "standard" | "veo";
@@ -844,14 +845,19 @@ export const MotionLab = () => {
       <div className="w-full lg:w-[42%] border-b lg:border-b-0 lg:border-r border-[#222] p-4 md:p-6 overflow-y-auto">
         <div className="space-y-6">
           {/* Header */}
-          <div className="text-center lg:text-left">
-            <h2 className="font-mono text-xl md:text-2xl font-semibold text-white mb-1 flex items-center justify-center lg:justify-start gap-2">
-              <Sparkles className="w-5 h-5 text-indigo-400" />
-              Motion Lab
-            </h2>
-            <p className="text-sm text-[#666]">
-              Bring your photos to life with AI magic ✨
-            </p>
+          <div className="flex items-start justify-between">
+            <div className="text-center lg:text-left">
+              <h2 className="font-mono text-xl md:text-2xl font-semibold text-white mb-1 flex items-center justify-center lg:justify-start gap-2">
+                <Sparkles className="w-5 h-5 text-indigo-400" />
+                Motion Lab
+              </h2>
+              <p className="text-sm text-[#666]">
+                Bring your photos to life with AI magic ✨
+              </p>
+            </div>
+            <div className="hidden lg:block">
+              <PremiumButtonWithStyles />
+            </div>
           </div>
 
           {/* Video Model Selector */}

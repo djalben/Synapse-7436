@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
 import { ModelSelector } from "./model-selector"
+import { PremiumButtonWithStyles } from "./premium-button"
 import { Paperclip, Mic, ArrowUp, Sparkles, Zap, Lightbulb, Code, Bot, User, Copy, Check, Lock } from "lucide-react"
 import { useUsage } from "./usage-context"
 
@@ -439,6 +440,7 @@ export const ChatInterface = () => {
         />
 
         <div className="hidden md:flex items-center gap-3">
+          <PremiumButtonWithStyles />
           <div className="h-8 w-8 rounded-full bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center text-xs font-semibold">
             S
           </div>
