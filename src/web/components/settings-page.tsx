@@ -19,8 +19,11 @@ import {
   Twitter,
   Github,
   Instagram,
+  Lock,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useLocation } from "wouter";
 
 // Generate a unique user ID for referrals
 const generateUserId = () => {
@@ -56,9 +59,9 @@ const getReferralStats = () => {
   };
 };
 
-// Secret knock functionality for developer mode
+// Secret knock functionality for developer mode - returns show PIN modal state
 const useSecretKnock = (requiredClicks: number, timeWindowMs: number) => {
-  const [devModeEnabled, setDevModeEnabled] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
   const clickTimestamps = useRef<number[]>([]);
 
   const handleClick = useCallback(() => {
@@ -70,15 +73,179 @@ const useSecretKnock = (requiredClicks: number, timeWindowMs: number) => {
     );
     
     if (clickTimestamps.current.length >= requiredClicks) {
-      setDevModeEnabled(true);
+      setShowPinModal(true);
       clickTimestamps.current = [];
-      toast.success("Developer Mode Enabled 🕵️‍♂️", {
-        description: "Admin access unlocked for this session",
-      });
     }
   }, [requiredClicks, timeWindowMs]);
 
-  return { devModeEnabled, handleClick };
+  const closePinModal = useCallback(() => {
+    setShowPinModal(false);
+  }, []);
+
+  return { showPinModal, handleClick, closePinModal };
+};
+
+// PIN Input Modal Component
+interface PinModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const PinModal = ({ isOpen, onClose }: PinModalProps) => {
+  const [, navigate] = useLocation();
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState("");
+  const [attempts, setAttempts] = useState(0);
+  const [isLocked, setIsLocked] = useState(false);
+  const [lockTimer, setLockTimer] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const CORRECT_PIN = "7777";
+  const MAX_ATTEMPTS = 3;
+  const LOCKOUT_SECONDS = 30;
+
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isLocked && lockTimer > 0) {
+      const timer = setTimeout(() => {
+        setLockTimer(lockTimer - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else if (isLocked && lockTimer === 0) {
+      setIsLocked(false);
+      setAttempts(0);
+      setError("");
+    }
+  }, [isLocked, lockTimer]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (isLocked) return;
+
+    if (pin === CORRECT_PIN) {
+      toast.success("Access Granted 🔓", {
+        description: "Redirecting to Admin Dashboard...",
+      });
+      setPin("");
+      setError("");
+      setAttempts(0);
+      onClose();
+      setTimeout(() => {
+        navigate("/admin");
+      }, 500);
+    } else {
+      const newAttempts = attempts + 1;
+      setAttempts(newAttempts);
+      setPin("");
+      
+      if (newAttempts >= MAX_ATTEMPTS) {
+        setIsLocked(true);
+        setLockTimer(LOCKOUT_SECONDS);
+        setError("Too many attempts. Try again later.");
+      } else {
+        setError(`Invalid PIN (${MAX_ATTEMPTS - newAttempts} attempts left)`);
+      }
+    }
+  };
+
+  const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, "").slice(0, 4);
+    setPin(value);
+    if (error && !isLocked) setError("");
+  };
+
+  const handleClose = () => {
+    setPin("");
+    setError("");
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center">
+      {/* Backdrop */}
+      <div 
+        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+        onClick={handleClose}
+      />
+      
+      {/* Modal */}
+      <div className="relative w-full max-w-sm mx-4 p-6 rounded-2xl bg-gradient-to-b from-[#111] to-[#0a0a0a] border border-[#333] shadow-2xl animate-in zoom-in-95 duration-200">
+        {/* Close Button */}
+        <button
+          onClick={handleClose}
+          className="absolute top-4 right-4 w-8 h-8 rounded-lg bg-white/[0.05] border border-[#333] flex items-center justify-center hover:bg-white/[0.1] transition-colors"
+        >
+          <X className="w-4 h-4 text-[#888]" />
+        </button>
+
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+            <Lock className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h2 className="font-mono text-lg font-semibold text-white">🔐 Developer Access</h2>
+            <p className="text-xs text-[#666]">Enter security PIN to continue</p>
+          </div>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit}>
+          <div className="mb-4">
+            <input
+              ref={inputRef}
+              type="password"
+              value={pin}
+              onChange={handlePinChange}
+              placeholder="• • • •"
+              disabled={isLocked}
+              className={`w-full px-4 py-4 rounded-xl text-center text-2xl font-mono tracking-[0.5em] bg-white/[0.02] border transition-colors outline-none ${
+                error 
+                  ? "border-red-500/50 focus:border-red-500" 
+                  : "border-[#333] focus:border-indigo-500/50"
+              } ${isLocked ? "opacity-50 cursor-not-allowed" : ""}`}
+            />
+          </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+              <p className="text-sm text-red-400 text-center">
+                {error}
+                {isLocked && lockTimer > 0 && (
+                  <span className="block mt-1 text-xs text-red-400/70">
+                    Retry in {lockTimer}s
+                  </span>
+                )}
+              </p>
+            </div>
+          )}
+
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={pin.length !== 4 || isLocked}
+            className="w-full py-3.5 rounded-xl font-medium text-sm bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-400 hover:to-purple-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-indigo-500 disabled:hover:to-purple-600"
+          >
+            {isLocked ? `Locked (${lockTimer}s)` : "Confirm"}
+          </button>
+        </form>
+
+        {/* Hint */}
+        <p className="mt-4 text-center text-xs text-[#444]">
+          Enter 4-digit PIN to access admin controls
+        </p>
+      </div>
+    </div>
+  );
 };
 
 // Referral Card Component
@@ -166,6 +333,100 @@ const ReferralCard = () => {
   );
 };
 
+// Redeem Gift Code Card Component
+const RedeemCodeCard = () => {
+  const [code, setCode] = useState("");
+  const [isRedeeming, setIsRedeeming] = useState(false);
+
+  const handleRedeem = () => {
+    if (!code.trim()) {
+      toast.error("Please enter a code");
+      return;
+    }
+
+    setIsRedeeming(true);
+
+    // Get gift codes from localStorage
+    const giftCodesStr = localStorage.getItem("giftCodes");
+    const giftCodes = giftCodesStr ? JSON.parse(giftCodesStr) : [];
+
+    // Find the code
+    const foundCode = giftCodes.find(
+      (c: { code: string; status: string }) => 
+        c.code.toUpperCase() === code.toUpperCase().trim() && c.status === "active"
+    );
+
+    if (!foundCode) {
+      toast.error("Invalid or expired code");
+      setIsRedeeming(false);
+      return;
+    }
+
+    // Apply the reward
+    if (foundCode.type === "credits") {
+      // Add credits to user's balance
+      const currentCredits = parseInt(localStorage.getItem("userCredits") || "0");
+      const newCredits = currentCredits + foundCode.value;
+      localStorage.setItem("userCredits", newCredits.toString());
+      
+      toast.success(`🎉 Code redeemed!`, {
+        description: `You received ${foundCode.value} credits!`,
+      });
+    } else if (foundCode.type === "plan") {
+      // Upgrade user's plan
+      localStorage.setItem("userPlan", foundCode.value);
+      
+      toast.success(`🎉 Code redeemed!`, {
+        description: `You're now on the ${foundCode.value} plan!`,
+      });
+    }
+
+    // Mark code as redeemed
+    foundCode.status = "redeemed";
+    localStorage.setItem("giftCodes", JSON.stringify(giftCodes));
+
+    // Clear input
+    setCode("");
+    setIsRedeeming(false);
+  };
+
+  return (
+    <section className="p-5 md:p-6 rounded-2xl bg-white/[0.02] border border-[#222]">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+          <Gift className="w-5 h-5 text-white" />
+        </div>
+        <div>
+          <h2 className="text-sm font-medium text-white">Redeem Gift Code</h2>
+          <p className="text-xs text-[#666]">
+            Have a promo code? Enter it here to unlock credits or plans.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={code}
+          onChange={(e) => setCode(e.target.value.toUpperCase())}
+          placeholder="SYNAPSE-XXXX-XXXX"
+          className="flex-1 px-4 py-3 rounded-xl bg-white/[0.02] border border-[#333] text-white text-sm placeholder-[#555] outline-none focus:border-indigo-500/50 font-mono"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleRedeem();
+          }}
+        />
+        <button
+          onClick={handleRedeem}
+          disabled={isRedeeming || !code.trim()}
+          className="px-5 py-3 rounded-xl font-medium text-sm bg-gradient-to-r from-pink-500 to-purple-600 text-white hover:from-pink-400 hover:to-purple-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+        >
+          {isRedeeming ? "..." : "Redeem"}
+        </button>
+      </div>
+    </section>
+  );
+};
+
 // Section Header Component
 const SectionHeader = ({ icon: Icon, title }: { icon: React.ComponentType<{ className?: string }>; title: string }) => (
   <div className="flex items-center gap-2 mb-4">
@@ -175,7 +436,7 @@ const SectionHeader = ({ icon: Icon, title }: { icon: React.ComponentType<{ clas
 );
 
 export const SettingsPage = () => {
-  const { devModeEnabled, handleClick } = useSecretKnock(5, 3000);
+  const { showPinModal, handleClick, closePinModal } = useSecretKnock(5, 3000);
 
   const handleDeleteAccount = () => {
     if (confirm("Are you sure you want to delete your account? This action cannot be undone and will erase all your data.")) {
@@ -226,6 +487,9 @@ export const SettingsPage = () => {
 
           {/* Section 2: Referral Program */}
           <ReferralCard />
+
+          {/* Section 2.5: Redeem Gift Code */}
+          <RedeemCodeCard />
 
           {/* Section 3: Preferences */}
           <section className="p-5 md:p-6 rounded-2xl bg-white/[0.02] border border-[#222]">
@@ -355,18 +619,8 @@ export const SettingsPage = () => {
             </div>
           </section>
 
-          {/* Admin Dashboard Button - Only visible with secret knock */}
-          {devModeEnabled && (
-            <div className="animate-in fade-in duration-500">
-              <a
-                href="/admin"
-                className="flex items-center justify-center gap-2 p-4 rounded-xl bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-indigo-500/30 hover:from-indigo-500/20 hover:to-purple-500/20 transition-colors"
-              >
-                <Shield className="w-4 h-4 text-indigo-400" />
-                <span className="text-sm font-medium text-white">Open Admin Dashboard</span>
-              </a>
-            </div>
-          )}
+          {/* PIN Modal for Developer Access */}
+          <PinModal isOpen={showPinModal} onClose={closePinModal} />
 
           {/* Section 5: About */}
           <section className="p-5 md:p-6 rounded-2xl bg-white/[0.02] border border-[#222]">

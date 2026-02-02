@@ -16,7 +16,12 @@ import {
   Video,
   Music,
   Lock,
+  Gift,
+  Copy,
+  Check,
+  X,
 } from "lucide-react";
+import { toast } from "sonner";
 
 // Types
 interface ApiStatus {
@@ -36,6 +41,49 @@ interface UsageStats {
   totalVideos: number;
   totalEnhancements: number;
 }
+
+// Gift Code Types
+interface GiftCode {
+  code: string;
+  type: "credits" | "plan";
+  value: number | string;
+  status: "active" | "redeemed";
+  created: number;
+}
+
+// Gift code types for dropdown
+const GIFT_CODE_TYPES = [
+  { label: "500 Credits", type: "credits" as const, value: 500 },
+  { label: "1000 Credits", type: "credits" as const, value: 1000 },
+  { label: "LITE Plan (1 month)", type: "plan" as const, value: "LITE" },
+  { label: "STANDARD Plan (1 month)", type: "plan" as const, value: "STANDARD" },
+  { label: "ULTRA Plan (1 month)", type: "plan" as const, value: "ULTRA" },
+];
+
+// Generate random code in format SYNAPSE-XXXX-XXXX
+const generateGiftCode = (): string => {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  const segment = () => {
+    let result = "";
+    for (let i = 0; i < 4; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  };
+  return `SYNAPSE-${segment()}-${segment()}`;
+};
+
+// Get gift codes from localStorage
+const getGiftCodes = (): GiftCode[] => {
+  if (typeof window === "undefined") return [];
+  const stored = localStorage.getItem("giftCodes");
+  return stored ? JSON.parse(stored) : [];
+};
+
+// Save gift codes to localStorage
+const saveGiftCodes = (codes: GiftCode[]) => {
+  localStorage.setItem("giftCodes", JSON.stringify(codes));
+};
 
 // Check admin access from localStorage
 const checkAdminAccess = (): boolean => {
@@ -117,6 +165,12 @@ export const AdminDashboard = () => {
     totalEnhancements: 0,
   });
   
+  // Gift Code State
+  const [giftCodes, setGiftCodes] = useState<GiftCode[]>([]);
+  const [selectedCodeType, setSelectedCodeType] = useState(0);
+  const [generatedCode, setGeneratedCode] = useState<string | null>(null);
+  const [copiedCode, setCopiedCode] = useState(false);
+  
   // Check authorization on mount
   useEffect(() => {
     const hasAccess = checkAdminAccess();
@@ -124,6 +178,7 @@ export const AdminDashboard = () => {
     
     if (hasAccess) {
       setUsageStats(getUsageStats());
+      setGiftCodes(getGiftCodes());
       checkApiStatus();
     }
     
@@ -175,10 +230,70 @@ export const AdminDashboard = () => {
       localStorage.setItem("adminAccess", "true");
       setIsAuthorized(true);
       setUsageStats(getUsageStats());
+      setGiftCodes(getGiftCodes());
       checkApiStatus();
     } else {
       alert("Incorrect password");
     }
+  };
+  
+  // Gift Code Functions
+  const handleGenerateCode = () => {
+    const codeType = GIFT_CODE_TYPES[selectedCodeType];
+    const newCode: GiftCode = {
+      code: generateGiftCode(),
+      type: codeType.type,
+      value: codeType.value,
+      status: "active",
+      created: Date.now(),
+    };
+    
+    const updatedCodes = [newCode, ...giftCodes];
+    saveGiftCodes(updatedCodes);
+    setGiftCodes(updatedCodes);
+    setGeneratedCode(newCode.code);
+    toast.success("Gift code generated!", {
+      description: `Code: ${newCode.code}`,
+    });
+  };
+  
+  const handleCopyCode = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedCode(true);
+      toast.success("Code copied to clipboard!");
+      setTimeout(() => setCopiedCode(false), 2000);
+    } catch {
+      toast.error("Failed to copy code");
+    }
+  };
+  
+  const handleDeleteCode = (codeToDelete: string) => {
+    if (confirm("Are you sure you want to delete this code?")) {
+      const updatedCodes = giftCodes.filter(c => c.code !== codeToDelete);
+      saveGiftCodes(updatedCodes);
+      setGiftCodes(updatedCodes);
+      if (generatedCode === codeToDelete) {
+        setGeneratedCode(null);
+      }
+      toast.success("Code deleted");
+    }
+  };
+  
+  const formatDate = (timestamp: number) => {
+    return new Date(timestamp).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+  
+  const getCodeLabel = (code: GiftCode) => {
+    if (code.type === "credits") {
+      return `${code.value} Credits`;
+    }
+    return `${code.value} Plan`;
   };
   
   // Loading state
@@ -424,6 +539,119 @@ export const AdminDashboard = () => {
               <p className="text-xs text-amber-400/80">
                 <strong>Tip:</strong> Monitor your API usage regularly to avoid unexpected charges.
               </p>
+            </div>
+          </div>
+          
+          {/* Gift Code Manager Card - Full Width */}
+          <div className="lg:col-span-2 p-6 rounded-2xl bg-[#0a0a0a] border border-[#222]">
+            <div className="flex items-center gap-3 mb-6">
+              <Gift className="w-5 h-5 text-pink-400" />
+              <h2 className="font-medium">Gift Code Manager</h2>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Generate Code Section */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium text-[#888]">Generate Gift Codes</h3>
+                
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs text-[#666] mb-2 block">Code Type</label>
+                    <select
+                      value={selectedCodeType}
+                      onChange={(e) => setSelectedCodeType(Number(e.target.value))}
+                      className="w-full px-4 py-3 rounded-xl bg-white/[0.02] border border-[#333] text-white text-sm outline-none focus:border-indigo-500/50 cursor-pointer"
+                    >
+                      {GIFT_CODE_TYPES.map((type, index) => (
+                        <option key={index} value={index} className="bg-[#111]">
+                          {type.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <button
+                    onClick={handleGenerateCode}
+                    className="w-full py-3 rounded-xl font-medium text-sm bg-gradient-to-r from-pink-500 to-purple-600 text-white hover:from-pink-400 hover:to-purple-500 transition-all"
+                  >
+                    Generate Code
+                  </button>
+                </div>
+                
+                {/* Generated Code Display */}
+                {generatedCode && (
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-pink-500/10 to-purple-500/10 border border-pink-500/20">
+                    <p className="text-xs text-[#666] mb-2">Generated Code</p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 px-3 py-2 rounded-lg bg-black/30 text-pink-400 font-mono text-sm">
+                        {generatedCode}
+                      </code>
+                      <button
+                        onClick={() => handleCopyCode(generatedCode)}
+                        className="p-2 rounded-lg bg-white/[0.05] border border-[#333] hover:bg-white/[0.1] transition-colors"
+                      >
+                        {copiedCode ? (
+                          <Check className="w-4 h-4 text-emerald-400" />
+                        ) : (
+                          <Copy className="w-4 h-4 text-[#888]" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Active Codes List */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium text-[#888]">
+                  Active Codes ({giftCodes.filter(c => c.status === "active").length})
+                </h3>
+                
+                <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
+                  {giftCodes.length === 0 ? (
+                    <div className="p-4 rounded-xl bg-white/[0.02] border border-[#222] text-center">
+                      <p className="text-sm text-[#666]">No codes generated yet</p>
+                    </div>
+                  ) : (
+                    giftCodes.map((code) => (
+                      <div
+                        key={code.code}
+                        className={`p-3 rounded-xl border ${
+                          code.status === "active"
+                            ? "bg-white/[0.02] border-[#222]"
+                            : "bg-emerald-500/5 border-emerald-500/20"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <code className="text-xs font-mono text-white">{code.code}</code>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded text-[10px] ${
+                              code.status === "active" 
+                                ? "bg-indigo-500/20 text-indigo-400" 
+                                : "bg-emerald-500/20 text-emerald-400"
+                            }`}>
+                              {code.status}
+                            </span>
+                            {code.status === "active" && (
+                              <button
+                                onClick={() => handleDeleteCode(code.code)}
+                                className="p-1 rounded hover:bg-red-500/20 transition-colors"
+                                title="Delete code"
+                              >
+                                <X className="w-3 h-3 text-red-400" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-[#666]">{getCodeLabel(code)}</span>
+                          <span className="text-[10px] text-[#444]">{formatDate(code.created)}</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           </div>
           

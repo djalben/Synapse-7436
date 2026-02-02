@@ -14,6 +14,14 @@ const MODEL_MAP: Record<string, string> = {
 
 chatRoutes.post("/", async (c) => {
   try {
+    // Check for required API key
+    if (!env.AI_GATEWAY_API_KEY || !env.AI_GATEWAY_BASE_URL) {
+      if (import.meta.env.DEV) {
+        console.warn("AI Gateway not configured")
+      }
+      return c.json({ error: "Chat service is not available. Please try again later." }, 503)
+    }
+
     const { messages, model } = await c.req.json()
 
     // Validate messages

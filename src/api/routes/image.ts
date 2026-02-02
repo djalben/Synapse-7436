@@ -23,6 +23,14 @@ const NANA_BANANA_PROMPT = ", anime masterpiece, niji style, vibrant colors, hig
 
 imageRoutes.post("/", async (c) => {
   try {
+    // Check for required API key
+    if (!env.OPENROUTER_API_KEY) {
+      if (import.meta.env.DEV) {
+        console.warn("OPENROUTER_API_KEY not configured")
+      }
+      return c.json({ error: "Image generation service is not available. Please try again later." }, 503)
+    }
+
     const { prompt, aspectRatio, numImages, style, mode, referenceImage, specializedEngine } = await c.req.json()
 
     // Validate prompt
