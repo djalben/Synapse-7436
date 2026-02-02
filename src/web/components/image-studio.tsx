@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import {
   Camera,
   Sparkles,
@@ -12,6 +12,10 @@ import {
   X,
   Loader2,
   Lock,
+  Upload,
+  ImageIcon,
+  Wand2,
+  Trash2,
 } from "lucide-react";
 import { useUsage } from "./usage-context";
 
@@ -43,6 +47,9 @@ const aspectRatios: AspectRatio[] = [
   { id: "9:16", label: "Portrait", icon: RectangleVertical },
 ];
 
+// Generation mode type
+type GenerationMode = "text-to-image" | "image-to-image";
+
 // Generated image interface
 interface GeneratedImage {
   id: string;
@@ -52,6 +59,227 @@ interface GeneratedImage {
   style: string;
   createdAt: string;
 }
+
+// Mode toggle component
+interface ModeToggleProps {
+  mode: GenerationMode;
+  onChange: (mode: GenerationMode) => void;
+}
+
+const ModeToggle = ({ mode, onChange }: ModeToggleProps) => {
+  return (
+    <div className="relative flex rounded-xl bg-[#0a0a0a] border border-[#333] p-1">
+      {/* Sliding background indicator */}
+      <div 
+        className={`
+          absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-lg
+          bg-gradient-to-r from-indigo-600/30 to-blue-600/30
+          border border-indigo-500/30
+          transition-transform duration-300 ease-out
+          ${mode === "image-to-image" ? "translate-x-[calc(100%+8px)]" : "translate-x-0"}
+        `}
+      />
+      
+      <button
+        onClick={() => onChange("text-to-image")}
+        className={`
+          relative flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg
+          transition-all duration-300
+          ${mode === "text-to-image" ? "text-white" : "text-[#666] hover:text-[#888]"}
+        `}
+      >
+        <Wand2 className="w-4 h-4" />
+        <span className="text-sm font-medium">Text to Image</span>
+      </button>
+      
+      <button
+        onClick={() => onChange("image-to-image")}
+        className={`
+          relative flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg
+          transition-all duration-300
+          ${mode === "image-to-image" ? "text-white" : "text-[#666] hover:text-[#888]"}
+        `}
+      >
+        <ImageIcon className="w-4 h-4" />
+        <span className="text-sm font-medium">Image to Image</span>
+      </button>
+    </div>
+  );
+};
+
+// Image upload dropzone component
+interface ImageUploadProps {
+  image: string | null;
+  onImageChange: (image: string | null) => void;
+  required?: boolean;
+  disabled?: boolean;
+}
+
+const ImageUpload = ({ image, onImageChange, required, disabled }: ImageUploadProps) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleFile = useCallback((file: File) => {
+    if (!file.type.startsWith("image/")) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      onImageChange(result);
+    };
+    reader.readAsDataURL(file);
+  }, [onImageChange]);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    if (disabled) return;
+    
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      handleFile(file);
+    }
+  }, [handleFile, disabled]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    if (!disabled) {
+      setIsDragging(true);
+    }
+  }, [disabled]);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
+  const handleClick = () => {
+    if (!disabled) {
+      fileInputRef.current?.click();
+    }
+  };
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFile(file);
+    }
+    // Reset input so same file can be selected again
+    e.target.value = "";
+  };
+
+  const handleRemove = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onImageChange(null);
+  };
+
+  if (image) {
+    return (
+      <div className="relative rounded-xl overflow-hidden border border-[#333] group">
+        <img 
+          src={image} 
+          alt="Reference" 
+          className="w-full h-48 object-cover"
+        />
+        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
+          <button
+            onClick={handleRemove}
+            disabled={disabled}
+            className="
+              flex items-center gap-2 px-4 py-2 rounded-lg
+              bg-red-500/20 border border-red-500/40
+              text-red-400 text-sm font-medium
+              hover:bg-red-500/30 transition-colors
+              disabled:opacity-50
+            "
+          >
+            <Trash2 className="w-4 h-4" />
+            Remove
+          </button>
+        </div>
+        <div className="absolute top-2 right-2 px-2 py-1 rounded-md bg-black/60 backdrop-blur-sm">
+          <span className="text-xs text-emerald-400">Reference Image</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        onChange={handleFileInput}
+        className="hidden"
+      />
+      <div
+        onClick={handleClick}
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        className={`
+          relative p-8 rounded-xl
+          border-2 border-dashed
+          flex flex-col items-center justify-center gap-3
+          cursor-pointer
+          transition-all duration-300
+          ${disabled ? "opacity-50 cursor-not-allowed" : ""}
+          ${isDragging 
+            ? "border-indigo-500/60 bg-indigo-500/10" 
+            : required 
+              ? "border-amber-500/40 bg-amber-500/5 hover:border-amber-500/60 hover:bg-amber-500/10"
+              : "border-[#333] bg-white/[0.02] hover:border-[#444] hover:bg-white/[0.04]"
+          }
+        `}
+      >
+        {/* Glow effect on drag */}
+        {isDragging && (
+          <div className="absolute inset-0 rounded-xl bg-indigo-500/10 blur-xl" />
+        )}
+        
+        <div className={`
+          relative w-14 h-14 rounded-xl flex items-center justify-center
+          transition-all duration-300
+          ${isDragging 
+            ? "bg-indigo-500/20" 
+            : required 
+              ? "bg-amber-500/10"
+              : "bg-white/[0.05]"
+          }
+        `}>
+          <Upload className={`
+            w-6 h-6 transition-colors
+            ${isDragging 
+              ? "text-indigo-400" 
+              : required 
+                ? "text-amber-400"
+                : "text-[#666]"
+            }
+          `} />
+        </div>
+        
+        <div className="relative text-center">
+          <p className={`
+            text-sm font-medium
+            ${required ? "text-amber-400" : "text-white/80"}
+          `}>
+            {required ? "Upload Reference Image (Required)" : "Upload Reference Image"}
+          </p>
+          <p className="text-xs text-[#666] mt-1">
+            Drag & drop or click to browse
+          </p>
+          <p className="text-xs text-[#555] mt-0.5">
+            JPG, PNG, WebP up to 10MB
+          </p>
+        </div>
+      </div>
+    </>
+  );
+};
 
 // Style selector component
 interface StyleSelectorProps {
@@ -435,6 +663,8 @@ const ImageCard = ({ image, onImageClick }: ImageCardProps) => {
 // Main Image Studio component
 export const ImageStudio = () => {
   const [prompt, setPrompt] = useState("");
+  const [mode, setMode] = useState<GenerationMode>("text-to-image");
+  const [referenceImage, setReferenceImage] = useState<string | null>(null);
   const [selectedStyle, setSelectedStyle] = useState("photorealistic");
   const [aspectRatio, setAspectRatio] = useState("1:1");
   const [imageCount, setImageCount] = useState(1);
@@ -446,8 +676,17 @@ export const ImageStudio = () => {
   const { checkImageLimit, incrementImages, canGenerateImage, imageCount: usedImages, limits, setShowPaywall, setPaywallReason } = useUsage();
   const atLimit = !canGenerateImage;
 
+  // Check if image-to-image mode is ready
+  const isImg2ImgReady = mode === "text-to-image" || (mode === "image-to-image" && referenceImage);
+
   const handleGenerate = async () => {
     if (!prompt.trim() || isGenerating) return;
+    
+    // Check if we have reference image in img2img mode
+    if (mode === "image-to-image" && !referenceImage) {
+      setError("Please upload a reference image for Image-to-Image mode");
+      return;
+    }
     
     // Check usage limit before generating
     if (!checkImageLimit()) return;
@@ -466,6 +705,8 @@ export const ImageStudio = () => {
           aspectRatio,
           numImages: imageCount,
           style: selectedStyle,
+          mode,
+          referenceImage: mode === "image-to-image" ? referenceImage : null,
         }),
       });
 
@@ -491,6 +732,14 @@ export const ImageStudio = () => {
     }
   };
 
+  // Dynamic placeholder based on mode
+  const getPromptPlaceholder = () => {
+    if (mode === "image-to-image") {
+      return "Describe how to transform this image... (e.g., 'as a cyberpunk character', 'in anime style', 'as a renaissance painting')";
+    }
+    return "Describe your image in detail...";
+  };
+
   return (
     <div className="flex h-full min-h-screen">
       {/* Left Panel - Controls */}
@@ -502,7 +751,7 @@ export const ImageStudio = () => {
               Image Studio
             </h2>
             <p className="text-sm text-[#666]">
-              Generate stunning images from text descriptions
+              Generate and transform images with AI
             </p>
           </div>
 
@@ -513,6 +762,38 @@ export const ImageStudio = () => {
             </div>
           )}
 
+          {/* Mode Toggle */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-[#888]">Generation Mode</label>
+            <ModeToggle mode={mode} onChange={setMode} />
+          </div>
+
+          {/* Reference Image Upload - Always visible but required indicator changes */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-[#888]">
+              Reference Image
+              {mode === "image-to-image" && (
+                <span className="text-amber-400 ml-1">*</span>
+              )}
+            </label>
+            <ImageUpload
+              image={referenceImage}
+              onImageChange={setReferenceImage}
+              required={mode === "image-to-image"}
+              disabled={isGenerating}
+            />
+            {mode === "image-to-image" && (
+              <p className="text-xs text-[#555]">
+                Upload an image to transform. The AI will use your prompt to modify it.
+              </p>
+            )}
+            {mode === "text-to-image" && (
+              <p className="text-xs text-[#555]">
+                Optional: Upload a reference for style inspiration.
+              </p>
+            )}
+          </div>
+
           {/* Prompt Area */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-[#888]">Prompt</label>
@@ -520,7 +801,7 @@ export const ImageStudio = () => {
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Describe your image in detail..."
+                placeholder={getPromptPlaceholder()}
                 rows={4}
                 disabled={isGenerating}
                 className="
@@ -589,21 +870,21 @@ export const ImageStudio = () => {
           {/* Generate Button */}
           <button
             onClick={handleGenerate}
-            disabled={!prompt.trim() || isGenerating || atLimit}
+            disabled={!prompt.trim() || isGenerating || atLimit || !isImg2ImgReady}
             className={`
               w-full py-4 rounded-xl
               font-medium text-base
               transition-all duration-300
               relative overflow-hidden
               group
-              ${prompt.trim() && !isGenerating && !atLimit
+              ${prompt.trim() && !isGenerating && !atLimit && isImg2ImgReady
                 ? "bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40"
                 : "bg-[#222] text-[#555] cursor-not-allowed"
               }
             `}
           >
             {/* Shimmer effect */}
-            {prompt.trim() && !isGenerating && !atLimit && (
+            {prompt.trim() && !isGenerating && !atLimit && isImg2ImgReady && (
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
             )}
             
@@ -618,10 +899,15 @@ export const ImageStudio = () => {
                   <Lock className="w-5 h-5 text-[#555]" />
                   <span>Upgrade to Generate</span>
                 </>
+              ) : !isImg2ImgReady ? (
+                <>
+                  <Upload className="w-5 h-5 text-[#555]" />
+                  <span>Upload Reference Image</span>
+                </>
               ) : (
                 <>
                   <Sparkles className={`w-5 h-5 ${prompt.trim() ? "text-white/90" : "text-[#555]"}`} />
-                  <span>Generate Images</span>
+                  <span>{mode === "image-to-image" ? "Transform Image" : "Generate Images"}</span>
                 </>
               )}
             </div>
@@ -667,7 +953,10 @@ export const ImageStudio = () => {
             </div>
             <h3 className="text-lg font-medium text-white/80 mb-2">No images yet</h3>
             <p className="text-sm text-[#666] max-w-xs">
-              Enter a prompt and click "Generate Images" to create your first masterpiece
+              {mode === "image-to-image" 
+                ? "Upload a reference image and describe how to transform it"
+                : "Enter a prompt and click \"Generate Images\" to create your first masterpiece"
+              }
             </p>
           </div>
         )}

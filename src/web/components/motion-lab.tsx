@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import {
   Upload,
   Play,
@@ -6,8 +6,258 @@ import {
   Sparkles,
   ChevronDown,
   ChevronUp,
-  Image as ImageIcon,
+  Wand2,
+  Film,
+  ImageIcon,
+  Trash2,
+  Loader2,
+  Lock,
+  Pause,
+  Download,
 } from "lucide-react";
+import { useUsage } from "./usage-context";
+
+// Video generation mode type
+type VideoMode = "text-to-video" | "image-to-video";
+
+// Generated video interface
+interface GeneratedVideo {
+  id: string;
+  url: string;
+  prompt: string;
+  duration: number;
+  aspectRatio: string;
+  thumbnailUrl?: string;
+  createdAt: string;
+  mode: VideoMode;
+}
+
+// Mode toggle component
+interface ModeToggleProps {
+  mode: VideoMode;
+  onChange: (mode: VideoMode) => void;
+}
+
+const ModeToggle = ({ mode, onChange }: ModeToggleProps) => {
+  return (
+    <div className="relative flex rounded-xl bg-[#0a0a0a] border border-[#333] p-1">
+      {/* Sliding background indicator */}
+      <div 
+        className={`
+          absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-lg
+          bg-gradient-to-r from-indigo-600/30 to-blue-600/30
+          border border-indigo-500/30
+          transition-transform duration-300 ease-out
+          ${mode === "image-to-video" ? "translate-x-[calc(100%+8px)]" : "translate-x-0"}
+        `}
+      />
+      
+      <button
+        onClick={() => onChange("text-to-video")}
+        className={`
+          relative flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg
+          transition-all duration-300
+          ${mode === "text-to-video" ? "text-white" : "text-[#666] hover:text-[#888]"}
+        `}
+      >
+        <Wand2 className="w-4 h-4" />
+        <span className="text-sm font-medium">Text to Video</span>
+      </button>
+      
+      <button
+        onClick={() => onChange("image-to-video")}
+        className={`
+          relative flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg
+          transition-all duration-300
+          ${mode === "image-to-video" ? "text-white" : "text-[#666] hover:text-[#888]"}
+        `}
+      >
+        <Film className="w-4 h-4" />
+        <span className="text-sm font-medium">Image to Video</span>
+      </button>
+    </div>
+  );
+};
+
+// Enhanced image upload component
+interface ImageUploadProps {
+  image: string | null;
+  onImageChange: (image: string | null) => void;
+  required?: boolean;
+  disabled?: boolean;
+}
+
+const ImageUpload = ({ image, onImageChange, required, disabled }: ImageUploadProps) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleFile = useCallback((file: File) => {
+    if (!file.type.startsWith("image/")) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      onImageChange(result);
+    };
+    reader.readAsDataURL(file);
+  }, [onImageChange]);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    if (disabled) return;
+    
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      handleFile(file);
+    }
+  }, [handleFile, disabled]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    if (!disabled) {
+      setIsDragging(true);
+    }
+  }, [disabled]);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
+  const handleClick = () => {
+    if (!disabled) {
+      fileInputRef.current?.click();
+    }
+  };
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFile(file);
+    }
+    e.target.value = "";
+  };
+
+  const handleRemove = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onImageChange(null);
+  };
+
+  if (image) {
+    return (
+      <div className="relative rounded-xl overflow-hidden border border-[#333] group">
+        <img 
+          src={image} 
+          alt="Reference" 
+          className="w-full h-48 object-cover"
+        />
+        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
+          <button
+            onClick={handleRemove}
+            disabled={disabled}
+            className="
+              flex items-center gap-2 px-4 py-2 rounded-lg
+              bg-red-500/20 border border-red-500/40
+              text-red-400 text-sm font-medium
+              hover:bg-red-500/30 transition-colors
+              disabled:opacity-50
+            "
+          >
+            <Trash2 className="w-4 h-4" />
+            Remove
+          </button>
+        </div>
+        <div className="absolute top-2 left-2 px-2 py-1 rounded-md bg-black/60 backdrop-blur-sm flex items-center gap-1.5">
+          <Film className="w-3 h-3 text-indigo-400" />
+          <span className="text-xs text-indigo-400">Ready to Animate</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        onChange={handleFileInput}
+        className="hidden"
+      />
+      <div
+        onClick={handleClick}
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        className={`
+          relative p-8 rounded-xl
+          border-2 border-dashed
+          flex flex-col items-center justify-center gap-4
+          cursor-pointer
+          transition-all duration-300
+          ${disabled ? "opacity-50 cursor-not-allowed" : ""}
+          ${isDragging 
+            ? "border-indigo-500/60 bg-indigo-500/10" 
+            : required 
+              ? "border-amber-500/40 bg-amber-500/5 hover:border-amber-500/60 hover:bg-amber-500/10"
+              : "border-[#333] bg-white/[0.02] hover:border-[#444] hover:bg-white/[0.04]"
+          }
+        `}
+      >
+        {/* Glow effect on drag */}
+        {isDragging && (
+          <div className="absolute inset-0 rounded-xl bg-indigo-500/10 blur-xl" />
+        )}
+        
+        {/* Animation indicator icon */}
+        <div className={`
+          relative w-16 h-16 rounded-xl flex items-center justify-center
+          transition-all duration-300
+          ${isDragging 
+            ? "bg-indigo-500/20" 
+            : required 
+              ? "bg-amber-500/10"
+              : "bg-white/[0.05]"
+          }
+        `}>
+          <div className="relative">
+            <ImageIcon className={`
+              w-7 h-7 transition-colors
+              ${isDragging 
+                ? "text-indigo-400" 
+                : required 
+                  ? "text-amber-400"
+                  : "text-[#666]"
+              }
+            `} />
+            <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-indigo-500/80 flex items-center justify-center">
+              <Play className="w-2 h-2 text-white ml-0.5" fill="white" />
+            </div>
+          </div>
+        </div>
+        
+        <div className="relative text-center">
+          <p className={`
+            text-base font-medium
+            ${required ? "text-amber-400" : "text-white/80"}
+          `}>
+            {required ? "Animate Your Photo" : "Upload Reference Photo"}
+          </p>
+          <p className={`text-sm mt-1 ${required ? "text-amber-400/70" : "text-[#666]"}`}>
+            {required ? "Upload a photo to bring it to life" : "Optional: Transform your image into video"}
+          </p>
+          <p className="text-xs text-[#555] mt-2">
+            Drag & drop or click • JPG, PNG, WebP
+          </p>
+        </div>
+      </div>
+    </>
+  );
+};
 
 // Settings section component
 interface CollapsibleSectionProps {
@@ -166,15 +416,186 @@ const MotionScaleSlider = ({ value, onChange }: MotionScaleSliderProps) => {
   );
 };
 
-// Thumbnail component for recent generations
-interface ThumbnailProps {
-  duration: string;
-  index: number;
+// Video player component
+interface VideoPlayerProps {
+  video: GeneratedVideo | null;
+  isGenerating: boolean;
 }
 
-const Thumbnail = ({ duration, index }: ThumbnailProps) => {
+const VideoPlayer = ({ video, isGenerating }: VideoPlayerProps) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  const togglePlay = () => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.pause();
+      } else {
+        videoRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!video) return;
+    try {
+      const response = await fetch(video.url);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `synapse-video-${video.id}.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Download failed:", error);
+    }
+  };
+
+  if (isGenerating) {
+    return (
+      <div 
+        className="
+          relative aspect-video rounded-2xl overflow-hidden
+          bg-gradient-to-br from-[#0a0a0a] to-[#111]
+          border border-[#222]
+        "
+      >
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
+          {/* Animated gradient background */}
+          <div className="absolute inset-0 opacity-20">
+            <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/20 via-blue-500/20 to-purple-500/20 animate-pulse" />
+          </div>
+          
+          {/* Loading spinner */}
+          <div className="relative">
+            <div className="absolute inset-0 bg-indigo-500/20 rounded-full blur-xl animate-pulse" />
+            <div className="relative w-20 h-20 rounded-full bg-white/[0.05] border border-indigo-500/30 flex items-center justify-center">
+              <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
+            </div>
+          </div>
+          
+          <div className="text-center">
+            <p className="text-white/80 text-sm font-medium">Generating your video...</p>
+            <p className="text-[#555] text-xs mt-1">This may take a few minutes</p>
+          </div>
+        </div>
+
+        <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-sm border border-indigo-500/30">
+          <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+          <span className="text-xs text-indigo-400">Processing</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (video) {
+    return (
+      <div 
+        className="
+          relative aspect-video rounded-2xl overflow-hidden
+          bg-gradient-to-br from-[#0a0a0a] to-[#111]
+          border border-[#222]
+        "
+      >
+        <video
+          ref={videoRef}
+          src={video.url}
+          className="w-full h-full object-cover"
+          loop
+          playsInline
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+        />
+        
+        {/* Controls overlay */}
+        <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity duration-300 bg-black/30">
+          <button
+            onClick={togglePlay}
+            className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors"
+          >
+            {isPlaying ? (
+              <Pause className="w-6 h-6 text-white" fill="white" />
+            ) : (
+              <Play className="w-6 h-6 text-white ml-1" fill="white" />
+            )}
+          </button>
+        </div>
+
+        {/* Info bar */}
+        <div className="absolute top-4 left-4 right-4 flex items-center justify-between">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-sm border border-white/[0.05]">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            <span className="text-xs text-white/80">Generated</span>
+          </div>
+          <button
+            onClick={handleDownload}
+            className="px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-sm border border-white/[0.05] text-white/80 hover:text-white transition-colors flex items-center gap-1.5"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span className="text-xs">Download</span>
+          </button>
+        </div>
+
+        {/* Duration badge */}
+        <div className="absolute bottom-4 right-4 px-2.5 py-1 rounded-md bg-black/70 backdrop-blur-sm">
+          <span className="text-xs font-medium text-white/90">{video.duration}s</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div 
+      className="
+        relative aspect-video rounded-2xl overflow-hidden
+        bg-gradient-to-br from-[#0a0a0a] to-[#111]
+        border border-[#222]
+      "
+    >
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
+        {/* Subtle pattern */}
+        <div 
+          className="absolute inset-0 opacity-[0.03]"
+          style={{
+            backgroundImage: `radial-gradient(circle, rgba(99, 102, 241, 0.5) 1px, transparent 1px)`,
+            backgroundSize: '20px 20px',
+          }}
+        />
+        
+        {/* Play button */}
+        <div className="relative">
+          <div className="absolute inset-0 bg-indigo-500/20 rounded-full blur-xl animate-pulse" />
+          <div className="relative w-20 h-20 rounded-full bg-white/[0.05] border border-white/10 flex items-center justify-center">
+            <Play className="w-8 h-8 text-white/40 ml-1" />
+          </div>
+        </div>
+        
+        <p className="text-[#555] text-sm">Your video will appear here</p>
+      </div>
+
+      <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-sm border border-white/[0.05]">
+        <div className="w-1.5 h-1.5 rounded-full bg-[#444]" />
+        <span className="text-xs text-[#666]">Ready</span>
+      </div>
+    </div>
+  );
+};
+
+// Thumbnail component for recent generations
+interface ThumbnailProps {
+  video: GeneratedVideo;
+  index: number;
+  onClick: (video: GeneratedVideo) => void;
+}
+
+const Thumbnail = ({ video, index, onClick }: ThumbnailProps) => {
+  return (
+    <div 
+      onClick={() => onClick(video)}
       className="
         relative aspect-video rounded-xl overflow-hidden
         bg-gradient-to-br from-[#1a1a1a] to-[#0a0a0a]
@@ -183,16 +604,20 @@ const Thumbnail = ({ duration, index }: ThumbnailProps) => {
         transition-all duration-300
       "
     >
-      {/* Placeholder gradient - unique per thumbnail */}
-      <div 
-        className="absolute inset-0 opacity-30 group-hover:opacity-50 transition-opacity"
-        style={{
-          background: `linear-gradient(${135 + index * 45}deg, 
-            rgba(99, 102, 241, 0.3) 0%, 
-            rgba(59, 130, 246, 0.2) 50%, 
-            rgba(139, 92, 246, 0.3) 100%)`
-        }}
-      />
+      {/* Video thumbnail or placeholder */}
+      {video.thumbnailUrl ? (
+        <img src={video.thumbnailUrl} alt={video.prompt} className="w-full h-full object-cover" />
+      ) : (
+        <div 
+          className="absolute inset-0 opacity-30 group-hover:opacity-50 transition-opacity"
+          style={{
+            background: `linear-gradient(${135 + index * 45}deg, 
+              rgba(99, 102, 241, 0.3) 0%, 
+              rgba(59, 130, 246, 0.2) 50%, 
+              rgba(139, 92, 246, 0.3) 100%)`
+          }}
+        />
+      )}
       
       {/* Play overlay */}
       <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -201,9 +626,16 @@ const Thumbnail = ({ duration, index }: ThumbnailProps) => {
         </div>
       </div>
 
+      {/* Mode badge */}
+      <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/60 backdrop-blur-sm">
+        <span className="text-[10px] text-white/70">
+          {video.mode === "image-to-video" ? "I2V" : "T2V"}
+        </span>
+      </div>
+
       {/* Duration badge */}
       <div className="absolute bottom-2 right-2 px-2 py-1 rounded-md bg-black/70 backdrop-blur-sm">
-        <span className="text-xs font-medium text-white/90">{duration}</span>
+        <span className="text-xs font-medium text-white/90">{video.duration}s</span>
       </div>
     </div>
   );
@@ -212,55 +644,93 @@ const Thumbnail = ({ duration, index }: ThumbnailProps) => {
 // Main Motion Lab component
 export const MotionLab = () => {
   const [prompt, setPrompt] = useState("");
+  const [mode, setMode] = useState<VideoMode>("text-to-video");
   const [duration, setDuration] = useState(5);
   const [aspectRatio, setAspectRatio] = useState("16:9");
   const [motionScale, setMotionScale] = useState(5);
-  const [isDragging, setIsDragging] = useState(false);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [currentVideo, setCurrentVideo] = useState<GeneratedVideo | null>(null);
+  const [recentVideos, setRecentVideos] = useState<GeneratedVideo[]>([]);
+  
+  const { checkVideoLimit, incrementVideos, canGenerateVideo, videoCount: usedVideos, limits, setShowPaywall, setPaywallReason } = useUsage();
+  const atLimit = !canGenerateVideo;
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
+  // Check if ready to generate
+  const isReady = mode === "text-to-video" || (mode === "image-to-video" && uploadedImage);
 
-  const handleDragLeave = () => {
-    setIsDragging(false);
-  };
+  const handleGenerate = async () => {
+    if (!prompt.trim() || isGenerating) return;
+    
+    // Check if image-to-video has image
+    if (mode === "image-to-video" && !uploadedImage) {
+      setError("Please upload a photo to animate");
+      return;
+    }
+    
+    // Check usage limit
+    if (!checkVideoLimit()) return;
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith("image/")) {
-      const reader = new FileReader();
-      reader.onload = (e) => setUploadedImage(e.target?.result as string);
-      reader.readAsDataURL(file);
+    setIsGenerating(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/video", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: prompt.trim(),
+          duration,
+          aspectRatio,
+          motionScale,
+          mode,
+          referenceImage: mode === "image-to-video" ? uploadedImage : null,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to generate video");
+      }
+
+      const newVideo: GeneratedVideo = {
+        id: data.id || `${Date.now()}`,
+        url: data.url,
+        prompt,
+        duration,
+        aspectRatio,
+        thumbnailUrl: data.thumbnailUrl,
+        createdAt: new Date().toISOString(),
+        mode,
+      };
+
+      setCurrentVideo(newVideo);
+      setRecentVideos((prev) => [newVideo, ...prev].slice(0, 6));
+      
+      // Increment usage
+      incrementVideos();
+      
+      // Clear prompt
+      setPrompt("");
+    } catch (err) {
+      console.error("Generation error:", err);
+      setError(err instanceof Error ? err.message : "Failed to generate video");
+    } finally {
+      setIsGenerating(false);
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => setUploadedImage(e.target?.result as string);
-      reader.readAsDataURL(file);
+  // Dynamic placeholder based on mode
+  const getPromptPlaceholder = () => {
+    if (mode === "image-to-video") {
+      return "Describe the motion... (e.g., 'slowly smile and wave', 'wind blowing through hair', 'camera zoom in')";
     }
+    return "Describe your video scene in detail...";
   };
-
-  const handleGenerate = () => {
-    console.log("Generating video with:", { prompt, duration, aspectRatio, motionScale, uploadedImage });
-  };
-
-  // Dummy recent generations
-  const recentGenerations = [
-    { id: 1, duration: "0:05" },
-    { id: 2, duration: "0:10" },
-    { id: 3, duration: "0:05" },
-    { id: 4, duration: "0:08" },
-    { id: 5, duration: "0:10" },
-    { id: 6, duration: "0:05" },
-  ];
 
   return (
     <div className="flex h-full min-h-screen">
@@ -273,8 +743,37 @@ export const MotionLab = () => {
               Motion Lab
             </h2>
             <p className="text-sm text-[#666]">
-              Generate videos from text or images
+              Generate videos from text or animate your photos
             </p>
+          </div>
+
+          {/* Error message */}
+          {error && (
+            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30">
+              <p className="text-sm text-red-400">{error}</p>
+            </div>
+          )}
+
+          {/* Mode Toggle */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-[#888]">Generation Mode</label>
+            <ModeToggle mode={mode} onChange={setMode} />
+          </div>
+
+          {/* Image Upload - Prominent in image-to-video mode */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-[#888]">
+              {mode === "image-to-video" ? "Photo to Animate" : "Reference Image"}
+              {mode === "image-to-video" && (
+                <span className="text-amber-400 ml-1">*</span>
+              )}
+            </label>
+            <ImageUpload
+              image={uploadedImage}
+              onImageChange={setUploadedImage}
+              required={mode === "image-to-video"}
+              disabled={isGenerating}
+            />
           </div>
 
           {/* Prompt Area */}
@@ -284,8 +783,9 @@ export const MotionLab = () => {
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Describe your video..."
+                placeholder={getPromptPlaceholder()}
                 rows={4}
+                disabled={isGenerating}
                 className="
                   w-full p-4 rounded-xl
                   bg-[#0a0a0a]/80 backdrop-blur-xl
@@ -294,72 +794,12 @@ export const MotionLab = () => {
                   text-[15px] leading-relaxed
                   resize-none outline-none
                   transition-all duration-300
+                  disabled:opacity-50
                 "
               />
               <div className="absolute bottom-3 right-3 text-xs text-[#555]">
                 {prompt.length}/1000
               </div>
-            </div>
-          </div>
-
-          {/* Image Upload */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-[#888]">Reference Image</label>
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept="image/*"
-              onChange={handleFileSelect}
-              className="hidden"
-            />
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              className={`
-                relative p-6 rounded-xl
-                border-2 border-dashed
-                cursor-pointer
-                transition-all duration-300
-                ${isDragging
-                  ? "border-indigo-500 bg-indigo-500/10"
-                  : "border-[#333] hover:border-[#444] bg-white/[0.02] hover:bg-white/[0.04]"
-                }
-              `}
-            >
-              {uploadedImage ? (
-                <div className="relative">
-                  <img
-                    src={uploadedImage}
-                    alt="Uploaded reference"
-                    className="w-full h-32 object-cover rounded-lg"
-                  />
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setUploadedImage(null);
-                    }}
-                    className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/70 flex items-center justify-center text-white/70 hover:text-white"
-                  >
-                    ×
-                  </button>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-3 py-2">
-                  <div className="w-12 h-12 rounded-xl bg-white/[0.05] flex items-center justify-center">
-                    <Upload className="w-5 h-5 text-[#666]" />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-medium text-white/80">
-                      Upload Reference Image
-                    </p>
-                    <p className="text-xs text-[#555] mt-1">
-                      For Image-to-Video generation
-                    </p>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
 
@@ -378,31 +818,98 @@ export const MotionLab = () => {
             </CollapsibleSection>
           </div>
 
+          {/* Limit warning */}
+          {atLimit && (
+            <button
+              onClick={() => {
+                setPaywallReason("videos")
+                setShowPaywall(true)
+              }}
+              className="
+                w-full p-4 rounded-xl
+                bg-gradient-to-r from-red-500/10 via-amber-500/10 to-red-500/10
+                border border-red-500/30
+                flex items-center justify-center gap-3
+                group transition-all duration-300
+                hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/10
+              "
+            >
+              <Lock className="w-5 h-5 text-amber-400" />
+              <span className="text-amber-400 font-medium text-sm">
+                Video generation requires Studio plan
+              </span>
+              <span className="text-amber-400/60 text-xs ml-1 group-hover:text-amber-400 transition-colors">
+                Upgrade →
+              </span>
+            </button>
+          )}
+
           {/* Generate Button */}
           <button
             onClick={handleGenerate}
-            disabled={!prompt.trim()}
+            disabled={!prompt.trim() || isGenerating || atLimit || !isReady}
             className={`
               w-full py-4 rounded-xl
               font-medium text-base
               transition-all duration-300
               relative overflow-hidden
               group
-              ${prompt.trim()
+              ${prompt.trim() && !isGenerating && !atLimit && isReady
                 ? "bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40"
                 : "bg-[#222] text-[#555] cursor-not-allowed"
               }
             `}
           >
             {/* Animated glow effect */}
-            {prompt.trim() && (
+            {prompt.trim() && !isGenerating && !atLimit && isReady && (
               <div className="absolute inset-0 bg-gradient-to-r from-indigo-400/0 via-white/20 to-indigo-400/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
             )}
             <span className="relative flex items-center justify-center gap-2">
-              <Sparkles className="w-5 h-5" />
-              Generate Video
+              {isGenerating ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Generating...</span>
+                </>
+              ) : atLimit ? (
+                <>
+                  <Lock className="w-5 h-5" />
+                  <span>Upgrade to Generate</span>
+                </>
+              ) : !isReady ? (
+                <>
+                  <Upload className="w-5 h-5" />
+                  <span>Upload Photo First</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-5 h-5" />
+                  <span>{mode === "image-to-video" ? "Animate Photo" : "Generate Video"}</span>
+                </>
+              )}
             </span>
           </button>
+
+          {/* Credits indicator */}
+          <div 
+            className={`
+              flex items-center justify-center gap-2 py-3 px-4 rounded-lg border
+              ${atLimit 
+                ? "bg-red-500/5 border-red-500/20" 
+                : "bg-white/[0.02] border-[#222]"
+              }
+            `}
+          >
+            <div className={`w-2 h-2 rounded-full ${atLimit ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
+            <span className="text-xs text-[#666]">
+              {atLimit ? (
+                <span className="text-amber-400 font-medium">Studio plan required for video generation</span>
+              ) : (
+                <>
+                  <span className="font-medium text-white/80">{usedVideos}/{limits.maxVideos}</span> free videos used
+                </>
+              )}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -412,41 +919,7 @@ export const MotionLab = () => {
           {/* Main Video Player */}
           <div>
             <h3 className="font-mono text-lg font-medium text-white mb-4">Preview</h3>
-            <div 
-              className="
-                relative aspect-video rounded-2xl overflow-hidden
-                bg-gradient-to-br from-[#0a0a0a] to-[#111]
-                border border-[#222]
-              "
-            >
-              {/* Placeholder content */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
-                {/* Subtle pattern */}
-                <div 
-                  className="absolute inset-0 opacity-[0.03]"
-                  style={{
-                    backgroundImage: `radial-gradient(circle, rgba(99, 102, 241, 0.5) 1px, transparent 1px)`,
-                    backgroundSize: '20px 20px',
-                  }}
-                />
-                
-                {/* Play button */}
-                <div className="relative">
-                  <div className="absolute inset-0 bg-indigo-500/20 rounded-full blur-xl animate-pulse" />
-                  <div className="relative w-20 h-20 rounded-full bg-white/[0.05] border border-white/10 flex items-center justify-center">
-                    <Play className="w-8 h-8 text-white/40 ml-1" />
-                  </div>
-                </div>
-                
-                <p className="text-[#555] text-sm">Your video will appear here</p>
-              </div>
-
-              {/* Corner decorations */}
-              <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-sm border border-white/[0.05]">
-                <div className="w-1.5 h-1.5 rounded-full bg-[#444]" />
-                <span className="text-xs text-[#666]">Ready</span>
-              </div>
-            </div>
+            <VideoPlayer video={currentVideo} isGenerating={isGenerating} />
           </div>
 
           {/* Recent Generations */}
@@ -456,16 +929,36 @@ export const MotionLab = () => {
                 <Clock className="w-4 h-4 text-[#666]" />
                 Recent Generations
               </h3>
-              <button className="text-xs text-[#666] hover:text-white transition-colors">
-                View All
-              </button>
+              {recentVideos.length > 0 && (
+                <span className="text-xs text-[#666]">{recentVideos.length} videos</span>
+              )}
             </div>
             
-            <div className="grid grid-cols-3 gap-4">
-              {recentGenerations.map((gen, index) => (
-                <Thumbnail key={gen.id} duration={gen.duration} index={index} />
-              ))}
-            </div>
+            {recentVideos.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="w-16 h-16 rounded-full bg-white/[0.02] border border-[#333] flex items-center justify-center mb-4">
+                  <Film className="w-7 h-7 text-[#444]" />
+                </div>
+                <p className="text-sm text-[#666]">No videos generated yet</p>
+                <p className="text-xs text-[#555] mt-1">
+                  {mode === "image-to-video" 
+                    ? "Upload a photo and describe the motion"
+                    : "Enter a prompt and click Generate"
+                  }
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-4">
+                {recentVideos.map((video, index) => (
+                  <Thumbnail 
+                    key={video.id} 
+                    video={video} 
+                    index={index}
+                    onClick={setCurrentVideo}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -10,30 +10,66 @@ const ASPECT_RATIO_MAP: Record<string, string> = {
   "9:16": "9:16",
 }
 
+// Style prompts for enhancing the base prompt
+const stylePrompts: Record<string, string> = {
+  photorealistic: "ultra realistic, photorealistic, high detail, 8k photography",
+  anime: "anime style, manga art, vibrant colors, japanese animation style",
+  "3d": "3D render, CGI, octane render, cinema 4D, high quality 3D graphics",
+  cyberpunk: "cyberpunk style, neon lights, futuristic, blade runner aesthetic, neon city",
+}
+
 imageRoutes.post("/", async (c) => {
   try {
-    const { prompt, aspectRatio, numImages, style } = await c.req.json()
+    const { prompt, aspectRatio, numImages, style, mode, referenceImage } = await c.req.json()
 
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
       return c.json({ error: "Prompt is required" }, 400)
     }
 
-    // Enhance prompt with style if provided
-    const stylePrompts: Record<string, string> = {
-      photorealistic: "ultra realistic, photorealistic, high detail, 8k photography",
-      anime: "anime style, manga art, vibrant colors, japanese animation style",
-      "3d": "3D render, CGI, octane render, cinema 4D, high quality 3D graphics",
-      cyberpunk: "cyberpunk style, neon lights, futuristic, blade runner aesthetic, neon city",
+    // Validate image-to-image mode has a reference image
+    if (mode === "image-to-image" && !referenceImage) {
+      return c.json({ error: "Reference image is required for Image-to-Image mode" }, 400)
     }
 
+    // Enhance prompt with style if provided
     const styleEnhancement = style && stylePrompts[style] ? `, ${stylePrompts[style]}` : ""
-    const enhancedPrompt = `Generate an image of: ${prompt.trim()}${styleEnhancement}`
+    
+    // Build the prompt based on mode
+    let enhancedPrompt: string
+    if (mode === "image-to-image") {
+      // For image-to-image, focus on transformation
+      enhancedPrompt = `Transform this image: ${prompt.trim()}${styleEnhancement}. Maintain the core subject/person while applying the transformation.`
+    } else {
+      enhancedPrompt = `Generate an image of: ${prompt.trim()}${styleEnhancement}`
+    }
 
     // Generate images one at a time (most models only generate one image per request)
     const numToGenerate = Math.min(Math.max(numImages || 1, 1), 4)
     const generatedImages = []
 
     for (let i = 0; i < numToGenerate; i++) {
+      // Build the message content based on mode
+      let messageContent: string | Array<{ type: string; text?: string; image_url?: { url: string } }>
+      
+      if (mode === "image-to-image" && referenceImage) {
+        // For image-to-image, include both the reference image and the prompt
+        messageContent = [
+          {
+            type: "image_url",
+            image_url: {
+              url: referenceImage, // This is already a base64 data URL
+            },
+          },
+          {
+            type: "text",
+            text: enhancedPrompt,
+          },
+        ]
+      } else {
+        // For text-to-image, just use the prompt
+        messageContent = enhancedPrompt
+      }
+
       // Call OpenRouter chat completions API with image modality
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
@@ -48,7 +84,7 @@ imageRoutes.post("/", async (c) => {
           messages: [
             {
               role: "user",
-              content: enhancedPrompt,
+              content: messageContent,
             },
           ],
           modalities: ["image", "text"],
@@ -89,6 +125,7 @@ imageRoutes.post("/", async (c) => {
               prompt: enhancedPrompt,
               aspectRatio,
               style,
+              mode: mode || "text-to-image",
               createdAt: new Date().toISOString(),
             })
           }
