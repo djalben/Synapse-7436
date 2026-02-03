@@ -439,11 +439,8 @@ export const ChatInterface = () => {
           onModelChange={setSelectedModel}
         />
 
-        <div className="hidden md:flex items-center gap-3">
+        <div className="hidden md:flex items-center gap-4 pr-14">
           <PremiumButtonWithStyles />
-          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center text-xs font-semibold">
-            S
-          </div>
         </div>
       </header>
 
