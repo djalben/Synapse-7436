@@ -1,12 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import { ChevronDown, Check } from "lucide-react";
-
-interface Model {
-  id: string;
-  name: string;
-  provider: string;
-  providerLogo: React.ReactNode;
-}
+import { ChevronDown, Check, Lock, Diamond, AlertTriangle, Sparkles } from "lucide-react";
+import { useUsage } from "./usage-context";
+import { toast } from "sonner";
 
 // Provider logos as SVG components
 const OpenAILogo = () => (
@@ -21,45 +16,106 @@ const AnthropicLogo = () => (
   </svg>
 );
 
-const DeepSeekLogo = () => (
-  <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
-    <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2" />
-    <path d="M8 12h8M12 8v8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-  </svg>
-);
+// Plan types
+export type UserPlan = "free" | "lite" | "standard" | "ultra";
 
-const models: Model[] = [
+// Model definition
+export interface Model {
+  id: string;
+  backendId: string;
+  name: string;
+  subtitle: string;
+  creditCost: number;
+  dotColor: string;
+  providerLogo: React.ReactNode;
+  requiredPlan: UserPlan;
+  isGodMode?: boolean;
+}
+
+// Available models with tiered access
+export const models: Model[] = [
+  {
+    id: "gpt-4o-mini",
+    backendId: "openai/gpt-4o-mini",
+    name: "GPT-4o Mini",
+    subtitle: "Fast & Efficient",
+    creditCost: 0.1,
+    dotColor: "bg-emerald-500",
+    providerLogo: <OpenAILogo />,
+    requiredPlan: "free",
+  },
   {
     id: "gpt-4o",
+    backendId: "openai/gpt-4o",
     name: "GPT-4o",
-    provider: "OpenAI",
+    subtitle: "Smart Agent",
+    creditCost: 1,
+    dotColor: "bg-blue-500",
     providerLogo: <OpenAILogo />,
+    requiredPlan: "lite",
   },
   {
     id: "claude-3.5-sonnet",
+    backendId: "anthropic/claude-3.5-sonnet",
     name: "Claude 3.5 Sonnet",
-    provider: "Anthropic",
+    subtitle: "Coding Genius",
+    creditCost: 3,
+    dotColor: "bg-violet-500",
     providerLogo: <AnthropicLogo />,
+    requiredPlan: "standard",
   },
   {
-    id: "deepseek-v3",
-    name: "DeepSeek V3",
-    provider: "DeepSeek",
-    providerLogo: <DeepSeekLogo />,
+    id: "gpt-5-o1",
+    backendId: "openai/o1",
+    name: "GPT-5 / o1",
+    subtitle: "God Mode",
+    creditCost: 20,
+    dotColor: "bg-gradient-to-r from-amber-400 to-orange-500",
+    providerLogo: <OpenAILogo />,
+    requiredPlan: "ultra",
+    isGodMode: true,
   },
 ];
+
+// Plan hierarchy for access checking
+const PLAN_HIERARCHY: Record<UserPlan, number> = {
+  free: 0,
+  lite: 1,
+  standard: 2,
+  ultra: 3,
+};
+
+// Check if a user can access a model based on their plan
+export const canAccessModel = (userPlan: UserPlan, requiredPlan: UserPlan): boolean => {
+  return PLAN_HIERARCHY[userPlan] >= PLAN_HIERARCHY[requiredPlan];
+};
+
+// Get credit cost for a model
+export const getModelCreditCost = (modelId: string): number => {
+  const model = models.find(m => m.id === modelId);
+  return model?.creditCost ?? 0.1;
+};
+
+// Get backend model ID
+export const getBackendModelId = (modelId: string): string => {
+  const model = models.find(m => m.id === modelId);
+  return model?.backendId ?? "openai/gpt-4o-mini";
+};
 
 interface ModelSelectorProps {
   selectedModel: string;
   onModelChange: (modelId: string) => void;
+  userPlan?: UserPlan;
 }
 
 export const ModelSelector = ({
   selectedModel,
   onModelChange,
+  userPlan = "free",
 }: ModelSelectorProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { setShowPaywall, setPaywallReason } = useUsage();
 
   const currentModel = models.find((m) => m.id === selectedModel) || models[0];
 
@@ -77,22 +133,70 @@ export const ModelSelector = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const handleModelSelect = (model: Model) => {
+    const hasAccess = canAccessModel(userPlan, model.requiredPlan);
+    
+    if (!hasAccess) {
+      // Show paywall for locked models
+      setPaywallReason("messages");
+      setShowPaywall(true);
+      setIsOpen(false);
+      return;
+    }
+    
+    // Show warning for God Mode
+    if (model.isGodMode) {
+      toast.warning("⚠️ High Cost Mode: 20 credits per message", {
+        description: "This model uses significantly more credits.",
+        duration: 5000,
+      });
+    }
+    
+    onModelChange(model.id);
+    setIsOpen(false);
+  };
+
   return (
     <div className="relative" ref={dropdownRef}>
+      {/* Trigger Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`
-          flex items-center gap-2.5 px-3 py-2 rounded-lg
+          flex items-center gap-2.5 px-3 py-2 rounded-xl
           bg-white/[0.04] hover:bg-white/[0.08]
           border border-[#333] hover:border-[#444]
           transition-all duration-200
           ${isOpen ? "bg-white/[0.08] border-[#444]" : ""}
+          ${currentModel.isGodMode ? "border-amber-500/30 hover:border-amber-500/50" : ""}
         `}
       >
+        {/* Status Dot */}
+        <div className={`w-2 h-2 rounded-full ${currentModel.dotColor} flex-shrink-0`} />
+        
+        {/* Provider Logo */}
         <div className="text-[#888]">{currentModel.providerLogo}</div>
-        <span className="text-sm font-medium text-white/90">
+        
+        {/* Model Name */}
+        <span className={`text-sm font-medium ${currentModel.isGodMode ? "text-amber-200" : "text-white/90"}`}>
           {currentModel.name}
         </span>
+        
+        {/* God Mode Diamond */}
+        {currentModel.isGodMode && (
+          <Diamond className="w-3.5 h-3.5 text-amber-400" />
+        )}
+        
+        {/* Credit Badge */}
+        <span className={`
+          text-xs px-1.5 py-0.5 rounded-md
+          ${currentModel.isGodMode 
+            ? "bg-amber-500/20 text-amber-400 font-medium" 
+            : "bg-white/[0.06] text-[#888]"
+          }
+        `}>
+          {currentModel.creditCost} cr
+        </span>
+        
         <ChevronDown
           className={`w-4 h-4 text-[#666] transition-transform duration-200 ${
             isOpen ? "rotate-180" : ""
@@ -104,7 +208,7 @@ export const ModelSelector = ({
       {isOpen && (
         <div
           className="
-            absolute top-full left-0 mt-2 w-[240px]
+            absolute top-full left-0 mt-2 w-[300px]
             bg-[#0a0a0a]/95 backdrop-blur-xl
             border border-[#333] rounded-xl
             shadow-2xl shadow-black/50
@@ -113,49 +217,99 @@ export const ModelSelector = ({
             z-50
           "
         >
-          <div className="p-1.5">
+          <div className="p-2">
+            {/* Header */}
+            <div className="px-3 py-2 mb-1">
+              <p className="text-xs text-[#666] uppercase tracking-wider font-medium">
+                Select Model
+              </p>
+            </div>
+            
             {models.map((model) => {
               const isSelected = model.id === selectedModel;
+              const hasAccess = canAccessModel(userPlan, model.requiredPlan);
+              const isLocked = !hasAccess;
+              
               return (
                 <button
                   key={model.id}
-                  onClick={() => {
-                    onModelChange(model.id);
-                    setIsOpen(false);
-                  }}
+                  onClick={() => handleModelSelect(model)}
                   className={`
-                    w-full flex items-center gap-3 px-3 py-2.5 rounded-lg
+                    w-full flex items-center gap-3 px-3 py-3 rounded-lg
                     transition-all duration-150
-                    ${
-                      isSelected
-                        ? "bg-white/[0.08]"
-                        : "hover:bg-white/[0.04]"
-                    }
+                    ${isSelected ? "bg-white/[0.08]" : "hover:bg-white/[0.04]"}
+                    ${isLocked ? "opacity-60" : ""}
+                    ${model.isGodMode && !isLocked ? "bg-gradient-to-r from-amber-500/5 to-orange-500/5 hover:from-amber-500/10 hover:to-orange-500/10" : ""}
                   `}
                 >
-                  <div
-                    className={`${
-                      isSelected ? "text-white" : "text-[#666]"
-                    }`}
-                  >
+                  {/* Status Dot */}
+                  <div className={`w-2.5 h-2.5 rounded-full ${model.dotColor} flex-shrink-0`} />
+                  
+                  {/* Provider Logo */}
+                  <div className={`${isSelected ? "text-white" : "text-[#666]"} flex-shrink-0`}>
                     {model.providerLogo}
                   </div>
+                  
+                  {/* Model Info */}
                   <div className="flex-1 text-left">
-                    <div
-                      className={`text-sm font-medium ${
-                        isSelected ? "text-white" : "text-white/80"
-                      }`}
-                    >
-                      {model.name}
+                    <div className="flex items-center gap-2">
+                      <span className={`
+                        text-sm font-medium
+                        ${isSelected ? "text-white" : model.isGodMode ? "text-amber-200" : "text-white/80"}
+                      `}>
+                        {model.name}
+                      </span>
+                      {model.isGodMode && (
+                        <Diamond className="w-3.5 h-3.5 text-amber-400" />
+                      )}
                     </div>
-                    <div className="text-xs text-[#666]">{model.provider}</div>
+                    <div className="text-xs text-[#666]">{model.subtitle}</div>
                   </div>
-                  {isSelected && (
-                    <Check className="w-4 h-4 text-indigo-400" />
-                  )}
+                  
+                  {/* Credit Cost Badge */}
+                  <div className={`
+                    text-xs px-2 py-1 rounded-md font-medium flex-shrink-0
+                    ${model.isGodMode 
+                      ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" 
+                      : "bg-white/[0.06] text-[#888]"
+                    }
+                  `}>
+                    {model.creditCost} cr/msg
+                  </div>
+                  
+                  {/* Lock or Check Icon */}
+                  <div className="flex-shrink-0 w-5">
+                    {isLocked ? (
+                      <Lock className="w-4 h-4 text-[#555]" />
+                    ) : isSelected ? (
+                      <Check className="w-4 h-4 text-indigo-400" />
+                    ) : null}
+                  </div>
                 </button>
               );
             })}
+          </div>
+          
+          {/* Footer with plan indicator */}
+          <div className="px-4 py-3 border-t border-[#222] bg-white/[0.02]">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                <span className="text-xs text-[#888]">
+                  Your plan: <span className="text-white font-medium capitalize">{userPlan}</span>
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  setPaywallReason("messages");
+                  setShowPaywall(true);
+                  setIsOpen(false);
+                }}
+                className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+              >
+                Upgrade →
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from "react"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
-import { ModelSelector } from "./model-selector"
+import { ModelSelector, models, getModelCreditCost } from "./model-selector"
 import { PremiumButtonWithStyles } from "./premium-button"
-import { Paperclip, Mic, ArrowUp, Sparkles, Zap, Lightbulb, Code, Bot, User, Copy, Check, Lock } from "lucide-react"
+import { Paperclip, Mic, ArrowUp, Sparkles, Zap, Lightbulb, Code, Bot, User, Copy, Check, Lock, Coins } from "lucide-react"
 import { useUsage } from "./usage-context"
+import { toast } from "sonner"
 
 // Provider logos as SVG components
 const OpenAILogo = () => (
@@ -19,23 +20,20 @@ const AnthropicLogo = () => (
   </svg>
 )
 
-const DeepSeekLogo = () => (
-  <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
-    <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2" />
-    <path d="M8 12h8M12 8v8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-  </svg>
-)
-
+// Model logos mapped by ID
 const MODEL_LOGOS: Record<string, React.ReactNode> = {
+  "gpt-4o-mini": <OpenAILogo />,
   "gpt-4o": <OpenAILogo />,
   "claude-3.5-sonnet": <AnthropicLogo />,
-  "deepseek-v3": <DeepSeekLogo />,
+  "gpt-5-o1": <OpenAILogo />,
 }
 
+// Model names mapped by ID
 const MODEL_NAMES: Record<string, string> = {
+  "gpt-4o-mini": "GPT-4o Mini",
   "gpt-4o": "GPT-4o",
   "claude-3.5-sonnet": "Claude 3.5 Sonnet",
-  "deepseek-v3": "DeepSeek V3",
+  "gpt-5-o1": "GPT-5 / o1",
 }
 
 // Typing indicator component
@@ -236,6 +234,29 @@ const SuggestionChips = ({ onSelect }: SuggestionChipsProps) => {
   )
 }
 
+// Credit Balance Indicator
+const CreditBalanceIndicator = ({ balance, cost }: { balance: number; cost: number }) => {
+  const isLow = balance < 5
+  const isVeryLow = balance < cost
+  
+  return (
+    <div className={`
+      flex items-center gap-2 px-3 py-1.5 rounded-lg
+      ${isVeryLow 
+        ? "bg-red-500/10 border border-red-500/30" 
+        : isLow 
+          ? "bg-amber-500/10 border border-amber-500/30" 
+          : "bg-white/[0.04] border border-[#333]"
+      }
+    `}>
+      <Coins className={`w-4 h-4 ${isVeryLow ? "text-red-400" : isLow ? "text-amber-400" : "text-emerald-400"}`} />
+      <span className={`text-sm font-medium ${isVeryLow ? "text-red-400" : isLow ? "text-amber-400" : "text-white/80"}`}>
+        {balance.toFixed(1)} credits
+      </span>
+    </div>
+  )
+}
+
 // Chat input component
 interface ChatInputProps {
   value: string
@@ -371,17 +392,32 @@ const ChatInputComponent = ({ value, onChange, onSubmit, disabled }: ChatInputPr
 
 // Main chat interface
 export const ChatInterface = () => {
-  const [selectedModel, setSelectedModel] = useState("gpt-4o")
+  const [selectedModel, setSelectedModel] = useState("gpt-4o-mini")
   const [isLoaded, setIsLoaded] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [inputValue, setInputValue] = useState("")
   const selectedModelRef = useRef(selectedModel)
-  const { checkMessageLimit, incrementMessages, canSendMessage, messageCount, limits, setShowPaywall, setPaywallReason } = useUsage()
+  const { 
+    checkMessageLimit, 
+    incrementMessages, 
+    canSendMessage, 
+    messageCount, 
+    limits, 
+    setShowPaywall, 
+    setPaywallReason,
+    creditBalance,
+    deductCredits,
+    checkCredits,
+    userPlan
+  } = useUsage()
   
   // Keep ref in sync with state
   useEffect(() => {
     selectedModelRef.current = selectedModel
   }, [selectedModel])
+
+  // Get current model credit cost
+  const currentCreditCost = getModelCreditCost(selectedModel)
 
   const { messages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({ 
@@ -389,8 +425,16 @@ export const ChatInterface = () => {
       body: () => ({ model: selectedModelRef.current })
     }),
     onFinish: () => {
-      // Increment usage count after successful response
+      // Deduct credits after successful response
+      const cost = getModelCreditCost(selectedModelRef.current)
+      deductCredits(cost)
       incrementMessages()
+      
+      // Show credit deduction toast
+      toast.success(`-${cost} credits`, {
+        description: `${creditBalance - cost} credits remaining`,
+        duration: 2000,
+      })
     }
   })
 
@@ -409,8 +453,12 @@ export const ChatInterface = () => {
   const handleSendMessage = () => {
     if (!inputValue.trim() || isLoading) return
     
-    // Check usage limit before sending
+    // Check message limit first
     if (!checkMessageLimit()) return
+    
+    // Check if user has enough credits
+    const cost = getModelCreditCost(selectedModel)
+    if (!checkCredits(cost)) return
     
     sendMessage({ text: inputValue })
     setInputValue("")
@@ -422,6 +470,7 @@ export const ChatInterface = () => {
 
   const hasMessages = messages.length > 0
   const atLimit = !canSendMessage
+  const notEnoughCredits = creditBalance < currentCreditCost
 
   return (
     <div className="flex-1 flex flex-col h-full">
@@ -434,10 +483,18 @@ export const ChatInterface = () => {
           ${isLoaded ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"}
         `}
       >
-        <ModelSelector
-          selectedModel={selectedModel}
-          onModelChange={setSelectedModel}
-        />
+        <div className="flex items-center gap-3">
+          <ModelSelector
+            selectedModel={selectedModel}
+            onModelChange={setSelectedModel}
+            userPlan={userPlan}
+          />
+          
+          {/* Credit Balance - Desktop */}
+          <div className="hidden md:block">
+            <CreditBalanceIndicator balance={creditBalance} cost={currentCreditCost} />
+          </div>
+        </div>
 
         <div className="hidden md:flex items-center gap-4 pr-14">
           <PremiumButtonWithStyles />
@@ -532,11 +589,16 @@ export const ChatInterface = () => {
         `}
       >
         <div className="max-w-3xl mx-auto">
+          {/* Credit Balance - Mobile */}
+          <div className="md:hidden mb-3 flex justify-center">
+            <CreditBalanceIndicator balance={creditBalance} cost={currentCreditCost} />
+          </div>
+          
           {/* Limit warning banner */}
-          {atLimit && (
+          {(atLimit || notEnoughCredits) && (
             <button
               onClick={() => {
-                setPaywallReason("messages")
+                setPaywallReason(notEnoughCredits ? "credits" : "messages")
                 setShowPaywall(true)
               }}
               className="
@@ -550,7 +612,10 @@ export const ChatInterface = () => {
             >
               <Lock className="w-5 h-5 text-amber-400" />
               <span className="text-amber-400 font-medium text-sm md:text-base text-center">
-                You've reached your free message limit. Upgrade to continue chatting.
+                {notEnoughCredits 
+                  ? `Not enough credits. You need ${currentCreditCost} credits for this model.`
+                  : "You've reached your free message limit. Upgrade to continue chatting."
+                }
               </span>
               <span className="text-amber-400/60 text-sm group-hover:text-amber-400 transition-colors">
                 View plans →
@@ -562,12 +627,14 @@ export const ChatInterface = () => {
             value={inputValue}
             onChange={setInputValue}
             onSubmit={handleSendMessage}
-            disabled={isLoading || atLimit}
+            disabled={isLoading || atLimit || notEnoughCredits}
           />
           <p className="text-center text-[#444] text-xs mt-3 md:mt-4">
             {atLimit 
               ? `${messageCount}/${limits.maxMessages} free messages used`
-              : "Synapse can make mistakes. Consider checking important information."
+              : notEnoughCredits
+                ? `Need ${currentCreditCost} credits • Balance: ${creditBalance.toFixed(1)}`
+                : "Synapse can make mistakes. Consider checking important information."
             }
           </p>
         </div>

@@ -7,6 +7,7 @@ import {
   Clock,
   Settings,
   Sparkles,
+  Coins,
 } from "lucide-react";
 import { useUsage } from "./usage-context";
 
@@ -32,10 +33,12 @@ interface SidebarProps {
 
 // Credits indicator component
 const CreditsIndicator = () => {
-  const { messageCount, imageCount, limits, setShowPaywall, setPaywallReason } = useUsage();
+  const { messageCount, imageCount, creditBalance, userPlan, limits, setShowPaywall, setPaywallReason } = useUsage();
 
   const messagesRemaining = limits.maxMessages - messageCount;
   const imagesRemaining = limits.maxImages - imageCount;
+  const isLowCredits = creditBalance < 5;
+  const isVeryLowCredits = creditBalance < 1;
 
   const getColorClass = (remaining: number, max: number) => {
     const percentage = remaining / max;
@@ -58,10 +61,36 @@ const CreditsIndicator = () => {
     return "bg-emerald-500/20";
   };
 
+  const getCreditColorClass = () => {
+    if (isVeryLowCredits) return "text-red-400";
+    if (isLowCredits) return "text-amber-400";
+    return "text-emerald-400";
+  };
+
   return (
     <div className="px-3 py-4 mx-3 rounded-xl bg-white/[0.02] border border-[#222] space-y-3">
-      <div className="text-xs font-medium text-[#666] uppercase tracking-wider">
-        Free Credits
+      <div className="flex justify-between items-center">
+        <div className="text-xs font-medium text-[#666] uppercase tracking-wider">
+          Usage
+        </div>
+        <div className="text-xs font-medium text-[#888] capitalize">
+          {userPlan} plan
+        </div>
+      </div>
+
+      {/* Credit Balance - Primary display */}
+      <div className="p-3 rounded-lg bg-gradient-to-r from-indigo-500/10 via-blue-500/5 to-indigo-500/10 border border-indigo-500/20">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className={`p-1.5 rounded-lg ${isVeryLowCredits ? "bg-red-500/20" : isLowCredits ? "bg-amber-500/20" : "bg-indigo-500/20"}`}>
+              <Coins className={`w-3.5 h-3.5 ${getCreditColorClass()}`} />
+            </div>
+            <span className="text-sm font-medium text-white">Credits</span>
+          </div>
+          <span className={`text-lg font-bold ${getCreditColorClass()}`}>
+            {creditBalance.toFixed(1)}
+          </span>
+        </div>
       </div>
 
       {/* Messages */}
@@ -103,15 +132,15 @@ const CreditsIndicator = () => {
       </div>
 
       {/* Warning message when low */}
-      {(messagesRemaining <= 1 || imagesRemaining <= 0) && (
+      {(messagesRemaining <= 1 || imagesRemaining <= 0 || isLowCredits) && (
         <button 
           onClick={() => {
-            setPaywallReason(imagesRemaining <= 0 ? "images" : "messages");
+            setPaywallReason(isLowCredits ? "credits" : imagesRemaining <= 0 ? "images" : "messages");
             setShowPaywall(true);
           }}
           className="w-full text-xs text-amber-400/80 hover:text-amber-400 bg-amber-500/10 rounded-lg py-2 px-2 transition-colors text-center"
         >
-          Running low? Upgrade now →
+          {isLowCredits ? "Low on credits? " : "Running low? "}Upgrade now →
         </button>
       )}
     </div>
