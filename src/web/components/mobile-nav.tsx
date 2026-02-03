@@ -291,7 +291,7 @@ export const MobileTopBar = ({ activeTab, children }: MobileTopBarProps) => {
       <h1 className="font-mono text-lg font-semibold text-white truncate">
         {getTabTitle()}
       </h1>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-4">
         {/* Mobile Premium Button */}
         <button
           onClick={handlePremiumClick}

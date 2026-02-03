@@ -99,8 +99,8 @@ function Index() {
         {/* Desktop Sidebar */}
         <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
 
-        {/* Desktop User Avatar - Top Right */}
-        <div className="hidden md:block fixed top-4 right-4 z-50">
+        {/* Desktop User Avatar - Top Right with proper spacing */}
+        <div className="hidden md:block fixed top-4 right-6 z-50">
           <UserAvatar onSettingsClick={() => setActiveTab("settings")} />
         </div>
 

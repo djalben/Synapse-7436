@@ -504,7 +504,7 @@ export const AudioStudio = () => {
             </h1>
             <p className="text-sm text-[#666]">Generate music and synthesize voices with AI</p>
           </div>
-          <div className="hidden lg:block">
+          <div className="hidden lg:block pr-16">
             <PremiumButtonWithStyles />
           </div>
         </div>

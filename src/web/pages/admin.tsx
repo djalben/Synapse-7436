@@ -28,6 +28,9 @@ import {
   PieChart,
   BarChart3,
   Wallet,
+  Eye,
+  Calendar,
+  Activity,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -147,6 +150,30 @@ const getAllUsersCount = (): number => {
   const usersKey = "synapse_all_users";
   const users = JSON.parse(localStorage.getItem(usersKey) || "{}");
   return Object.keys(users).length;
+};
+
+// Get total page visits
+const getTotalVisits = (): number => {
+  if (typeof window === "undefined") return 0;
+  return parseInt(localStorage.getItem("synapse_total_visits") || "0", 10);
+};
+
+// Get today's visits
+const getTodayVisits = (): number => {
+  if (typeof window === "undefined") return 0;
+  const dailyVisits = JSON.parse(localStorage.getItem("synapse_daily_visits") || "{}");
+  const today = new Date().toISOString().split("T")[0];
+  return dailyVisits[today] || 0;
+};
+
+// Get daily visits data for sparkline
+const getDailyVisitsData = (): { date: string; count: number }[] => {
+  if (typeof window === "undefined") return [];
+  const dailyVisits = JSON.parse(localStorage.getItem("synapse_daily_visits") || "{}");
+  return Object.entries(dailyVisits)
+    .map(([date, count]) => ({ date, count: count as number }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-7); // Last 7 days
 };
 
 // Check admin access from localStorage
@@ -348,6 +375,11 @@ export const AdminDashboard = () => {
   // User count
   const [userCount, setUserCount] = useState(0);
   
+  // Visit tracking
+  const [totalVisits, setTotalVisits] = useState(0);
+  const [todayVisits, setTodayVisits] = useState(0);
+  const [dailyVisitsData, setDailyVisitsData] = useState<{ date: string; count: number }[]>([]);
+  
   // Check authorization on mount
   useEffect(() => {
     const hasAccess = checkAdminAccess();
@@ -358,6 +390,9 @@ export const AdminDashboard = () => {
       setGiftCodes(getGiftCodes());
       setExpenses(getExpenses());
       setUserCount(getAllUsersCount());
+      setTotalVisits(getTotalVisits());
+      setTodayVisits(getTodayVisits());
+      setDailyVisitsData(getDailyVisitsData());
       checkApiStatus();
     }
     
@@ -411,6 +446,9 @@ export const AdminDashboard = () => {
       setGiftCodes(getGiftCodes());
       setExpenses(getExpenses());
       setUserCount(getAllUsersCount());
+      setTotalVisits(getTotalVisits());
+      setTodayVisits(getTodayVisits());
+      setDailyVisitsData(getDailyVisitsData());
       checkApiStatus();
     } else {
       alert("Incorrect password");
@@ -752,8 +790,22 @@ export const AdminDashboard = () => {
   // Finances Tab Content
   const renderFinancesTab = () => (
     <div className="space-y-6">
-      {/* KPI Cards Row */}
+      {/* Traffic Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <FinanceKPICard
+          icon={Eye}
+          label="Total Page Views"
+          value={formatNumber(totalVisits)}
+          subtitle="All-time visits"
+          color="bg-blue-500"
+        />
+        <FinanceKPICard
+          icon={Activity}
+          label="Today's Visits"
+          value={formatNumber(todayVisits)}
+          subtitle={new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+          color="bg-cyan-500"
+        />
         <FinanceKPICard
           icon={Users}
           label="Total Users"
@@ -761,6 +813,46 @@ export const AdminDashboard = () => {
           subtitle="Registered accounts"
           color="bg-indigo-500"
         />
+        <FinanceKPICard
+          icon={netProfit >= 0 ? TrendingUp : TrendingDown}
+          label="Net Profit"
+          value={`${netProfit >= 0 ? "" : "-"}${formatNumber(Math.abs(netProfit))} ₽`}
+          subtitle="After tax & expenses"
+          trend={netProfit >= 0 ? "up" : "down"}
+          color={netProfit >= 0 ? "bg-emerald-500" : "bg-red-500"}
+        />
+      </div>
+
+      {/* Visit Trend Sparkline */}
+      {dailyVisitsData.length > 0 && (
+        <div className="p-6 rounded-2xl bg-[#0a0a0a] border border-[#222]">
+          <div className="flex items-center gap-3 mb-4">
+            <Calendar className="w-5 h-5 text-cyan-400" />
+            <h2 className="font-medium">Visits - Last 7 Days</h2>
+          </div>
+          <div className="flex items-end gap-2 h-20">
+            {dailyVisitsData.map((day, i) => {
+              const maxCount = Math.max(...dailyVisitsData.map(d => d.count), 1);
+              const height = (day.count / maxCount) * 100;
+              return (
+                <div key={day.date} className="flex-1 flex flex-col items-center gap-1">
+                  <span className="text-xs text-[#666]">{day.count}</span>
+                  <div 
+                    className="w-full rounded-t bg-gradient-to-t from-cyan-600 to-cyan-400 transition-all duration-300"
+                    style={{ height: `${Math.max(height, 5)}%` }}
+                  />
+                  <span className="text-[10px] text-[#555]">
+                    {new Date(day.date).toLocaleDateString("en-US", { weekday: "short" })}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Financial KPI Cards Row */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <FinanceKPICard
           icon={Wallet}
           label="Gross Revenue"
@@ -777,12 +869,11 @@ export const AdminDashboard = () => {
           color="bg-orange-500"
         />
         <FinanceKPICard
-          icon={netProfit >= 0 ? TrendingUp : TrendingDown}
-          label="Net Profit"
-          value={`${netProfit >= 0 ? "" : "-"}${formatNumber(Math.abs(netProfit))} ₽`}
-          subtitle="After tax & expenses"
-          trend={netProfit >= 0 ? "up" : "down"}
-          color={netProfit >= 0 ? "bg-emerald-500" : "bg-red-500"}
+          icon={CreditCard}
+          label="Server Expenses"
+          value={`${formatNumber(serverExpenses)} ₽`}
+          subtitle="Operating costs"
+          color="bg-pink-500"
         />
       </div>
 

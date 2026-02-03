@@ -8,6 +8,8 @@ export interface User {
   avatar: string | null;
   loggedIn: boolean;
   createdAt: string;
+  lastVisit: string;
+  visits: number;
   provider: "google" | "email";
 }
 
@@ -73,7 +75,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       if (stored) {
         const parsedUser: User = JSON.parse(stored);
         if (parsedUser.loggedIn) {
-          setUser(parsedUser);
+          // Update last visit and increment visits for returning user
+          const now = new Date().toISOString();
+          const updatedUser = {
+            ...parsedUser,
+            lastVisit: now,
+            visits: (parsedUser.visits || 1) + 1,
+          };
+          setUser(updatedUser);
+          // Update in localStorage
+          localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
+          // Update in global users store
+          updateUserInStore(updatedUser);
         } else {
           // Show auth modal if user logged out
           setShowAuthModal(true);
@@ -97,6 +110,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
         // Also store userId separately for compatibility with existing referral system
         localStorage.setItem("userId", user.id);
+        // Store email separately for admin tracking
+        if (user.email) {
+          localStorage.setItem("user_email", user.email);
+        }
       } catch (error) {
         console.error("Failed to save user to localStorage:", error);
       }
@@ -118,6 +135,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         avatar: generateAvatar(userId),
         loggedIn: true,
         createdAt: now,
+        lastVisit: now,
+        visits: 1,
         provider: "google",
       };
     } else {
@@ -131,6 +150,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         avatar: generateAvatar(email || userId),
         loggedIn: true,
         createdAt: now,
+        lastVisit: now,
+        visits: 1,
         provider: "email",
       };
     }
@@ -182,11 +203,32 @@ const registerUser = (user: User) => {
         name: user.name,
         avatar: user.avatar,
         createdAt: user.createdAt,
+        lastVisit: user.lastVisit,
+        visits: user.visits,
         provider: user.provider,
       };
       localStorage.setItem(usersKey, JSON.stringify(existingUsers));
     }
   } catch (error) {
     console.error("Failed to register user:", error);
+  }
+};
+
+// Update user in global users store
+const updateUserInStore = (user: User) => {
+  try {
+    const usersKey = "synapse_all_users";
+    const existingUsers = JSON.parse(localStorage.getItem(usersKey) || "{}");
+    
+    if (existingUsers[user.id]) {
+      existingUsers[user.id] = {
+        ...existingUsers[user.id],
+        lastVisit: user.lastVisit,
+        visits: user.visits,
+      };
+      localStorage.setItem(usersKey, JSON.stringify(existingUsers));
+    }
+  } catch (error) {
+    console.error("Failed to update user in store:", error);
   }
 };

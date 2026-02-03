@@ -7,6 +7,40 @@ interface ProviderProps {
   children: React.ReactNode;
 }
 
+// Traffic/visit tracking
+const useVisitTracking = () => {
+  useEffect(() => {
+    try {
+      // Increment total visits
+      const totalVisitsKey = "synapse_total_visits";
+      const currentTotal = parseInt(localStorage.getItem(totalVisitsKey) || "0", 10);
+      localStorage.setItem(totalVisitsKey, String(currentTotal + 1));
+
+      // Track daily visits
+      const dailyVisitsKey = "synapse_daily_visits";
+      const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+      const dailyVisits = JSON.parse(localStorage.getItem(dailyVisitsKey) || "{}");
+      
+      dailyVisits[today] = (dailyVisits[today] || 0) + 1;
+      
+      // Keep only last 30 days of data
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const cutoffDate = thirtyDaysAgo.toISOString().split("T")[0];
+      
+      Object.keys(dailyVisits).forEach(date => {
+        if (date < cutoffDate) {
+          delete dailyVisits[date];
+        }
+      });
+      
+      localStorage.setItem(dailyVisitsKey, JSON.stringify(dailyVisits));
+    } catch (error) {
+      console.error("Failed to track visit:", error);
+    }
+  }, []);
+};
+
 // Handle referral URL parameter
 const useReferralTracking = () => {
   useEffect(() => {
@@ -32,6 +66,7 @@ const useReferralTracking = () => {
 
 export function Provider({ children }: ProviderProps) {
   useReferralTracking();
+  useVisitTracking();
 
   return (
     <AuthProvider>
