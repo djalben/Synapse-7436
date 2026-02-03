@@ -94,7 +94,7 @@ const UploadZone = ({ type, file, preview, onFileSelect, disabled }: UploadZoneP
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-white flex items-center gap-2">
           <Icon className="w-4 h-4 text-indigo-400" />
-          {type === "image" ? "Target Face" : "Driving Video"}
+          {type === "image" ? "Целевое лицо" : "Управляющее видео"}
         </h3>
         {file && (
           <button
@@ -102,7 +102,7 @@ const UploadZone = ({ type, file, preview, onFileSelect, disabled }: UploadZoneP
             className="text-xs text-[#666] hover:text-red-400 transition-colors flex items-center gap-1"
           >
             <Trash2 className="w-3 h-3" />
-            Remove
+            Удалить
           </button>
         )}
       </div>
@@ -172,14 +172,14 @@ const UploadZone = ({ type, file, preview, onFileSelect, disabled }: UploadZoneP
             </div>
             <p className="text-sm text-white font-medium">
               {type === "image" 
-                ? "Upload a portrait photo" 
-                : "Upload a driving video"
+                ? "Загрузите портретное фото" 
+                : "Загрузите управляющее видео"
               }
             </p>
             <p className="text-xs text-[#666] mt-2">
               {type === "image"
-                ? "JPG, PNG • Front-facing, well-lit"
-                : "MP4, MOV, WEBM • 1-10 seconds"
+                ? "JPG, PNG • Фронтальное, хорошее освещение"
+                : "MP4, MOV, WEBM • 1-10 секунд"
               }
             </p>
           </div>
@@ -190,8 +190,8 @@ const UploadZone = ({ type, file, preview, onFileSelect, disabled }: UploadZoneP
       <p className="text-xs text-[#555] flex items-start gap-1.5">
         <Sparkles className="w-3 h-3 mt-0.5 text-indigo-500/60" />
         {type === "image"
-          ? "Best results with front-facing, well-lit photos"
-          : "Short clips with clear facial movements work best"
+          ? "Лучшие результаты с фронтальными, хорошо освещёнными фото"
+          : "Короткие клипы с чёткими движениями лица работают лучше всего"
         }
       </p>
     </div>
@@ -202,7 +202,7 @@ const UploadZone = ({ type, file, preview, onFileSelect, disabled }: UploadZoneP
 const RecordCameraButton = () => {
   const handleClick = () => {
     // Show toast - feature coming soon
-    alert("Camera recording coming soon!");
+    alert("Запись с камеры скоро будет доступна!");
   };
 
   return (
@@ -213,7 +213,7 @@ const RecordCameraButton = () => {
       <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
       <Camera className="w-4 h-4 text-[#888] group-hover:text-white transition-colors" />
       <span className="text-sm text-[#888] group-hover:text-white transition-colors">
-        Record from Camera
+        Записать с камеры
       </span>
     </button>
   );
@@ -251,8 +251,8 @@ const VideoOutput = ({ video, isGenerating }: VideoOutputProps) => {
               <Loader2 className="w-12 h-12 text-indigo-400 animate-spin" />
             </div>
             <div className="text-center">
-              <p className="text-sm text-white font-medium">Generating Avatar...</p>
-              <p className="text-xs text-[#666] mt-1">This may take up to a minute</p>
+              <p className="text-sm text-white font-medium">Генерация аватара...</p>
+              <p className="text-xs text-[#666] mt-1">Это может занять до минуты</p>
             </div>
             {/* Progress indicator */}
             <div className="w-48 h-1 bg-white/[0.05] rounded-full overflow-hidden">
@@ -297,8 +297,8 @@ const VideoOutput = ({ video, isGenerating }: VideoOutputProps) => {
             <div className="w-16 h-16 rounded-2xl bg-white/[0.03] border border-[#222] flex items-center justify-center mb-4">
               <User className="w-8 h-8 text-[#444]" />
             </div>
-            <p className="text-sm text-[#666]">Your animated avatar will appear here</p>
-            <p className="text-xs text-[#444] mt-1">Upload a face and driving video to begin</p>
+            <p className="text-sm text-[#666]">Ваш анимированный аватар появится здесь</p>
+            <p className="text-xs text-[#444] mt-1">Загрузите лицо и управляющее видео чтобы начать</p>
           </div>
         )}
       </div>
@@ -308,7 +308,7 @@ const VideoOutput = ({ video, isGenerating }: VideoOutputProps) => {
         <div className="p-4 border-t border-[#222]">
           <button className="w-full py-3 px-4 rounded-xl bg-white/[0.03] border border-[#333] hover:bg-white/[0.05] transition-all flex items-center justify-center gap-2 text-[#888] hover:text-white">
             <Download className="w-4 h-4" />
-            <span className="text-sm">Download Video</span>
+            <span className="text-sm">Скачать видео</span>
           </button>
         </div>
       )}
@@ -329,7 +329,7 @@ const RecentGenerations = ({ generations, onSelect }: RecentGenerationsProps) =>
     <div className="bg-white/[0.02] border border-[#333] rounded-2xl p-5">
       <h3 className="text-sm font-medium text-white mb-4 flex items-center gap-2">
         <Clock className="w-4 h-4 text-[#666]" />
-        Recent Generations
+        Недавние генерации
       </h3>
       <div className="grid grid-cols-3 gap-3">
         {generations.map((gen) => (
@@ -455,10 +455,10 @@ export const AvatarStudio = () => {
                     <User className="w-5 h-5 text-white" />
                   </div>
                 </div>
-                Create Hyper-Realistic AI Personas
+                Создайте гиперреалистичные AI-персонажи
               </h1>
               <p className="text-[#888] mt-2 text-sm md:text-base">
-                Upload a target face and a driving video to animate the avatar.
+                Загрузите целевое лицо и управляющее видео для анимации аватара.
               </p>
             </div>
             <PremiumButtonWithStyles />
@@ -496,7 +496,7 @@ export const AvatarStudio = () => {
                 {/* Divider */}
                 <div className="flex items-center gap-3">
                   <div className="flex-1 h-px bg-[#333]" />
-                  <span className="text-xs text-[#555]">OR</span>
+                  <span className="text-xs text-[#555]">ИЛИ</span>
                   <div className="flex-1 h-px bg-[#333]" />
                 </div>
 
@@ -521,12 +521,12 @@ export const AvatarStudio = () => {
                 {isGenerating ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    Processing... This may take a minute
+                    Обработка... Это может занять минуту
                   </>
                 ) : (
                   <>
                     <Zap className="w-5 h-5" />
-                    Animate Persona
+                    Анимировать персонажа
                   </>
                 )}
               </button>
@@ -535,7 +535,7 @@ export const AvatarStudio = () => {
               <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-amber-500/5 border border-amber-500/20">
                 <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
                 <p className="text-xs text-amber-400/80">
-                  Cost: ~{AVATAR_COST} Credits per generation (Heavy GPU Processing)
+                  Стоимость: ~{AVATAR_COST} кредитов за генерацию (Тяжёлая GPU обработка)
                 </p>
               </div>
 
@@ -544,7 +544,7 @@ export const AvatarStudio = () => {
                 <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-red-500/5 border border-red-500/20">
                   <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
                   <p className="text-xs text-red-400/80">
-                    Not enough credits. You have {creditBalance.toFixed(1)} credits, need {AVATAR_COST}.
+                    Недостаточно кредитов. У вас {creditBalance.toFixed(1)} кредитов, нужно {AVATAR_COST}.
                   </p>
                 </div>
               )}

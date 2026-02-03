@@ -317,11 +317,11 @@ const ImageUpload = ({
             "
           >
             <Trash2 className="w-4 h-4" />
-            Change Photo
+            Изменить фото
           </button>
         </div>
         <div className="absolute top-2 right-2 px-2 py-1 rounded-md bg-black/60 backdrop-blur-sm">
-          <span className="text-xs text-emerald-400">Photo Ready</span>
+          <span className="text-xs text-emerald-400">Фото готово</span>
         </div>
       </div>
     );
@@ -391,13 +391,13 @@ const ImageUpload = ({
             ${large ? "text-base" : "text-sm"}
             ${required ? "text-amber-400" : "text-white/80"}
           `}>
-            {required ? `${title} (Required)` : title}
+            {required ? `${title} (Обязательно)` : title}
           </p>
           <p className={`text-[#666] mt-1 ${large ? "text-sm" : "text-xs"}`}>
             {subtitle}
           </p>
           <p className={`text-[#555] mt-0.5 ${large ? "text-xs" : "text-xs"}`}>
-            JPG, PNG, WebP up to 10MB
+            JPG, PNG, WebP до 10МБ
           </p>
         </div>
       </div>
@@ -607,7 +607,7 @@ const SpecializedEngineSelector = ({ isActive, onToggle, disabled }: Specialized
       {/* Section divider */}
       <div className="flex items-center gap-3">
         <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#333] to-transparent" />
-        <span className="text-xs text-[#555] uppercase tracking-widest font-medium">Specialized Engines</span>
+        <span className="text-xs text-[#555] uppercase tracking-widest font-medium">Специальные движки</span>
         <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#333] to-transparent" />
       </div>
 
@@ -689,7 +689,7 @@ const SpecializedEngineSelector = ({ isActive, onToggle, disabled }: Specialized
                 ${isActive ? "text-amber-300/70" : "text-[#555] group-hover:text-amber-300/50"}
               `}
             >
-              Top-tier anime & illustration engine 🍌
+              Топовый движок для аниме и иллюстраций 🍌
             </p>
           </div>
 
@@ -710,7 +710,7 @@ const SpecializedEngineSelector = ({ isActive, onToggle, disabled }: Specialized
               text-xs font-medium
               ${isActive ? "text-emerald-400" : "text-[#666]"}
             `}>
-              {isActive ? "Active" : "Off"}
+              {isActive ? "Активно" : "Выкл"}
             </span>
           </div>
         </div>
@@ -734,7 +734,7 @@ const SpecializedEngineSelector = ({ isActive, onToggle, disabled }: Specialized
         <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/10">
           <Sparkles className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
           <p className="text-xs text-amber-300/70 leading-relaxed">
-            <span className="text-amber-300 font-medium">Nana Banana Active</span> — Standard styles are bypassed. Your prompt will be processed by the premium anime engine.
+            <span className="text-amber-300 font-medium">Nana Banana Активен</span> — Стандартные стили пропускаются. Ваш промпт будет обработан премиум движком для аниме.
           </p>
         </div>
       )}
@@ -800,7 +800,7 @@ const ImageCountSlider = ({ value, onChange }: ImageCountSliderProps) => {
         <span className="text-xs text-[#666]">1</span>
         <div className="flex items-center gap-2">
           <span className="text-2xl font-mono font-semibold text-white">{value}</span>
-          <span className="text-sm text-[#666]">images</span>
+          <span className="text-sm text-[#666]">изображений</span>
         </div>
         <span className="text-xs text-[#666]">4</span>
       </div>
@@ -907,8 +907,8 @@ const Lightbox = ({ image, onClose }: LightboxProps) => {
         <div className="mt-4 p-4 rounded-xl bg-white/5 backdrop-blur-md border border-[#333]">
           <p className="text-sm text-white/80 line-clamp-2">{image.prompt}</p>
           <div className="flex items-center gap-4 mt-3">
-            <span className="text-xs text-[#666]">Style: <span className="text-white/60 capitalize">{image.style}</span></span>
-            <span className="text-xs text-[#666]">Ratio: <span className="text-white/60">{image.aspectRatio}</span></span>
+            <span className="text-xs text-[#666]">Стиль: <span className="text-white/60 capitalize">{image.style}</span></span>
+            <span className="text-xs text-[#666]">Соотношение: <span className="text-white/60">{image.aspectRatio}</span></span>
             <button
               onClick={handleDownload}
               className="
@@ -920,7 +920,7 @@ const Lightbox = ({ image, onClose }: LightboxProps) => {
               "
             >
               <Download className="w-4 h-4" />
-              Download
+              Скачать
             </button>
           </div>
         </div>
@@ -1030,7 +1030,7 @@ const ImageCard = ({ image, onImageClick }: ImageCardProps) => {
             "
           >
             <Download className="w-4 h-4" />
-            <span>Download</span>
+            <span>Скачать</span>
           </button>
           <button
             onClick={(e) => {
@@ -1228,7 +1228,7 @@ const BeforeAfterSlider = ({ beforeImage, afterImage }: BeforeAfterSliderProps) 
           ${sliderPosition < 15 ? 'opacity-0' : ''}
         `}
       >
-        <span className="text-xs font-medium text-white/80">Before</span>
+        <span className="text-xs font-medium text-white/80">До</span>
       </div>
       
       <div 
@@ -1240,13 +1240,13 @@ const BeforeAfterSlider = ({ beforeImage, afterImage }: BeforeAfterSliderProps) 
           ${sliderPosition > 85 ? 'opacity-0' : ''}
         `}
       >
-        <span className="text-xs font-medium text-white">After</span>
+        <span className="text-xs font-medium text-white">После</span>
       </div>
 
       {/* Hint text */}
       {allLoaded && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-lg bg-black/40 backdrop-blur-sm opacity-60 pointer-events-none">
-          <span className="text-[10px] text-white/70">Drag to compare</span>
+          <span className="text-[10px] text-white/70">Перетащите для сравнения</span>
         </div>
       )}
     </div>
@@ -1263,9 +1263,9 @@ interface BeforeAfterComparisonProps {
 const BeforeAfterComparison = ({ result, onDownload }: BeforeAfterComparisonProps) => {
   const getToolLabel = (tool: EnhancementTool) => {
     switch (tool) {
-      case "face-restore": return "Face Restored";
-      case "colorize": return "Colorized";
-      case "beauty-retouch": return "Retouched";
+      case "face-restore": return "Лицо восстановлено";
+      case "colorize": return "Колоризировано";
+      case "beauty-retouch": return "Отретушировано";
     }
   };
 
@@ -1285,12 +1285,12 @@ const BeforeAfterComparison = ({ result, onDownload }: BeforeAfterComparisonProp
           </div>
           <div>
             <p className="text-sm font-medium text-white">{getToolLabel(result.tool)}</p>
-            <p className="text-xs text-[#666]">AI Enhancement Complete</p>
+            <p className="text-xs text-[#666]">AI улучшение завершено</p>
           </div>
         </div>
         <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30">
           <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-xs text-emerald-400 font-medium">Done</span>
+          <span className="text-xs text-emerald-400 font-medium">Готово</span>
         </div>
       </div>
 
@@ -1308,7 +1308,7 @@ const BeforeAfterComparison = ({ result, onDownload }: BeforeAfterComparisonProp
           "
         >
           <Download className="w-4 h-4" />
-          Original
+          Оригинал
         </button>
         
         <button
@@ -1324,7 +1324,7 @@ const BeforeAfterComparison = ({ result, onDownload }: BeforeAfterComparisonProp
           "
         >
           <Download className="w-4 h-4" />
-          Enhanced
+          Улучшенное
         </button>
       </div>
     </div>

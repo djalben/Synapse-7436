@@ -30,14 +30,14 @@ interface Voice {
 }
 
 const presetVoices: Voice[] = [
-  { id: "male-professional", name: "Male - Professional", type: "preset" },
-  { id: "male-casual", name: "Male - Casual", type: "preset" },
-  { id: "female-professional", name: "Female - Professional", type: "preset" },
-  { id: "female-warm", name: "Female - Warm", type: "preset" },
-  { id: "robot-futuristic", name: "Robot - Futuristic", type: "preset" },
+  { id: "male-professional", name: "Мужской - Профессиональный", type: "preset" },
+  { id: "male-casual", name: "Мужской - Повседневный", type: "preset" },
+  { id: "female-professional", name: "Женский - Профессиональный", type: "preset" },
+  { id: "female-warm", name: "Женский - Тёплый", type: "preset" },
+  { id: "robot-futuristic", name: "Робот - Футуристичный", type: "preset" },
 ];
 
-const genres = ["Pop", "Electronic", "Hip-Hop", "Classical", "Rock", "Jazz", "Ambient"];
+const genres = ["Поп", "Электроника", "Хип-Хоп", "Классика", "Рок", "Джаз", "Эмбиент"];
 
 interface GeneratedAudio {
   id: string;

@@ -53,8 +53,8 @@ const ANIMATION_PRESETS: {
 }[] = [
   {
     id: "smile-blink",
-    name: "Smile & Blink",
-    description: "Gentle smile, natural blinks",
+    name: "Улыбка и моргание",
+    description: "Нежная улыбка, естественное моргание",
     icon: Smile,
     accentColor: "text-blue-400",
     bgGradient: "from-blue-500/20 to-blue-600/10",
@@ -62,8 +62,8 @@ const ANIMATION_PRESETS: {
   },
   {
     id: "wave-hello",
-    name: "Wave Hello",
-    description: "Friendly wave to camera",
+    name: "Приветствие",
+    description: "Дружелюбный взмах рукой",
     icon: Hand,
     accentColor: "text-emerald-400",
     bgGradient: "from-emerald-500/20 to-emerald-600/10",
@@ -71,8 +71,8 @@ const ANIMATION_PRESETS: {
   },
   {
     id: "look-around",
-    name: "Look Around",
-    description: "Natural head movement",
+    name: "Осмотр",
+    description: "Естественное движение головой",
     icon: Eye,
     accentColor: "text-purple-400",
     bgGradient: "from-purple-500/20 to-purple-600/10",
@@ -80,8 +80,8 @@ const ANIMATION_PRESETS: {
   },
   {
     id: "old-film",
-    name: "Old Film",
-    description: "Vintage film effect",
+    name: "Старое кино",
+    description: "Эффект винтажной плёнки",
     icon: Clapperboard,
     accentColor: "text-amber-400",
     bgGradient: "from-amber-500/20 to-amber-600/10",
@@ -99,16 +99,16 @@ const VIDEO_MODELS: {
 }[] = [
   {
     id: "standard",
-    name: "Standard Motion",
+    name: "Стандартное видео",
     subtitle: "Runway / Luma",
     isPremium: false,
   },
   {
     id: "veo",
     name: "Google Veo",
-    subtitle: "Photoreal Pro",
+    subtitle: "Фотореалистичный Pro",
     isPremium: true,
-    badge: "Ultra Plan",
+    badge: "Ultra тариф",
   },
 ];
 
@@ -138,7 +138,7 @@ const VideoModelSelector = ({ selected, onChange, disabled, onUpgradeClick }: Vi
     <div className="space-y-2">
       <label className="text-sm font-medium text-[#888] flex items-center gap-2">
         <Film className="w-4 h-4 text-indigo-400" />
-        Video Model
+        Модель видео
       </label>
       
       <div className="relative">
@@ -260,7 +260,7 @@ const VideoModelSelector = ({ selected, onChange, disabled, onUpgradeClick }: Vi
                     ) : model.isPremium ? (
                       <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-amber-500/10 border border-amber-500/20">
                         <Crown className="w-3 h-3 text-amber-400" />
-                        <span className="text-[10px] text-amber-400 font-medium">Upgrade</span>
+                        <span className="text-[10px] text-amber-400 font-medium">Улучшить</span>
                       </div>
                     ) : null}
                   </button>
@@ -274,8 +274,8 @@ const VideoModelSelector = ({ selected, onChange, disabled, onUpgradeClick }: Vi
       {/* Helper text */}
       <p className="text-xs text-[#555] px-1">
         {selected === "veo" 
-          ? "Veo offers unmatched realism for professional use"
-          : "High-quality video generation with consistent results"
+          ? "Veo обеспечивает непревзойдённый реализм для профессионального использования"
+          : "Высококачественная генерация видео со стабильными результатами"
         }
       </p>
     </div>
@@ -398,13 +398,13 @@ const UploadDropzone = ({ onImageUpload, disabled }: UploadDropzoneProps) => {
         {/* Text content */}
         <div className="relative text-center space-y-2">
           <p className="text-lg md:text-xl font-medium text-white/90">
-            Upload a portrait to bring it to life ✨
+            Загрузите портрет для оживления ✨
           </p>
           <p className="text-sm text-indigo-300/70">
-            Works best with front-facing photos
+            Лучше всего работает с фронтальными фото
           </p>
           <p className="text-xs text-[#555] mt-3">
-            Drag & drop or click • JPG, PNG
+            Перетащите или нажмите • JPG, PNG
           </p>
         </div>
       </div>
@@ -436,7 +436,7 @@ const PhotoPreview = ({ image, onRemove, disabled }: PhotoPreviewProps) => {
         {/* Ready badge */}
         <div className="flex items-center gap-2 mt-4 px-4 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/30">
           <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-sm text-emerald-400 font-medium">Photo ready</span>
+          <span className="text-sm text-emerald-400 font-medium">Фото готово</span>
         </div>
         
         {/* Change photo button */}
@@ -450,7 +450,7 @@ const PhotoPreview = ({ image, onRemove, disabled }: PhotoPreviewProps) => {
           "
         >
           <X className="w-3.5 h-3.5" />
-          Change photo
+          Изменить фото
         </button>
       </div>
     </div>
@@ -603,14 +603,14 @@ const VideoPlayer = ({ video, isGenerating }: VideoPlayerProps) => {
           </div>
           
           <div className="relative text-center">
-            <p className="text-white/90 text-base font-medium">Creating magic... ✨</p>
-            <p className="text-indigo-300/60 text-sm mt-1">Bringing your photo to life</p>
+            <p className="text-white/90 text-base font-medium">Создаём магию... ✨</p>
+            <p className="text-indigo-300/60 text-sm mt-1">Оживляем ваше фото</p>
           </div>
         </div>
 
         <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-500/20 backdrop-blur-sm border border-indigo-500/30">
           <Sparkles className="w-3 h-3 text-indigo-400 animate-spin" />
-          <span className="text-xs text-indigo-300">Animating</span>
+          <span className="text-xs text-indigo-300">Анимация</span>
         </div>
       </div>
     );
@@ -659,7 +659,7 @@ const VideoPlayer = ({ video, isGenerating }: VideoPlayerProps) => {
             className="px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-sm border border-white/[0.1] text-white/80 hover:text-white transition-colors flex items-center gap-1.5"
           >
             <Download className="w-3.5 h-3.5" />
-            <span className="text-xs">Save</span>
+            <span className="text-xs">Сохранить</span>
           </button>
         </div>
 
@@ -692,12 +692,12 @@ const VideoPlayer = ({ video, isGenerating }: VideoPlayerProps) => {
           </div>
         </div>
         
-        <p className="text-[#555] text-sm">Your animated portrait will appear here</p>
+        <p className="text-[#555] text-sm">Ваш анимированный портрет появится здесь</p>
       </div>
 
       <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-sm border border-white/[0.05]">
         <div className="w-1.5 h-1.5 rounded-full bg-[#444]" />
-        <span className="text-xs text-[#666]">Ready</span>
+        <span className="text-xs text-[#666]">Готово</span>
       </div>
     </div>
   );
@@ -852,7 +852,7 @@ export const MotionLab = () => {
                 Motion Lab
               </h2>
               <p className="text-sm text-[#666]">
-                Bring your photos to life with AI magic ✨
+                Оживите ваши фото с помощью AI магии ✨
               </p>
             </div>
             <div className="hidden lg:block mr-44">
@@ -896,7 +896,7 @@ export const MotionLab = () => {
               <div className="space-y-3">
                 <label className="text-sm font-medium text-[#888] flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-indigo-400" />
-                  Choose Animation
+                  Выберите анимацию
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   {ANIMATION_PRESETS.map((preset) => (
@@ -913,7 +913,7 @@ export const MotionLab = () => {
 
               {/* Duration */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-[#888]">Duration</label>
+                <label className="text-sm font-medium text-[#888]">Длительность</label>
                 <DurationToggle 
                   value={duration} 
                   onChange={setDuration}
@@ -942,10 +942,10 @@ export const MotionLab = () => {
             >
               <Lock className="w-5 h-5 text-amber-400" />
               <span className="text-amber-400 font-medium text-sm text-center">
-                Video generation requires Studio plan
+                Генерация видео требует тариф Studio
               </span>
               <span className="text-amber-400/60 text-xs group-hover:text-amber-400 transition-colors">
-                Upgrade →
+                Улучшить →
               </span>
             </button>
           )}
@@ -975,27 +975,27 @@ export const MotionLab = () => {
               {isGenerating ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Creating magic...</span>
+                  <span>Создаём магию...</span>
                 </>
               ) : atLimit ? (
                 <>
                   <Lock className="w-5 h-5" />
-                  <span>Upgrade to Animate</span>
+                  <span>Улучшите для анимации</span>
                 </>
               ) : !uploadedImage ? (
                 <>
                   <Upload className="w-5 h-5" />
-                  <span>Upload Photo First</span>
+                  <span>Сначала загрузите фото</span>
                 </>
               ) : !selectedPreset ? (
                 <>
                   <Sparkles className="w-5 h-5" />
-                  <span>Choose Animation</span>
+                  <span>Выберите анимацию</span>
                 </>
               ) : (
                 <>
                   <Sparkles className="w-5 h-5" />
-                  <span>✨ Bring to Life</span>
+                  <span>✨ Оживить</span>
                 </>
               )}
             </span>
@@ -1009,7 +1009,7 @@ export const MotionLab = () => {
               </div>
               <div>
                 <p className="text-sm text-[#888] leading-relaxed">
-                  <span className="text-indigo-300 font-medium">Tip:</span> Front-facing portrait photos work best! Clear faces with good lighting give the most magical results.
+                  <span className="text-indigo-300 font-medium">Совет:</span> Лучше всего работают фронтальные портретные фото! Чёткие лица с хорошим освещением дают самые волшебные результаты.
                 </p>
               </div>
             </div>
@@ -1028,10 +1028,10 @@ export const MotionLab = () => {
             <div className={`w-2 h-2 rounded-full ${atLimit ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
             <span className="text-xs text-[#666]">
               {atLimit ? (
-                <span className="text-amber-400 font-medium">Studio plan required for video generation</span>
+                <span className="text-amber-400 font-medium">Для генерации видео нужен тариф Studio</span>
               ) : (
                 <>
-                  <span className="font-medium text-white/80">{usedVideos}/{limits.maxVideos}</span> free animations used
+                  <span className="font-medium text-white/80">{usedVideos}/{limits.maxVideos}</span> бесплатных анимаций использовано
                 </>
               )}
             </span>
@@ -1046,7 +1046,7 @@ export const MotionLab = () => {
           <div>
             <h3 className="font-mono text-lg font-medium text-white mb-4 flex items-center gap-2">
               <Film className="w-4 h-4 text-[#666]" />
-              Preview
+              Предпросмотр
             </h3>
             <VideoPlayer video={currentVideo} isGenerating={isGenerating} />
           </div>
@@ -1056,10 +1056,10 @@ export const MotionLab = () => {
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-mono text-base md:text-lg font-medium text-white flex items-center gap-2">
                 <Clock className="w-4 h-4 text-[#666]" />
-                Recent Creations
+                Недавние работы
               </h3>
               {recentVideos.length > 0 && (
-                <span className="text-xs text-[#666]">{recentVideos.length} videos</span>
+                <span className="text-xs text-[#666]">{recentVideos.length} видео</span>
               )}
             </div>
             
@@ -1068,9 +1068,9 @@ export const MotionLab = () => {
                 <div className="w-16 h-16 rounded-full bg-white/[0.02] border border-[#333] flex items-center justify-center mb-4">
                   <Sparkles className="w-7 h-7 text-[#444]" />
                 </div>
-                <p className="text-sm text-[#666]">No animations yet</p>
+                <p className="text-sm text-[#666]">Анимаций пока нет</p>
                 <p className="text-xs text-[#555] mt-1">
-                  Upload a portrait and choose an animation to begin!
+                  Загрузите портрет и выберите анимацию чтобы начать!
                 </p>
               </div>
             ) : (
