@@ -5,6 +5,7 @@ import { imageRoutes } from './routes/image'
 import { videoRoutes } from './routes/video'
 import { enhanceRoutes } from './routes/enhance'
 import { audioRoutes } from './routes/audio'
+import { avatarRoutes } from './routes/avatar'
 
 const app = new Hono()
   .basePath('api');
@@ -19,5 +20,6 @@ app.route('/image', imageRoutes);
 app.route('/video', videoRoutes);
 app.route('/enhance', enhanceRoutes);
 app.route('/audio', audioRoutes);
+app.route('/avatar', avatarRoutes);
 
 export default app;

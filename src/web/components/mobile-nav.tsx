@@ -4,6 +4,7 @@ import {
   Image,
   Video,
   Music,
+  User,
   Clock,
   Settings,
   Sparkles,
@@ -26,6 +27,7 @@ const navItems: NavItem[] = [
   { id: "image", label: "Image Studio", icon: Image },
   { id: "motion", label: "Motion Lab", icon: Video },
   { id: "audio", label: "Audio Studio", icon: Music },
+  { id: "avatar", label: "Avatar Studio", icon: User },
   { id: "history", label: "History", icon: Clock },
   { id: "settings", label: "Settings", icon: Settings },
 ];
@@ -242,6 +244,7 @@ export const MobileTopBar = ({ activeTab, children }: MobileTopBarProps) => {
       case "image": return "Image Studio";
       case "motion": return "Motion Lab";
       case "audio": return "Audio Studio";
+      case "avatar": return "Avatar Studio";
       case "history": return "History";
       case "settings": return "Settings";
       default: return "Synapse";
