@@ -496,7 +496,7 @@ export const ChatInterface = () => {
           </div>
         </div>
 
-        <div className="hidden md:flex items-center gap-6 pr-16">
+        <div className="hidden md:flex items-center gap-6 mr-44">
           <PremiumButtonWithStyles />
         </div>
       </header>

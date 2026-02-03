@@ -1728,7 +1728,7 @@ const GeneratePanel = ({
                 Generate and transform images with AI
               </p>
             </div>
-            <div className="hidden md:block pr-16">
+            <div className="hidden md:block mr-44">
               <PremiumButtonWithStyles />
             </div>
           </div>

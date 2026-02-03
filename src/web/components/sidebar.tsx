@@ -31,40 +31,23 @@ interface SidebarProps {
   onTabChange: (tab: string) => void;
 }
 
-// Credits indicator component
+// Credits indicator component - Simplified to show only credit balance
 const CreditsIndicator = () => {
-  const { messageCount, imageCount, creditBalance, userPlan, limits, setShowPaywall, setPaywallReason } = useUsage();
+  const { creditBalance, userPlan, setShowPaywall, setPaywallReason } = useUsage();
 
-  const messagesRemaining = limits.maxMessages - messageCount;
-  const imagesRemaining = limits.maxImages - imageCount;
   const isLowCredits = creditBalance < 5;
   const isVeryLowCredits = creditBalance < 1;
-
-  const getColorClass = (remaining: number, max: number) => {
-    const percentage = remaining / max;
-    if (remaining === 0) return "text-red-400";
-    if (percentage <= 0.2) return "text-amber-400";
-    return "text-emerald-400";
-  };
-
-  const getBarColor = (remaining: number, max: number) => {
-    const percentage = remaining / max;
-    if (remaining === 0) return "bg-red-500";
-    if (percentage <= 0.2) return "bg-amber-500";
-    return "bg-emerald-500";
-  };
-
-  const getBarBgColor = (remaining: number, max: number) => {
-    const percentage = remaining / max;
-    if (remaining === 0) return "bg-red-500/20";
-    if (percentage <= 0.2) return "bg-amber-500/20";
-    return "bg-emerald-500/20";
-  };
 
   const getCreditColorClass = () => {
     if (isVeryLowCredits) return "text-red-400";
     if (isLowCredits) return "text-amber-400";
     return "text-emerald-400";
+  };
+
+  const getCreditBgClass = () => {
+    if (isVeryLowCredits) return "bg-red-500/20";
+    if (isLowCredits) return "bg-amber-500/20";
+    return "bg-indigo-500/20";
   };
 
   return (
@@ -82,7 +65,7 @@ const CreditsIndicator = () => {
       <div className="p-3 rounded-lg bg-gradient-to-r from-indigo-500/10 via-blue-500/5 to-indigo-500/10 border border-indigo-500/20">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className={`p-1.5 rounded-lg ${isVeryLowCredits ? "bg-red-500/20" : isLowCredits ? "bg-amber-500/20" : "bg-indigo-500/20"}`}>
+            <div className={`p-1.5 rounded-lg ${getCreditBgClass()}`}>
               <Coins className={`w-3.5 h-3.5 ${getCreditColorClass()}`} />
             </div>
             <span className="text-sm font-medium text-white">Credits</span>
@@ -93,54 +76,16 @@ const CreditsIndicator = () => {
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="space-y-1.5">
-        <div className="flex justify-between items-center">
-          <span className="text-xs text-[#888] flex items-center gap-1.5">
-            <MessageSquare className="w-3 h-3" />
-            Messages
-          </span>
-          <span className={`text-xs font-medium ${getColorClass(messagesRemaining, limits.maxMessages)}`}>
-            {messageCount}/{limits.maxMessages}
-          </span>
-        </div>
-        <div className={`h-1.5 rounded-full ${getBarBgColor(messagesRemaining, limits.maxMessages)}`}>
-          <div
-            className={`h-full rounded-full transition-all duration-500 ${getBarColor(messagesRemaining, limits.maxMessages)}`}
-            style={{ width: `${(messageCount / limits.maxMessages) * 100}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Images */}
-      <div className="space-y-1.5">
-        <div className="flex justify-between items-center">
-          <span className="text-xs text-[#888] flex items-center gap-1.5">
-            <Image className="w-3 h-3" />
-            Images
-          </span>
-          <span className={`text-xs font-medium ${getColorClass(imagesRemaining, limits.maxImages)}`}>
-            {imageCount}/{limits.maxImages}
-          </span>
-        </div>
-        <div className={`h-1.5 rounded-full ${getBarBgColor(imagesRemaining, limits.maxImages)}`}>
-          <div
-            className={`h-full rounded-full transition-all duration-500 ${getBarColor(imagesRemaining, limits.maxImages)}`}
-            style={{ width: `${(imageCount / limits.maxImages) * 100}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Warning message when low */}
-      {(messagesRemaining <= 1 || imagesRemaining <= 0 || isLowCredits) && (
+      {/* Warning message when low on credits */}
+      {isLowCredits && (
         <button 
           onClick={() => {
-            setPaywallReason(isLowCredits ? "credits" : imagesRemaining <= 0 ? "images" : "messages");
+            setPaywallReason("credits");
             setShowPaywall(true);
           }}
           className="w-full text-xs text-amber-400/80 hover:text-amber-400 bg-amber-500/10 rounded-lg py-2 px-2 transition-colors text-center"
         >
-          {isLowCredits ? "Low on credits? " : "Running low? "}Upgrade now →
+          Low on credits? Upgrade now →
         </button>
       )}
     </div>

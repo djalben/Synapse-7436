@@ -855,7 +855,7 @@ export const MotionLab = () => {
                 Bring your photos to life with AI magic ✨
               </p>
             </div>
-            <div className="hidden lg:block pr-16">
+            <div className="hidden lg:block mr-44">
               <PremiumButtonWithStyles />
             </div>
           </div>
