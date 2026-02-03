@@ -5,7 +5,7 @@ import { MotionLab } from "../components/motion-lab";
 import { ImageStudio } from "../components/image-studio";
 import { AudioStudio } from "../components/audio-studio";
 import { AvatarStudio } from "../components/avatar-studio";
-import { HistoryPlaceholder } from "../components/placeholder-pages";
+import { HistoryPage } from "../components/placeholder-pages";
 import { SettingsPage } from "../components/settings-page";
 import { ChatInterface } from "../components/chat-interface";
 import { UsageProvider } from "../components/usage-context";
@@ -36,7 +36,7 @@ function Index() {
       case "avatar":
         return <AvatarStudio />;
       case "history":
-        return <HistoryPlaceholder />;
+        return <HistoryPage onNavigate={setActiveTab} />;
       case "settings":
         return <SettingsPage />;
       default:

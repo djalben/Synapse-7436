@@ -154,13 +154,13 @@ const AudioPlayer = ({
             {audio.type === "music" ? audio.prompt : audio.text}
           </p>
           <p className="text-xs text-[#666] mt-1">
-            {audio.type === "music" ? "Music Generation" : "Voice Synthesis"} • {audio.duration}
+            {audio.type === "music" ? "Генерация музыки" : "Синтез речи"} • {audio.duration}
           </p>
         </div>
       ) : (
         <div className="pt-2 border-t border-[#222] text-center">
-          <p className="text-sm text-[#666]">No audio generated yet</p>
-          <p className="text-xs text-[#444] mt-1">Generate music or speech to play</p>
+          <p className="text-sm text-[#666]">Аудио ещё не создано</p>
+          <p className="text-xs text-[#444] mt-1">Сгенерируйте музыку или речь для воспроизведения</p>
         </div>
       )}
     </div>
@@ -180,14 +180,14 @@ const RecentGenerations = ({
       <div className="bg-white/[0.02] border border-[#333] rounded-2xl p-6">
         <h3 className="text-sm font-medium text-white mb-3 flex items-center gap-2">
           <Clock className="w-4 h-4 text-[#666]" />
-          Recent Generations
+          Последние генерации
         </h3>
         <div className="text-center py-8">
           <div className="w-12 h-12 rounded-xl bg-white/[0.03] border border-[#222] flex items-center justify-center mx-auto mb-3">
             <Music className="w-6 h-6 text-[#444]" />
           </div>
-          <p className="text-sm text-[#666]">No generations yet</p>
-          <p className="text-xs text-[#444] mt-1">Your audio will appear here</p>
+          <p className="text-sm text-[#666]">Генераций пока нет</p>
+          <p className="text-xs text-[#444] mt-1">Ваше аудио появится здесь</p>
         </div>
       </div>
     );
@@ -197,7 +197,7 @@ const RecentGenerations = ({
     <div className="bg-white/[0.02] border border-[#333] rounded-2xl p-6">
       <h3 className="text-sm font-medium text-white mb-4 flex items-center gap-2">
         <Clock className="w-4 h-4 text-[#666]" />
-        Recent Generations
+        Последние генерации
       </h3>
       <div className="space-y-2">
         {generations.map((gen) => (
@@ -315,8 +315,8 @@ const VoiceCloneModal = ({
             <Mic className="w-5 h-5 text-violet-400" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-white">Instant Voice Cloning</h2>
-            <p className="text-sm text-[#666]">Create your personalized AI voice</p>
+            <h2 className="text-lg font-semibold text-white">Клонирование голоса</h2>
+            <p className="text-sm text-[#666]">Создайте свой персональный AI-голос</p>
           </div>
           <div className="ml-auto">
             <span className="px-2 py-1 rounded-md bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 text-xs font-medium text-amber-400 flex items-center gap-1">
@@ -328,12 +328,12 @@ const VoiceCloneModal = ({
 
         {/* Voice Name Input */}
         <div className="mb-4">
-          <label className="block text-sm text-[#888] mb-2">Voice Name</label>
+          <label className="block text-sm text-[#888] mb-2">Название голоса</label>
           <input
             type="text"
             value={voiceName}
             onChange={(e) => setVoiceName(e.target.value)}
-            placeholder="My Custom Voice"
+            placeholder="Мой голос"
             className="w-full px-4 py-3 rounded-xl bg-white/[0.03] border border-[#333] text-white placeholder-[#555] focus:border-violet-500/50 focus:outline-none transition-colors"
           />
         </div>
@@ -369,15 +369,15 @@ const VoiceCloneModal = ({
                 <Check className="w-6 h-6 text-emerald-400" />
               </div>
               <p className="text-sm text-white font-medium">{uploadedFile.name}</p>
-              <p className="text-xs text-[#666] mt-1">Click to change file</p>
+              <p className="text-xs text-[#666] mt-1">Нажмите чтобы изменить файл</p>
             </div>
           ) : (
             <div className="text-center">
               <div className="w-12 h-12 rounded-xl bg-white/[0.05] border border-[#333] flex items-center justify-center mx-auto mb-3">
                 <Upload className="w-6 h-6 text-[#666]" />
               </div>
-              <p className="text-sm text-white font-medium">Drop audio file here</p>
-              <p className="text-xs text-[#666] mt-1">MP3 or WAV, 30 seconds minimum</p>
+              <p className="text-sm text-white font-medium">Перетащите аудиофайл сюда</p>
+              <p className="text-xs text-[#666] mt-1">MP3 или WAV, минимум 30 секунд</p>
             </div>
           )}
         </div>
@@ -385,7 +385,7 @@ const VoiceCloneModal = ({
         {/* Divider */}
         <div className="flex items-center gap-3 my-4">
           <div className="flex-1 h-px bg-[#333]" />
-          <span className="text-xs text-[#666]">OR</span>
+          <span className="text-xs text-[#666]">ИЛИ</span>
           <div className="flex-1 h-px bg-[#333]" />
         </div>
 
@@ -402,13 +402,13 @@ const VoiceCloneModal = ({
           `}
         >
           <Mic className={`w-4 h-4 ${isRecording ? "animate-pulse" : ""}`} />
-          {isRecording ? "Recording... Click to stop" : "Record with Microphone"}
+          {isRecording ? "Запись... Нажмите чтобы остановить" : "Записать с микрофона"}
         </button>
 
         {/* Credit cost info */}
         <div className="mt-4 p-3 rounded-xl bg-white/[0.02] border border-[#222]">
           <p className="text-xs text-[#666] text-center">
-            Voice cloning costs <span className="text-violet-400 font-medium">50 credits</span> per voice
+            Клонирование голоса стоит <span className="text-violet-400 font-medium">50 кредитов</span> за голос
           </p>
         </div>
 
@@ -428,10 +428,10 @@ const VoiceCloneModal = ({
           {isProcessing ? (
             <span className="flex items-center justify-center gap-2">
               <Loader2 className="w-4 h-4 animate-spin" />
-              Processing Voice...
+              Обработка голоса...
             </span>
           ) : (
-            "Clone Voice"
+            "Клонировать голос"
           )}
         </button>
       </div>
@@ -502,7 +502,7 @@ export const AudioStudio = () => {
               </div>
               Audio Studio
             </h1>
-            <p className="text-sm text-[#666]">Generate music and synthesize voices with AI</p>
+            <p className="text-sm text-[#666]">Генерация музыки и синтез речи с AI</p>
           </div>
           <div className="hidden lg:block mr-44">
             <PremiumButtonWithStyles />
@@ -523,7 +523,7 @@ export const AudioStudio = () => {
             `}
           >
             <Music className="w-4 h-4" />
-            Music Generator
+            Генератор музыки
           </button>
           <button
             onClick={() => setMode("voice")}
@@ -537,7 +537,7 @@ export const AudioStudio = () => {
             `}
           >
             <Mic className="w-4 h-4" />
-            Voice Lab
+            Озвучка
           </button>
         </div>
 
@@ -546,22 +546,22 @@ export const AudioStudio = () => {
           <div className="space-y-5">
             {/* Prompt */}
             <div>
-              <label className="block text-sm text-[#888] mb-2">Describe your song</label>
+              <label className="block text-sm text-[#888] mb-2">Опишите вашу песню</label>
               <textarea
                 value={musicPrompt}
                 onChange={(e) => setMusicPrompt(e.target.value)}
-                placeholder="upbeat pop song about summer love, electronic beat with catchy melody..."
+                placeholder="энергичная поп-песня о летней любви, электронный бит с запоминающейся мелодией..."
                 className="w-full h-32 px-4 py-3 rounded-xl bg-white/[0.03] border border-[#333] text-white placeholder-[#555] resize-none focus:border-violet-500/50 focus:outline-none transition-colors"
               />
               <div className="flex justify-between mt-2">
-                <span className="text-xs text-[#666]">Be descriptive for best results</span>
+                <span className="text-xs text-[#666]">Подробное описание даёт лучший результат</span>
                 <span className="text-xs text-[#666]">{musicPrompt.length}/500</span>
               </div>
             </div>
 
             {/* Music Type Toggle */}
             <div>
-              <label className="block text-sm text-[#888] mb-2">Type</label>
+              <label className="block text-sm text-[#888] mb-2">Тип</label>
               <div className="flex gap-2">
                 <button
                   onClick={() => setMusicType("lyrics")}
@@ -574,7 +574,7 @@ export const AudioStudio = () => {
                     }
                   `}
                 >
-                  With Lyrics
+                  С вокалом
                 </button>
                 <button
                   onClick={() => setMusicType("instrumental")}
@@ -587,14 +587,14 @@ export const AudioStudio = () => {
                     }
                   `}
                 >
-                  Instrumental Only
+                  Инструментал
                 </button>
               </div>
             </div>
 
             {/* Genre Quick Select */}
             <div>
-              <label className="block text-sm text-[#888] mb-2">Genre (optional)</label>
+              <label className="block text-sm text-[#888] mb-2">Жанр (опционально)</label>
               <div className="flex flex-wrap gap-2">
                 {genres.map((genre) => (
                   <button
@@ -617,7 +617,7 @@ export const AudioStudio = () => {
 
             {/* Duration */}
             <div>
-              <label className="block text-sm text-[#888] mb-2">Duration</label>
+              <label className="block text-sm text-[#888] mb-2">Длительность</label>
               <div className="flex gap-2">
                 {(["30s", "60s", "2min"] as Duration[]).map((d) => (
                   <button
@@ -643,24 +643,37 @@ export const AudioStudio = () => {
         {/* Voice Lab Controls */}
         {mode === "voice" && (
           <div className="space-y-5">
+            {/* Voice Lab Header */}
+            <div className="p-4 rounded-xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/20">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                  <Mic className="w-5 h-5 text-blue-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-white">Voice Lab</h3>
+                  <p className="text-xs text-[#666]">Преобразование текста в речь с помощью AI</p>
+                </div>
+              </div>
+            </div>
+
             {/* Text Input */}
             <div>
-              <label className="block text-sm text-[#888] mb-2">Enter text to convert to speech</label>
+              <label className="block text-sm text-[#888] mb-2">Введите текст для озвучивания</label>
               <textarea
                 value={voiceText}
                 onChange={(e) => setVoiceText(e.target.value)}
-                placeholder="Type or paste the text you want to convert to speech..."
+                placeholder="Введите или вставьте текст для преобразования в речь..."
                 className="w-full h-32 px-4 py-3 rounded-xl bg-white/[0.03] border border-[#333] text-white placeholder-[#555] resize-none focus:border-blue-500/50 focus:outline-none transition-colors"
               />
               <div className="flex justify-between mt-2">
-                <span className="text-xs text-[#666]">Maximum 1000 characters</span>
+                <span className="text-xs text-[#666]">Максимум 1000 символов</span>
                 <span className="text-xs text-[#666]">{voiceText.length}/1000</span>
               </div>
             </div>
 
             {/* Voice Selector */}
             <div>
-              <label className="block text-sm text-[#888] mb-2">Select Voice</label>
+              <label className="block text-sm text-[#888] mb-2">Выберите голос</label>
               <div className="relative">
                 <select
                   value={selectedVoice.id}
@@ -670,13 +683,13 @@ export const AudioStudio = () => {
                   }}
                   className="w-full px-4 py-3 rounded-xl bg-white/[0.03] border border-[#333] text-white appearance-none cursor-pointer focus:border-blue-500/50 focus:outline-none transition-colors"
                 >
-                  <optgroup label="Preset Voices">
+                  <optgroup label="Готовые голоса">
                     {presetVoices.map((voice) => (
                       <option key={voice.id} value={voice.id}>{voice.name}</option>
                     ))}
                   </optgroup>
                   {clonedVoices.length > 0 && (
-                    <optgroup label="My Cloned Voices">
+                    <optgroup label="Мои клонированные голоса">
                       {clonedVoices.map((voice) => (
                         <option key={voice.id} value={voice.id}>{voice.name}</option>
                       ))}
@@ -696,7 +709,7 @@ export const AudioStudio = () => {
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <Wand2 className="w-4 h-4 text-violet-400" />
-                  <span className="text-sm font-medium text-white">Instant Voice Cloning</span>
+                  <span className="text-sm font-medium text-white">Мгновенное клонирование</span>
                 </div>
                 <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-500/30 text-xs font-medium text-amber-400 flex items-center gap-1">
                   <Crown className="w-3 h-3" />
@@ -704,14 +717,14 @@ export const AudioStudio = () => {
                 </span>
               </div>
               <p className="text-xs text-[#666] mb-3">
-                Clone any voice from a 30 second audio sample
+                Клонируйте любой голос из 30 секундной аудиозаписи
               </p>
               <button
                 onClick={() => setShowCloneModal(true)}
                 className="w-full py-2.5 rounded-xl bg-white/[0.03] border border-[#333] text-sm font-medium text-white hover:bg-white/[0.05] hover:border-violet-500/30 transition-all flex items-center justify-center gap-2"
               >
                 <Plus className="w-4 h-4" />
-                Add My Voice
+                Добавить мой голос
               </button>
             </div>
           </div>
@@ -738,19 +751,19 @@ export const AudioStudio = () => {
           {isGenerating ? (
             <span className="relative flex items-center justify-center gap-2">
               <Loader2 className="w-4 h-4 animate-spin" />
-              {mode === "music" ? "Composing..." : "Synthesizing..."}
+              {mode === "music" ? "Создание..." : "Синтез..."}
             </span>
           ) : (
             <span className="relative flex items-center justify-center gap-2">
               {mode === "music" ? (
                 <>
                   <Sparkles className="w-4 h-4" />
-                  Generate Hit 🎵
+                  Создать музыку 🎵
                 </>
               ) : (
                 <>
                   <Volume2 className="w-4 h-4" />
-                  Generate Speech
+                  Озвучить текст
                 </>
               )}
             </span>
@@ -760,7 +773,10 @@ export const AudioStudio = () => {
         {/* Credit cost info */}
         <div className="p-3 rounded-xl bg-white/[0.02] border border-[#222] text-center">
           <p className="text-xs text-[#666]">
-            Music generation costs <span className="text-violet-400 font-medium">10 credits</span> per song
+            {mode === "music" 
+              ? <>Генерация музыки стоит <span className="text-violet-400 font-medium">10 кредитов</span> за трек</>
+              : <>Синтез речи стоит <span className="text-blue-400 font-medium">3 кредита</span> за запрос</>
+            }
           </p>
         </div>
       </div>

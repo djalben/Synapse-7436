@@ -29,8 +29,8 @@ export const UserAvatar = ({ onSettingsClick }: UserAvatarProps) => {
   const handleLogout = () => {
     setIsOpen(false);
     logout();
-    toast.success("Logged out successfully", {
-      description: "See you next time!",
+    toast.success("Вы вышли из аккаунта", {
+      description: "До встречи!",
     });
   };
 
@@ -139,7 +139,7 @@ export const UserAvatar = ({ onSettingsClick }: UserAvatarProps) => {
               "
             >
               <User className="w-4 h-4" />
-              <span>My Account</span>
+              <span>Мой аккаунт</span>
             </button>
 
             <button
@@ -153,7 +153,7 @@ export const UserAvatar = ({ onSettingsClick }: UserAvatarProps) => {
               "
             >
               <Settings className="w-4 h-4" />
-              <span>Settings</span>
+              <span>Настройки</span>
             </button>
           </div>
 
@@ -170,7 +170,7 @@ export const UserAvatar = ({ onSettingsClick }: UserAvatarProps) => {
               "
             >
               <LogOut className="w-4 h-4" />
-              <span>Log out</span>
+              <span>Выйти</span>
             </button>
           </div>
         </div>

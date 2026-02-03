@@ -37,8 +37,8 @@ export const AuthModal = () => {
     setTimeout(() => {
       login("google");
       setIsSubmitting(false);
-      toast.success("Welcome to Synapse! 🚀", {
-        description: "Your AI-powered creative studio is ready.",
+      toast.success("Добро пожаловать в Synapse! 🚀", {
+        description: "Ваша AI-студия готова к работе.",
       });
     }, 800);
   };
@@ -47,7 +47,7 @@ export const AuthModal = () => {
     e.preventDefault();
     
     if (!email || !email.includes("@")) {
-      toast.error("Please enter a valid email address");
+      toast.error("Пожалуйста, введите корректный email");
       return;
     }
 
@@ -56,8 +56,8 @@ export const AuthModal = () => {
     setTimeout(() => {
       login("email", email);
       setIsSubmitting(false);
-      toast.success("Welcome to Synapse! 🚀", {
-        description: "Your AI-powered creative studio is ready.",
+      toast.success("Добро пожаловать в Synapse! 🚀", {
+        description: "Ваша AI-студия готова к работе.",
       });
     }, 800);
   };
@@ -148,13 +148,13 @@ export const AuthModal = () => {
             {/* Title */}
             <div className="text-center mb-8">
               <h1 className="text-2xl md:text-3xl font-bold text-white mb-2 font-mono tracking-tight">
-                Welcome to{" "}
+                Добро пожаловать в{" "}
                 <span className="bg-gradient-to-r from-indigo-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">
                   Synapse
                 </span>
               </h1>
               <p className="text-[#888] text-sm md:text-base">
-                The premium AI platform for creators
+                Премиум AI-платформа для креаторов
               </p>
             </div>
 
@@ -179,7 +179,7 @@ export const AuthModal = () => {
                 ) : (
                   <GoogleLogo />
                 )}
-                <span>Continue with Google</span>
+                <span>Войти через Google</span>
               </button>
 
               {/* Divider */}
@@ -189,7 +189,7 @@ export const AuthModal = () => {
                 </div>
                 <div className="relative flex justify-center">
                   <span className="bg-[#0a0a0a] px-4 text-xs text-[#666] uppercase tracking-wider">
-                    or
+                    или
                   </span>
                 </div>
               </div>
@@ -209,7 +209,7 @@ export const AuthModal = () => {
                   "
                 >
                   <Mail className="w-5 h-5 text-[#888]" />
-                  <span>Continue with Email</span>
+                  <span>Войти по Email</span>
                 </button>
               ) : (
                 <form onSubmit={handleEmailLogin} className="space-y-3">
@@ -219,7 +219,7 @@ export const AuthModal = () => {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="Enter your email"
+                      placeholder="Введите ваш email"
                       autoFocus
                       className="
                         w-full pl-12 pr-4 py-3.5 rounded-xl
@@ -252,7 +252,7 @@ export const AuthModal = () => {
                       <Loader2 className="w-5 h-5 animate-spin" />
                     ) : (
                       <>
-                        <span>Continue</span>
+                        <span>Продолжить</span>
                         <ArrowRight className="w-4 h-4" />
                       </>
                     )}
@@ -265,7 +265,7 @@ export const AuthModal = () => {
                     }}
                     className="w-full text-center text-sm text-[#666] hover:text-[#888] transition-colors"
                   >
-                    Back to options
+                    Назад к вариантам входа
                   </button>
                 </form>
               )}
@@ -273,13 +273,13 @@ export const AuthModal = () => {
 
             {/* Terms */}
             <p className="mt-8 text-center text-xs text-[#555] leading-relaxed">
-              By continuing, you agree to our{" "}
+              Продолжая, вы соглашаетесь с{" "}
               <a href="#" className="text-[#888] hover:text-white transition-colors underline underline-offset-2">
-                Terms of Service
+                Условиями использования
               </a>{" "}
-              and{" "}
+              и{" "}
               <a href="#" className="text-[#888] hover:text-white transition-colors underline underline-offset-2">
-                Privacy Policy
+                Политикой конфиденциальности
               </a>
             </p>
           </div>

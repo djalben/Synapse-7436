@@ -33,8 +33,8 @@ const processReferralReward = () => {
     // Clear referredBy so it doesn't trigger again
     localStorage.removeItem("referredBy");
     
-    toast.success("Your referrer earned 500 credits! 🎉", {
-      description: "Thanks for joining through their link!",
+    toast.success("Ваш реферал заработал 500 кредитов! 🎉", {
+      description: "Спасибо что присоединились по его ссылке!",
     });
     
     return true;
@@ -66,53 +66,53 @@ const pricingTiers: PricingTier[] = [
     id: "lite",
     name: "Lite",
     price: 690,
-    tagline: "Perfect for beginners",
+    tagline: "Идеально для новичков",
     icon: Zap,
-    buttonText: "Start Lite",
+    buttonText: "Выбрать Lite",
     features: [
-      { text: "GPT-4o Mini access", included: true },
-      { text: "Flux image generation", included: true },
-      { text: "500 Credits included", included: true },
-      { text: "Video generation", included: false },
-      { text: "Voice cloning", included: false },
-      { text: "Music generation", included: false },
+      { text: "Доступ к GPT-4o Mini", included: true },
+      { text: "Генерация изображений Flux", included: true },
+      { text: "500 кредитов включено", included: true },
+      { text: "Генерация видео", included: false },
+      { text: "Клонирование голоса", included: false },
+      { text: "Генерация музыки", included: false },
     ],
   },
   {
     id: "standard",
     name: "Standard",
     price: 1890,
-    tagline: "Best value for creators",
+    tagline: "Лучший выбор для креаторов",
     icon: Sparkles,
     highlighted: true,
-    badge: "Popular",
-    buttonText: "Get Standard",
+    badge: "Популярный",
+    buttonText: "Выбрать Standard",
     features: [
-      { text: "All Lite features", included: true },
-      { text: "GPT-4o & Claude access", included: true },
-      { text: "Music Generation", included: true },
-      { text: "Midjourney/Niji styles", included: true },
-      { text: "2 000 Credits included", included: true },
-      { text: "Video generation", included: false },
-      { text: "Voice cloning", included: false },
+      { text: "Все функции Lite", included: true },
+      { text: "Доступ к GPT-4o и Claude", included: true },
+      { text: "Генерация музыки", included: true },
+      { text: "Стили Midjourney/Niji", included: true },
+      { text: "2 000 кредитов включено", included: true },
+      { text: "Генерация видео", included: false },
+      { text: "Клонирование голоса", included: false },
     ],
   },
   {
     id: "ultra",
     name: "Ultra",
     price: 4990,
-    tagline: "For professionals & teams",
+    tagline: "Для профессионалов и команд",
     icon: Crown,
-    buttonText: "Go Ultra",
+    buttonText: "Выбрать Ultra",
     badge: "Pro",
     accentColor: "amber",
     features: [
-      { text: "All Standard features", included: true },
-      { text: "Video generation (Veo/Kling)", included: true },
-      { text: "Voice Cloning", included: true },
-      { text: "Priority processing speed", included: true },
-      { text: "6 000 Credits included", included: true },
-      { text: "API access", included: true },
+      { text: "Все функции Standard", included: true },
+      { text: "Генерация видео (Veo/Kling)", included: true },
+      { text: "Клонирование голоса", included: true },
+      { text: "Приоритетная обработка", included: true },
+      { text: "6 000 кредитов включено", included: true },
+      { text: "API доступ", included: true },
     ],
   },
 ];
@@ -322,10 +322,10 @@ export const PaywallModal = () => {
               <Rocket className="w-6 h-6 md:w-8 md:h-8 text-indigo-400" />
             </div>
             <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-2 md:mb-3">
-              Unlock Unlimited Power 🚀
+              Откройте безграничные возможности 🚀
             </h2>
             <p className="text-[#888] text-sm md:text-lg max-w-xl mx-auto px-2">
-              {reasonText} Upgrade your plan to continue creating with Synapse.
+              {reasonText} Улучшите тариф чтобы продолжить творить с Synapse.
             </p>
           </div>
 
@@ -338,13 +338,13 @@ export const PaywallModal = () => {
 
           {/* Credit costs info */}
           <div className="mt-6 md:mt-8 p-4 rounded-xl bg-white/[0.02] border border-[#222] max-w-md mx-auto">
-            <h4 className="text-sm font-medium text-white mb-2 text-center">Credit costs</h4>
+            <h4 className="text-sm font-medium text-white mb-2 text-center">Стоимость в кредитах</h4>
             <div className="flex justify-center gap-6 text-xs text-[#666]">
               <div className="flex items-center gap-1.5">
-                <span className="text-violet-400">50</span> credits — Voice clone
+                <span className="text-violet-400">50</span> кредитов — Клон голоса
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="text-violet-400">10</span> credits — Music gen
+                <span className="text-violet-400">10</span> кредитов — Музыка
               </div>
             </div>
           </div>

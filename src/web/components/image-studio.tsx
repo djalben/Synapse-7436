@@ -79,41 +79,41 @@ interface EnhancedResult {
 // ===== CONSTANTS =====
 
 const styleOptions: StyleOption[] = [
-  { id: "photorealistic", label: "Photorealistic", icon: Camera, description: "Indistinguishable from reality." },
-  { id: "anime", label: "Anime/Manga", icon: Sparkles, description: "Japanese animation style." },
-  { id: "3d", label: "3D Render", icon: Box, description: "Pixar-level CGI & characters." },
-  { id: "cyberpunk", label: "Cyberpunk", icon: Zap, description: "Neon lights & future tech." },
+  { id: "photorealistic", label: "Фотореализм", icon: Camera, description: "Неотличимо от реальности." },
+  { id: "anime", label: "Аниме/Манга", icon: Sparkles, description: "Японский анимационный стиль." },
+  { id: "3d", label: "3D Рендер", icon: Box, description: "Pixar уровень CGI и персонажи." },
+  { id: "cyberpunk", label: "Киберпанк", icon: Zap, description: "Неоновые огни и технологии будущего." },
 ];
 
 const aspectRatios: AspectRatio[] = [
-  { id: "1:1", label: "Square", icon: Square },
-  { id: "16:9", label: "Landscape", icon: RectangleHorizontal },
-  { id: "9:16", label: "Portrait", icon: RectangleVertical },
+  { id: "1:1", label: "Квадрат", icon: Square },
+  { id: "16:9", label: "Пейзаж", icon: RectangleHorizontal },
+  { id: "9:16", label: "Портрет", icon: RectangleVertical },
 ];
 
 const enhancementTools: EnhancementToolOption[] = [
   {
     id: "face-restore",
-    label: "Face Restore",
+    label: "Восстановление лиц",
     icon: Wand2,
-    description: "Fix blurry faces and enhance details",
-    badge: "AI Powered",
+    description: "Исправляет размытые лица и улучшает детали",
+    badge: "AI",
     accentColor: "blue",
   },
   {
     id: "colorize",
-    label: "Colorize",
+    label: "Колоризация",
     icon: Palette,
-    description: "Turn B&W photos into vivid color",
-    badge: "Classic Photos",
+    description: "Превращает ч/б фото в цветные",
+    badge: "Старые фото",
     accentColor: "rainbow",
   },
   {
     id: "beauty-retouch",
-    label: "Beauty Retouch",
+    label: "Ретушь",
     icon: Star,
-    description: "Smooth skin, fix lighting, pro finish",
-    badge: "Portrait Pro",
+    description: "Гладкая кожа, свет, профессиональный вид",
+    badge: "Портрет",
     accentColor: "pink",
   },
 ];
@@ -149,7 +149,7 @@ const StudioModeToggle = ({ mode, onChange }: StudioModeToggleProps) => {
         `}
       >
         <Sparkles className="w-5 h-5" />
-        <span className="text-sm font-semibold tracking-wide">Generate New</span>
+        <span className="text-sm font-semibold tracking-wide">Создать новое</span>
       </button>
       
       <button
@@ -161,7 +161,7 @@ const StudioModeToggle = ({ mode, onChange }: StudioModeToggleProps) => {
         `}
       >
         <Wand2 className="w-5 h-5" />
-        <span className="text-sm font-semibold tracking-wide">Enhance Photo</span>
+        <span className="text-sm font-semibold tracking-wide">Улучшить фото</span>
       </button>
     </div>
   );
@@ -197,7 +197,7 @@ const ModeToggle = ({ mode, onChange }: ModeToggleProps) => {
         `}
       >
         <Wand2 className="w-4 h-4" />
-        <span className="text-sm font-medium">Text to Image</span>
+        <span className="text-sm font-medium">Текст в изображение</span>
       </button>
       
       <button
@@ -209,7 +209,7 @@ const ModeToggle = ({ mode, onChange }: ModeToggleProps) => {
         `}
       >
         <ImageIcon className="w-4 h-4" />
-        <span className="text-sm font-medium">Image to Image</span>
+        <span className="text-sm font-medium">Изображение в изображение</span>
       </button>
     </div>
   );
@@ -233,8 +233,8 @@ const ImageUpload = ({
   required, 
   disabled, 
   large = false,
-  title = "Upload Reference Image",
-  subtitle = "Drag & drop or click to browse"
+  title = "Загрузить изображение",
+  subtitle = "Перетащите или нажмите для выбора"
 }: ImageUploadProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);

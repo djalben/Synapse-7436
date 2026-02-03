@@ -194,10 +194,10 @@ const MessageBubble = ({ role, content, model, isStreaming }: MessageBubbleProps
 
 // Suggestion chips
 const suggestions = [
-  { icon: Code, label: "Write code", prompt: "Help me write a React component that" },
-  { icon: Lightbulb, label: "Brainstorm", prompt: "Help me brainstorm ideas for" },
-  { icon: Zap, label: "Explain", prompt: "Explain how" },
-  { icon: Sparkles, label: "Create", prompt: "Create a" },
+  { icon: Code, label: "Написать код", prompt: "Помоги написать компонент React который" },
+  { icon: Lightbulb, label: "Идеи", prompt: "Помоги придумать идеи для" },
+  { icon: Zap, label: "Объяснить", prompt: "Объясни как" },
+  { icon: Sparkles, label: "Создать", prompt: "Создай" },
 ]
 
 interface SuggestionChipsProps {
@@ -251,7 +251,7 @@ const CreditBalanceIndicator = ({ balance, cost }: { balance: number; cost: numb
     `}>
       <Coins className={`w-4 h-4 ${isVeryLow ? "text-red-400" : isLow ? "text-amber-400" : "text-emerald-400"}`} />
       <span className={`text-sm font-medium ${isVeryLow ? "text-red-400" : isLow ? "text-amber-400" : "text-white/80"}`}>
-        {balance.toFixed(1)} credits
+        {balance.toFixed(1)} кредитов
       </span>
     </div>
   )
@@ -335,7 +335,7 @@ const ChatInputComponent = ({ value, onChange, onSubmit, disabled }: ChatInputPr
               onKeyDown={handleKeyDown}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
-              placeholder="Message Synapse..."
+              placeholder="Напишите сообщение..."
               disabled={disabled}
               rows={1}
               className="
@@ -431,8 +431,8 @@ export const ChatInterface = () => {
       incrementMessages()
       
       // Show credit deduction toast
-      toast.success(`-${cost} credits`, {
-        description: `${creditBalance - cost} credits remaining`,
+      toast.success(`-${cost} кредитов`, {
+        description: `Осталось ${creditBalance - cost} кредитов`,
         duration: 2000,
       })
     }
@@ -515,12 +515,12 @@ export const ChatInterface = () => {
             <div className="max-w-2xl w-full text-center px-4">
               <div className="mb-8 md:mb-12">
                 <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-mono font-semibold mb-4 tracking-tight">
-                  <span className="gradient-text">What can I help you</span>
+                  <span className="gradient-text">Что я могу помочь</span>
                   <br />
-                  <span className="text-white">create today?</span>
+                  <span className="text-white">создать сегодня?</span>
                 </h1>
                 <p className="text-[#666] text-base md:text-lg max-w-md mx-auto">
-                  Start a conversation with Synapse to explore ideas, write code, or create something new.
+                  Начните беседу с Synapse чтобы генерировать идеи, писать код или создавать что-то новое.
                 </p>
               </div>
 
@@ -568,7 +568,7 @@ export const ChatInterface = () => {
             {error && (
               <div className="flex justify-center mb-4">
                 <div className="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm max-w-md">
-                  {error.message || "An error occurred. Please try again."}
+                  {error.message || "Произошла ошибка. Попробуйте снова."}
                 </div>
               </div>
             )}
@@ -613,12 +613,12 @@ export const ChatInterface = () => {
               <Lock className="w-5 h-5 text-amber-400" />
               <span className="text-amber-400 font-medium text-sm md:text-base text-center">
                 {notEnoughCredits 
-                  ? `Not enough credits. You need ${currentCreditCost} credits for this model.`
-                  : "You've reached your free message limit. Upgrade to continue chatting."
+                  ? `Недостаточно кредитов. Для этой модели нужно ${currentCreditCost} кредитов.`
+                  : "Вы достигли лимита бесплатных сообщений. Улучшите тариф чтобы продолжить."
                 }
               </span>
               <span className="text-amber-400/60 text-sm group-hover:text-amber-400 transition-colors">
-                View plans →
+                Посмотреть тарифы →
               </span>
             </button>
           )}
@@ -631,10 +631,10 @@ export const ChatInterface = () => {
           />
           <p className="text-center text-[#444] text-xs mt-3 md:mt-4">
             {atLimit 
-              ? `${messageCount}/${limits.maxMessages} free messages used`
+              ? `${messageCount}/${limits.maxMessages} бесплатных сообщений использовано`
               : notEnoughCredits
-                ? `Need ${currentCreditCost} credits • Balance: ${creditBalance.toFixed(1)}`
-                : "Synapse can make mistakes. Consider checking important information."
+                ? `Нужно ${currentCreditCost} кредитов • Баланс: ${creditBalance.toFixed(1)}`
+                : "Synapse может ошибаться. Проверяйте важную информацию."
             }
           </p>
         </div>

@@ -23,13 +23,13 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { id: "chat", label: "Chat", icon: MessageSquare },
-  { id: "image", label: "Image Studio", icon: Image },
-  { id: "motion", label: "Motion Lab", icon: Video },
-  { id: "audio", label: "Audio Studio", icon: Music },
-  { id: "avatar", label: "Avatar Studio", icon: User },
-  { id: "history", label: "History", icon: Clock },
-  { id: "settings", label: "Settings", icon: Settings },
+  { id: "chat", label: "Чат", icon: MessageSquare },
+  { id: "image", label: "Изображения", icon: Image },
+  { id: "motion", label: "Видео", icon: Video },
+  { id: "audio", label: "Аудио", icon: Music },
+  { id: "avatar", label: "Аватары", icon: User },
+  { id: "history", label: "История", icon: Clock },
+  { id: "settings", label: "Настройки", icon: Settings },
 ];
 
 // Mobile Credits Indicator - Simplified to show only credit balance
@@ -51,14 +51,24 @@ const MobileCreditsIndicator = () => {
     return "bg-indigo-500/20";
   };
 
+  const getPlanName = (plan: string) => {
+    const planNames: Record<string, string> = {
+      free: "Бесплатный",
+      lite: "Lite",
+      standard: "Стандарт",
+      ultra: "Ultra",
+    };
+    return planNames[plan] || plan;
+  };
+
   return (
     <div className="px-4 py-4 rounded-xl bg-white/[0.02] border border-[#222] space-y-3">
       <div className="flex justify-between items-center">
         <div className="text-xs font-medium text-[#666] uppercase tracking-wider">
-          Usage
+          Баланс
         </div>
         <div className="text-xs font-medium text-[#888] capitalize">
-          {userPlan} plan
+          {getPlanName(userPlan)}
         </div>
       </div>
 
@@ -69,7 +79,7 @@ const MobileCreditsIndicator = () => {
             <div className={`p-1.5 rounded-lg ${getCreditBgClass()}`}>
               <Coins className="w-3.5 h-3.5" />
             </div>
-            <span className="text-sm font-medium text-white">Credits</span>
+            <span className="text-sm font-medium text-white">Кредиты</span>
           </div>
           <span className={`text-lg font-bold ${getCreditColorClass()}`}>
             {creditBalance.toFixed(1)}
@@ -86,7 +96,7 @@ const MobileCreditsIndicator = () => {
           }}
           className="w-full text-xs text-amber-400/80 hover:text-amber-400 bg-amber-500/10 rounded-lg py-2 px-2 transition-colors text-center"
         >
-          Low on credits? Upgrade now →
+          Мало кредитов? Улучшите тариф →
         </button>
       )}
     </div>
@@ -128,7 +138,7 @@ export const MobileNav = ({ activeTab, onTabChange }: MobileNavProps) => {
             transition-all duration-200
             active:scale-95
           "
-          aria-label="Open navigation menu"
+          aria-label="Открыть меню навигации"
         >
           <Menu className="w-5 h-5" />
         </button>
@@ -219,7 +229,7 @@ export const MobileNav = ({ activeTab, onTabChange }: MobileNavProps) => {
             <div className="relative px-4 py-3.5 flex items-center justify-center gap-2">
               <Sparkles className="w-4 h-4 text-indigo-400 group-hover:text-indigo-300 transition-colors" />
               <span className="font-medium text-sm text-white/90 group-hover:text-white transition-colors">
-                Upgrade Plan
+                Улучшить тариф
               </span>
             </div>
           </button>
@@ -240,13 +250,13 @@ export const MobileTopBar = ({ activeTab, children }: MobileTopBarProps) => {
 
   const getTabTitle = () => {
     switch (activeTab) {
-      case "chat": return "Chat";
-      case "image": return "Image Studio";
-      case "motion": return "Motion Lab";
-      case "audio": return "Audio Studio";
-      case "avatar": return "Avatar Studio";
-      case "history": return "History";
-      case "settings": return "Settings";
+      case "chat": return "Чат";
+      case "image": return "Изображения";
+      case "motion": return "Видео";
+      case "audio": return "Аудио";
+      case "avatar": return "Аватары";
+      case "history": return "История";
+      case "settings": return "Настройки";
       default: return "Synapse";
     }
   };
@@ -288,7 +298,7 @@ export const MobileTopBar = ({ activeTab, children }: MobileTopBarProps) => {
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
           <span className="relative flex items-center gap-1.5">
             <Crown className="w-3.5 h-3.5" />
-            <span className="hidden xs:inline">Premium</span>
+            <span className="hidden xs:inline">Премиум</span>
           </span>
         </button>
         {children}
