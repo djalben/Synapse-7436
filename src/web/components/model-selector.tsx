@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { ChevronDown, Check, Lock, Diamond, AlertTriangle, Sparkles, Zap } from "lucide-react";
+import { ChevronDown, Check, Lock, Diamond, Sparkles, Zap } from "lucide-react";
 import { useUsage } from "./usage-context";
 import { toast } from "sonner";
 
@@ -40,7 +40,6 @@ export interface Model {
 }
 
 // Available models with tiered access
-// UPDATED: Balanced economy pricing
 export const models: Model[] = [
   {
     id: "deepseek-r1",
@@ -78,7 +77,7 @@ export const models: Model[] = [
     backendId: "anthropic/claude-3.5-sonnet",
     name: "Claude 3.5 Sonnet",
     subtitle: "Гений кода",
-    creditCost: 1, // Reduced from 3 to 1
+    creditCost: 1,
     dotColor: "bg-violet-500",
     providerLogo: <AnthropicLogo />,
     requiredPlan: "standard",
@@ -88,7 +87,7 @@ export const models: Model[] = [
     backendId: "openai/o1",
     name: "GPT-5 / o1",
     subtitle: "Режим бога",
-    creditCost: 5, // Reduced from 20 to 5
+    creditCost: 5,
     dotColor: "bg-gradient-to-r from-amber-400 to-orange-500",
     providerLogo: <OpenAILogo />,
     requiredPlan: "ultra",
@@ -133,201 +132,197 @@ export const ModelSelector = ({
   userPlan = "free",
 }: ModelSelectorProps) => {
   const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const { setShowPaywall, setPaywallReason } = useUsage();
 
   const currentModel = models.find((m) => m.id === selectedModel) || models[0];
 
+  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
 
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [isOpen]);
 
-  const handleModelSelect = (model: Model) => {
-    const hasAccess = canAccessModel(userPlan, model.requiredPlan);
-    
-    if (!hasAccess) {
-      // Show paywall for locked models
+  // Close on Escape key
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsOpen(false);
+    };
+
+    if (isOpen) {
+      document.addEventListener("keydown", handleEscape);
+      return () => document.removeEventListener("keydown", handleEscape);
+    }
+  }, [isOpen]);
+
+  // ГЛАВНАЯ ЛОГИКА ВЫБОРА МОДЕЛИ
+  const handleSelect = (model: Model) => {
+    const isLocked = !canAccessModel(userPlan, model.requiredPlan);
+
+    // Если модель заблокирована — открываем окно тарифов
+    if (isLocked) {
       setPaywallReason("messages");
       setShowPaywall(true);
       setIsOpen(false);
       return;
     }
-    
-    // Show warning for God Mode
+
+    // Предупреждение для дорогих моделей
     if (model.isGodMode) {
       toast.warning("⚠️ Режим высокой мощности: 5 кредитов за сообщение", {
         description: "Эта модель потребляет значительно больше кредитов.",
         duration: 5000,
       });
     }
-    
+
+    // Выбираем модель и закрываем dropdown
     onModelChange(model.id);
     setIsOpen(false);
   };
 
   return (
-    <div className="relative" ref={dropdownRef}>
-      {/* Trigger Button */}
+    // КОНТЕЙНЕР: overflow-visible чтобы dropdown не обрезался!
+    <div ref={containerRef} className="relative" style={{ overflow: "visible" }}>
+      
+      {/* КНОПКА ТРИГГЕР */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`
-          flex items-center gap-2.5 px-3 py-2 rounded-xl
+          flex items-center gap-2 px-3 py-2 rounded-xl
           bg-white/[0.04] hover:bg-white/[0.08]
           border border-[#333] hover:border-[#444]
           transition-all duration-200
           ${isOpen ? "bg-white/[0.08] border-[#444]" : ""}
-          ${currentModel.isGodMode ? "border-amber-500/30 hover:border-amber-500/50" : ""}
-          ${currentModel.badge ? "border-emerald-500/30 hover:border-emerald-500/50" : ""}
+          ${currentModel.isGodMode ? "border-amber-500/30" : ""}
+          ${currentModel.badge ? "border-emerald-500/30" : ""}
         `}
       >
-        {/* Status Dot */}
         <div className={`w-2 h-2 rounded-full ${currentModel.dotColor} flex-shrink-0`} />
-        
-        {/* Provider Logo */}
         <div className="text-[#888]">{currentModel.providerLogo}</div>
-        
-        {/* Model Name */}
         <span className={`text-sm font-medium ${currentModel.isGodMode ? "text-amber-200" : currentModel.badge ? "text-emerald-200" : "text-white/90"}`}>
           {currentModel.name}
         </span>
-        
-        {/* God Mode Diamond */}
-        {currentModel.isGodMode && (
-          <Diamond className="w-3.5 h-3.5 text-amber-400" />
-        )}
-        
-        {/* Badge for recommended */}
-        {currentModel.badge && (
-          <Zap className="w-3.5 h-3.5 text-emerald-400" />
-        )}
-        
-        {/* Credit Badge */}
-        <span className={`
-          text-xs px-1.5 py-0.5 rounded-md
-          ${currentModel.isGodMode 
+        {currentModel.isGodMode && <Diamond className="w-3.5 h-3.5 text-amber-400" />}
+        {currentModel.badge && <Zap className="w-3.5 h-3.5 text-emerald-400" />}
+        <span className={`text-xs px-1.5 py-0.5 rounded-md ${
+          currentModel.isGodMode 
             ? "bg-amber-500/20 text-amber-400 font-medium" 
             : currentModel.badge
               ? "bg-emerald-500/20 text-emerald-400 font-medium"
               : "bg-white/[0.06] text-[#888]"
-          }
-        `}>
+        }`}>
           {currentModel.creditCost} кр
         </span>
-        
-        <ChevronDown
-          className={`w-4 h-4 text-[#666] transition-transform duration-200 ${
-            isOpen ? "rotate-180" : ""
-          }`}
-        />
+        <ChevronDown className={`w-4 h-4 text-[#666] transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
       </button>
 
-      {/* Dropdown Menu */}
+      {/* ВЫПАДАЮЩИЙ СПИСОК - ПОЛНЫЙ РЕФАКТОРИНГ */}
       {isOpen && (
         <div
           className="
-            absolute top-full left-0 mt-2 w-[320px]
-            bg-[#0a0a0a]/95 backdrop-blur-xl
-            border border-[#333] rounded-xl
-            shadow-2xl shadow-black/50
-            overflow-hidden
-            animate-in fade-in slide-in-from-top-2 duration-200
-            z-[9998]
+            absolute top-full left-0 mt-2 w-[340px]
+            bg-[#0f0f0f] border border-[#333] rounded-xl
+            shadow-2xl shadow-black/80
+            z-[9999]
           "
+          style={{
+            // Гарантируем что dropdown НЕ обрезается
+            position: "absolute",
+            zIndex: 9999,
+          }}
         >
-          {/* Scrollable content */}
-          <div className="p-2 max-h-[60vh] overflow-y-auto">
-            {/* Header */}
-            <div className="px-3 py-2 mb-1">
-              <p className="text-xs text-[#666] uppercase tracking-wider font-medium">
-                Выберите модель
-              </p>
-            </div>
-            
+          {/* ЗАГОЛОВОК */}
+          <div className="px-4 py-3 border-b border-[#222]">
+            <p className="text-xs text-[#666] uppercase tracking-wider font-medium">
+              Выберите модель
+            </p>
+          </div>
+
+          {/* СПИСОК МОДЕЛЕЙ - со скроллом */}
+          <ul className="max-h-[400px] overflow-y-auto p-2">
             {models.map((model) => {
               const isSelected = model.id === selectedModel;
-              const hasAccess = canAccessModel(userPlan, model.requiredPlan);
-              const isLocked = !hasAccess;
-              const hasBadge = model.badge;
-              
+              const isLocked = !canAccessModel(userPlan, model.requiredPlan);
+              const hasBadge = !!model.badge;
+
               return (
-                <button
-                  key={model.id}
-                  onClick={() => handleModelSelect(model)}
-                  className={`
-                    w-full flex items-center gap-2 px-3 py-2.5 rounded-lg
-                    transition-all duration-150
-                    ${isSelected ? "bg-white/[0.08]" : "hover:bg-white/[0.04]"}
-                    ${isLocked ? "opacity-60" : ""}
-                    ${model.isGodMode && !isLocked ? "bg-gradient-to-r from-amber-500/5 to-orange-500/5 hover:from-amber-500/10 hover:to-orange-500/10" : ""}
-                    ${hasBadge && !isLocked ? "bg-gradient-to-r from-emerald-500/5 to-teal-500/5 hover:from-emerald-500/10 hover:to-teal-500/10" : ""}
-                  `}
-                >
-                  {/* Status Dot */}
-                  <div className={`w-2 h-2 rounded-full ${model.dotColor} flex-shrink-0`} />
-                  
-                  {/* Provider Logo */}
-                  <div className={`${isSelected ? "text-white" : "text-[#666]"} flex-shrink-0`}>
-                    {model.providerLogo}
-                  </div>
-                  
-                  {/* Model Info */}
-                  <div className="flex-1 text-left min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className={`
-                        text-sm font-medium truncate
-                        ${isSelected ? "text-white" : model.isGodMode ? "text-amber-200" : hasBadge ? "text-emerald-200" : "text-white/80"}
-                      `}>
-                        {model.name}
-                      </span>
-                      {model.isGodMode && (
-                        <Diamond className="w-3 h-3 text-amber-400 flex-shrink-0" />
-                      )}
-                      {hasBadge && (
-                        <span className="text-[9px] px-1 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-medium border border-emerald-500/30 flex-shrink-0 whitespace-nowrap">
-                          {model.badge}
-                        </span>
-                      )}
+                <li key={model.id}>
+                  <button
+                    onClick={() => handleSelect(model)}
+                    className={`
+                      w-full flex items-center gap-3 px-3 py-3 rounded-lg
+                      transition-colors duration-200
+                      cursor-pointer
+                      ${isSelected 
+                        ? "bg-indigo-500/20 border border-indigo-500/30" 
+                        : "hover:bg-white/10 border border-transparent"
+                      }
+                      ${isLocked ? "opacity-50" : ""}
+                    `}
+                  >
+                    {/* Цветная точка статуса */}
+                    <div className={`w-2.5 h-2.5 rounded-full ${model.dotColor} flex-shrink-0`} />
+                    
+                    {/* Лого провайдера */}
+                    <div className={`flex-shrink-0 ${isSelected ? "text-white" : "text-[#666]"}`}>
+                      {model.providerLogo}
                     </div>
-                    <div className="text-[11px] text-[#666] truncate">{model.subtitle}</div>
-                  </div>
-                  
-                  {/* Credit Cost Badge */}
-                  <div className={`
-                    text-[10px] px-1.5 py-0.5 rounded font-medium flex-shrink-0 whitespace-nowrap
-                    ${model.isGodMode 
-                      ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" 
-                      : hasBadge
-                        ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                        : "bg-white/[0.06] text-[#888]"
-                    }
-                  `}>
-                    {model.creditCost} кр
-                  </div>
-                  
-                  {/* Lock or Check Icon */}
-                  <div className="flex-shrink-0 w-4">
-                    {isLocked ? (
-                      <Lock className="w-3.5 h-3.5 text-[#555]" />
-                    ) : isSelected ? (
-                      <Check className="w-3.5 h-3.5 text-indigo-400" />
-                    ) : null}
-                  </div>
-                </button>
+                    
+                    {/* Информация о модели */}
+                    <div className="flex-1 text-left min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-sm font-medium ${
+                          isSelected ? "text-white" 
+                            : model.isGodMode ? "text-amber-200" 
+                            : hasBadge ? "text-emerald-200" 
+                            : "text-white/80"
+                        }`}>
+                          {model.name}
+                        </span>
+                        {model.isGodMode && <Diamond className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />}
+                        {hasBadge && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-medium border border-emerald-500/30 whitespace-nowrap">
+                            {model.badge}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-[#666] mt-0.5">{model.subtitle}</p>
+                    </div>
+                    
+                    {/* Стоимость в кредитах */}
+                    <div className={`text-xs px-2 py-1 rounded font-medium flex-shrink-0 ${
+                      model.isGodMode 
+                        ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" 
+                        : hasBadge
+                          ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                          : "bg-white/[0.06] text-[#888]"
+                    }`}>
+                      {model.creditCost} кр
+                    </div>
+                    
+                    {/* Иконка: замок или галочка */}
+                    <div className="flex-shrink-0 w-5 flex justify-center">
+                      {isLocked ? (
+                        <Lock className="w-4 h-4 text-[#555]" />
+                      ) : isSelected ? (
+                        <Check className="w-4 h-4 text-indigo-400" />
+                      ) : null}
+                    </div>
+                  </button>
+                </li>
               );
             })}
-          </div>
-          
-          {/* Footer with plan indicator */}
+          </ul>
+
+          {/* ФУТЕР */}
           <div className="px-4 py-3 border-t border-[#222] bg-white/[0.02]">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -342,7 +337,7 @@ export const ModelSelector = ({
                   setShowPaywall(true);
                   setIsOpen(false);
                 }}
-                className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors font-medium"
               >
                 Улучшить →
               </button>
