@@ -124,7 +124,7 @@ imageRoutes.post("/", async (c) => {
                 style: specializedEngine === "niji-v6" ? "nana-banana" : style,
                 mode: mode || "text-to-image",
                 createdAt: new Date().toISOString(),
-                creditCost: 1,
+                creditCost: 3, // Image generation costs 3 credits
               })
             }
           }
@@ -179,7 +179,7 @@ imageRoutes.post("/", async (c) => {
                 style: specializedEngine === "niji-v6" ? "nana-banana" : style,
                 mode: mode || "text-to-image",
                 createdAt: new Date().toISOString(),
-                creditCost: 1,
+                creditCost: 3, // Image generation costs 3 credits
               })
             }
           }

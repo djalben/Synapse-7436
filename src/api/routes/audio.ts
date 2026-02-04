@@ -236,7 +236,7 @@ audioRoutes.post("/tts", async (c) => {
               duration: durationStr,
               type: "voice",
               createdAt: new Date().toISOString(),
-              creditCost: 5, // TTS costs 5 credits
+              creditCost: 3, // TTS costs 3 credits
             })
           }
         }
@@ -263,7 +263,7 @@ audioRoutes.post("/tts", async (c) => {
       duration: `${Math.floor(durationSeconds / 60)}:${(durationSeconds % 60).toString().padStart(2, "0")}`,
       type: "voice",
       createdAt: new Date().toISOString(),
-      creditCost: 5,
+      creditCost: 3, // TTS costs 3 credits
     })
   } catch (error) {
     if (import.meta.env.DEV) {
@@ -342,7 +342,7 @@ audioRoutes.post("/clone", async (c) => {
               duration: `${Math.floor(durationSeconds / 60)}:${(durationSeconds % 60).toString().padStart(2, "0")}`,
               type: "clone",
               createdAt: new Date().toISOString(),
-              creditCost: 50, // Voice cloning costs 50 credits (premium feature)
+              creditCost: 30, // Voice cloning - expensive GPU operation
             })
           }
         }
@@ -368,7 +368,7 @@ audioRoutes.post("/clone", async (c) => {
       duration: `${Math.floor(durationSeconds / 60)}:${(durationSeconds % 60).toString().padStart(2, "0")}`,
       type: "clone",
       createdAt: new Date().toISOString(),
-      creditCost: 50,
+      creditCost: 30, // Voice cloning - expensive GPU operation
     })
   } catch (error) {
     if (import.meta.env.DEV) {

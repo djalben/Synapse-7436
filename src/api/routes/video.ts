@@ -187,7 +187,7 @@ videoRoutes.post("/animate", async (c) => {
       preset,
       duration: finalDuration,
       createdAt: new Date().toISOString(),
-      creditCost: 15, // Video generation costs 15 credits
+      creditCost: 30, // Expensive GPU operation - 30 credits
     })
   } catch (error) {
     if (import.meta.env.DEV) {
@@ -261,7 +261,7 @@ videoRoutes.post("/", async (c) => {
       mode: mode || "text-to-video",
       videoModel: videoModel || "standard",
       createdAt: new Date().toISOString(),
-      creditCost: 15, // Video generation costs 15 credits
+      creditCost: 30, // Expensive GPU operation - 30 credits
     })
   } catch (error) {
     if (import.meta.env.DEV) {

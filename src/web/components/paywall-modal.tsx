@@ -60,33 +60,34 @@ interface CreditPackage {
 }
 
 // Credit packages with prices accounting for Lava 12% commission
+// UPDATED: Reduced prices for RF market entry
 const creditPackages: CreditPackage[] = [
   {
     id: "start",
     name: "START",
     credits: 100,
-    price: 590,
-    pricePerCredit: "5.9 ₽",
-    description: "Для знакомства",
+    price: 390,
+    pricePerCredit: "3.9 ₽",
+    description: "Для старта",
     icon: Zap,
     features: [
+      "DeepSeek R1",
       "GPT-4o Mini",
       "Генерация изображений Flux",
-      "Идеально для тестирования",
     ],
     accentColor: "emerald",
   },
   {
     id: "creator",
     name: "CREATOR",
-    credits: 500,
-    price: 2490,
-    pricePerCredit: "4.98 ₽",
+    credits: 300,
+    price: 990,
+    pricePerCredit: "3.3 ₽",
     savings: "Экономия 15%",
     description: "Для активных креаторов",
     icon: Sparkles,
     highlighted: true,
-    badge: "Популярный",
+    badge: "ХИТ",
     features: [
       "GPT-4o, Claude Sonnet",
       "Nana Banana стили",
@@ -98,37 +99,36 @@ const creditPackages: CreditPackage[] = [
   {
     id: "pro_studio",
     name: "PRO STUDIO",
-    credits: 1500,
-    price: 5990,
-    pricePerCredit: "3.99 ₽",
-    savings: "Экономия 32%",
+    credits: 1000,
+    price: 2990,
+    pricePerCredit: "2.99 ₽",
+    savings: "Экономия 23%",
     description: "Для профессионалов",
     icon: Crown,
     badge: "Pro",
     features: [
-      "Все модели без ограничений",
-      "Видео генерация (Veo/Kling)",
+      "Видео генерация",
       "Клонирование голоса",
       "AI Аватары",
-      "Приоритетная обработка",
+      "o1 модель",
     ],
     accentColor: "amber",
   },
   {
-    id: "unlimited",
-    name: "UNLIMITED",
-    credits: 5000,
-    price: 14990,
-    pricePerCredit: "2.99 ₽",
-    savings: "Экономия 49%",
+    id: "agency",
+    name: "МАКСИМАЛЬНЫЙ",
+    credits: 3500,
+    price: 8990,
+    pricePerCredit: "2.57 ₽",
+    savings: "Экономия 34%",
     description: "Максимальные возможности",
     icon: Star,
     badge: "Best Value",
     features: [
       "Все функции PRO STUDIO",
       "Приоритетная обработка",
+      "API доступ",
       "Ранний доступ к новинкам",
-      "Поддержка в приоритете",
     ],
     accentColor: "amber",
   },
@@ -142,7 +142,7 @@ interface PackageCardProps {
 const PackageCard = ({ pkg, onSelect }: PackageCardProps) => {
   const Icon = pkg.icon;
   const isHighlighted = pkg.highlighted;
-  const isPro = pkg.id === "pro_studio" || pkg.id === "unlimited";
+  const isPro = pkg.id === "pro_studio" || pkg.id === "agency";
 
   // Format price with spaces for thousands (Russian format)
   const formattedPrice = pkg.price.toLocaleString("ru-RU");
@@ -376,19 +376,19 @@ export const PaywallModal = () => {
             <h4 className="text-sm font-medium text-white mb-3 text-center">Стоимость в кредитах</h4>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               <div className="flex flex-col items-center p-2 rounded-lg bg-white/[0.02]">
-                <span className="text-violet-400 font-bold text-lg">1</span>
+                <span className="text-violet-400 font-bold text-lg">0.1-5</span>
                 <span className="text-[#666]">Сообщение</span>
               </div>
               <div className="flex flex-col items-center p-2 rounded-lg bg-white/[0.02]">
-                <span className="text-violet-400 font-bold text-lg">5</span>
+                <span className="text-violet-400 font-bold text-lg">3</span>
                 <span className="text-[#666]">Изображение</span>
               </div>
               <div className="flex flex-col items-center p-2 rounded-lg bg-white/[0.02]">
-                <span className="text-violet-400 font-bold text-lg">50</span>
+                <span className="text-violet-400 font-bold text-lg">30</span>
                 <span className="text-[#666]">Клон голоса</span>
               </div>
               <div className="flex flex-col items-center p-2 rounded-lg bg-white/[0.02]">
-                <span className="text-violet-400 font-bold text-lg">100</span>
+                <span className="text-violet-400 font-bold text-lg">30</span>
                 <span className="text-[#666]">Видео</span>
               </div>
             </div>

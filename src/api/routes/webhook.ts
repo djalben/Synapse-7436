@@ -1,11 +1,12 @@
 import { Hono } from "hono"
 
 // Credit packages with prices (matching paywall-modal.tsx)
+// UPDATED: Reduced prices for RF market entry
 const CREDIT_PACKAGES: Record<string, { credits: number; price: number }> = {
-  'start': { credits: 100, price: 590 },
-  'creator': { credits: 500, price: 2490 },
-  'pro_studio': { credits: 1500, price: 5990 },
-  'unlimited': { credits: 5000, price: 14990 },
+  'start': { credits: 100, price: 390 },
+  'creator': { credits: 300, price: 990 },
+  'pro_studio': { credits: 1000, price: 2990 },
+  'agency': { credits: 3500, price: 8990 },
 }
 
 // Lava Webhook payload interface

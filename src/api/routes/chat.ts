@@ -17,13 +17,14 @@ const MODEL_MAP: Record<string, string> = {
 }
 
 // Credit costs per model
+// UPDATED: Balanced economy pricing
 const CREDIT_COSTS: Record<string, number> = {
-  "deepseek-r1": 0.1,
-  "gpt-4o-mini": 0.1,
-  "gpt-4o": 1,
-  "claude-3.5-sonnet": 3,
-  "gpt-5-o1": 20,
-  "deepseek-v3": 0.5,
+  "deepseek-r1": 0.1,     // Free lead magnet
+  "gpt-4o-mini": 0.1,     // Cheap fast option
+  "gpt-4o": 1,            // 1 credit (was 1)
+  "claude-3.5-sonnet": 1, // 1 credit (was 3)
+  "gpt-5-o1": 5,          // 5 credits (was 20)
+  "deepseek-v3": 0.5,     // Legacy
 }
 
 chatRoutes.post("/", async (c) => {

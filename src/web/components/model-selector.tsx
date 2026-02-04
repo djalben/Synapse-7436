@@ -40,6 +40,7 @@ export interface Model {
 }
 
 // Available models with tiered access
+// UPDATED: Balanced economy pricing
 export const models: Model[] = [
   {
     id: "deepseek-r1",
@@ -77,7 +78,7 @@ export const models: Model[] = [
     backendId: "anthropic/claude-3.5-sonnet",
     name: "Claude 3.5 Sonnet",
     subtitle: "Гений кода",
-    creditCost: 3,
+    creditCost: 1, // Reduced from 3 to 1
     dotColor: "bg-violet-500",
     providerLogo: <AnthropicLogo />,
     requiredPlan: "standard",
@@ -87,7 +88,7 @@ export const models: Model[] = [
     backendId: "openai/o1",
     name: "GPT-5 / o1",
     subtitle: "Режим бога",
-    creditCost: 20,
+    creditCost: 5, // Reduced from 20 to 5
     dotColor: "bg-gradient-to-r from-amber-400 to-orange-500",
     providerLogo: <OpenAILogo />,
     requiredPlan: "ultra",
@@ -164,7 +165,7 @@ export const ModelSelector = ({
     
     // Show warning for God Mode
     if (model.isGodMode) {
-      toast.warning("⚠️ High Cost Mode: 20 credits per message", {
+      toast.warning("⚠️ High Cost Mode: 5 credits per message", {
         description: "This model uses significantly more credits.",
         duration: 5000,
       });

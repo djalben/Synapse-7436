@@ -408,7 +408,7 @@ const VoiceCloneModal = ({
         {/* Credit cost info */}
         <div className="mt-4 p-3 rounded-xl bg-white/[0.02] border border-[#222]">
           <p className="text-xs text-[#666] text-center">
-            Клонирование голоса стоит <span className="text-violet-400 font-medium">50 кредитов</span> за голос
+            Клонирование голоса стоит <span className="text-violet-400 font-medium">30 кредитов</span> за голос
           </p>
         </div>
 
