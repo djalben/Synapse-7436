@@ -602,7 +602,7 @@ export const ChatInterface = () => {
       {/* Input Area */}
       <div
         className={`
-          sticky bottom-0 left-0 right-0
+          sticky bottom-0 left-0 right-0 z-10
           px-4 md:px-6 py-4 md:py-6
           bg-gradient-to-t from-black via-black/95 to-transparent
           transition-all duration-700 ease-out delay-300

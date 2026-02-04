@@ -241,7 +241,7 @@ export const ModelSelector = ({
             shadow-2xl shadow-black/50
             overflow-hidden
             animate-in fade-in slide-in-from-top-2 duration-200
-            z-[100]
+            z-[9998]
           "
         >
           {/* Scrollable content */}
