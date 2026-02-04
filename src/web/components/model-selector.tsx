@@ -235,16 +235,17 @@ export const ModelSelector = ({
       {isOpen && (
         <div
           className="
-            absolute top-full left-0 mt-2 w-[300px]
+            absolute top-full left-0 mt-2 w-[320px]
             bg-[#0a0a0a]/95 backdrop-blur-xl
             border border-[#333] rounded-xl
             shadow-2xl shadow-black/50
             overflow-hidden
             animate-in fade-in slide-in-from-top-2 duration-200
-            z-50
+            z-[100]
           "
         >
-          <div className="p-2">
+          {/* Scrollable content */}
+          <div className="p-2 max-h-[60vh] overflow-y-auto">
             {/* Header */}
             <div className="px-3 py-2 mb-1">
               <p className="text-xs text-[#666] uppercase tracking-wider font-medium">
@@ -263,7 +264,7 @@ export const ModelSelector = ({
                   key={model.id}
                   onClick={() => handleModelSelect(model)}
                   className={`
-                    w-full flex items-center gap-3 px-3 py-3 rounded-lg
+                    w-full flex items-center gap-2 px-3 py-2.5 rounded-lg
                     transition-all duration-150
                     ${isSelected ? "bg-white/[0.08]" : "hover:bg-white/[0.04]"}
                     ${isLocked ? "opacity-60" : ""}
@@ -272,7 +273,7 @@ export const ModelSelector = ({
                   `}
                 >
                   {/* Status Dot */}
-                  <div className={`w-2.5 h-2.5 rounded-full ${model.dotColor} flex-shrink-0`} />
+                  <div className={`w-2 h-2 rounded-full ${model.dotColor} flex-shrink-0`} />
                   
                   {/* Provider Logo */}
                   <div className={`${isSelected ? "text-white" : "text-[#666]"} flex-shrink-0`}>
@@ -280,29 +281,29 @@ export const ModelSelector = ({
                   </div>
                   
                   {/* Model Info */}
-                  <div className="flex-1 text-left">
-                    <div className="flex items-center gap-2">
+                  <div className="flex-1 text-left min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <span className={`
-                        text-sm font-medium
+                        text-sm font-medium truncate
                         ${isSelected ? "text-white" : model.isGodMode ? "text-amber-200" : hasBadge ? "text-emerald-200" : "text-white/80"}
                       `}>
                         {model.name}
                       </span>
                       {model.isGodMode && (
-                        <Diamond className="w-3.5 h-3.5 text-amber-400" />
+                        <Diamond className="w-3 h-3 text-amber-400 flex-shrink-0" />
                       )}
                       {hasBadge && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-medium border border-emerald-500/30">
+                        <span className="text-[9px] px-1 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-medium border border-emerald-500/30 flex-shrink-0 whitespace-nowrap">
                           {model.badge}
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-[#666]">{model.subtitle}</div>
+                    <div className="text-[11px] text-[#666] truncate">{model.subtitle}</div>
                   </div>
                   
                   {/* Credit Cost Badge */}
                   <div className={`
-                    text-xs px-2 py-1 rounded-md font-medium flex-shrink-0
+                    text-[10px] px-1.5 py-0.5 rounded font-medium flex-shrink-0 whitespace-nowrap
                     ${model.isGodMode 
                       ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" 
                       : hasBadge
@@ -310,15 +311,15 @@ export const ModelSelector = ({
                         : "bg-white/[0.06] text-[#888]"
                     }
                   `}>
-                    {model.creditCost} кр/сообщ
+                    {model.creditCost} кр
                   </div>
                   
                   {/* Lock or Check Icon */}
-                  <div className="flex-shrink-0 w-5">
+                  <div className="flex-shrink-0 w-4">
                     {isLocked ? (
-                      <Lock className="w-4 h-4 text-[#555]" />
+                      <Lock className="w-3.5 h-3.5 text-[#555]" />
                     ) : isSelected ? (
-                      <Check className="w-4 h-4 text-indigo-400" />
+                      <Check className="w-3.5 h-3.5 text-indigo-400" />
                     ) : null}
                   </div>
                 </button>
@@ -343,7 +344,7 @@ export const ModelSelector = ({
                 }}
                 className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
               >
-                Upgrade →
+                Улучшить →
               </button>
             </div>
           </div>
