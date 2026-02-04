@@ -228,9 +228,9 @@ export const ModelSelector = ({
       {isOpen && (
         <div
           className="
-            absolute top-full left-0 mt-2 w-[340px]
-            bg-[#0f0f0f] border border-[#333] rounded-xl
-            shadow-2xl shadow-black/80
+            absolute top-full left-0 mt-2 w-[340px] max-w-[calc(100vw-2rem)]
+            bg-[#0B0F17] border border-gray-800 rounded-xl
+            shadow-2xl
             z-[9999]
           "
           style={{
@@ -239,14 +239,14 @@ export const ModelSelector = ({
           }}
         >
           {/* ЗАГОЛОВОК */}
-          <div className="px-4 py-3 border-b border-[#222]">
+          <div className="px-4 py-3 border-b border-gray-800">
             <p className="text-xs text-[#666] uppercase tracking-wider font-medium">
               Выберите модель
             </p>
           </div>
 
           {/* СПИСОК МОДЕЛЕЙ */}
-          <ul className="max-h-[400px] overflow-y-auto p-2 space-y-1">
+          <ul className="max-h-[400px] overflow-y-auto p-2 space-y-1 bg-[#0B0F17]">
             {models.map((model) => {
               // ПУНКТ 1: Динамическое определение активности
               // currentModel - это объект текущей выбранной модели
@@ -324,7 +324,7 @@ export const ModelSelector = ({
           </ul>
 
           {/* ФУТЕР */}
-          <div className="px-4 py-3 border-t border-[#222] bg-white/[0.02]">
+          <div className="px-4 py-3 border-t border-gray-800 bg-[#0B0F17] rounded-b-xl">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
