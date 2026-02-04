@@ -42,8 +42,8 @@ const generateAvatar = (seed: string) => {
 
 // Generate random name for Google login
 const generateRandomName = () => {
-  const adjectives = ["Creative", "Brilliant", "Innovative", "Dynamic", "Swift"];
-  const nouns = ["Creator", "Artist", "Designer", "Builder", "Maker"];
+  const adjectives = ["Креативный", "Яркий", "Продвинутый", "Талантливый", "Энергичный"];
+  const nouns = ["Творец", "Художник", "Дизайнер", "Создатель", "Мастер"];
   const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
   const noun = nouns[Math.floor(Math.random() * nouns.length)];
   return `${adj} ${noun}`;

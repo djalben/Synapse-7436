@@ -21,9 +21,13 @@ import {
   Instagram,
   Lock,
   X,
+  CreditCard,
+  Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
+import { useAuth } from "./auth-context";
+import { useUsage } from "./usage-context";
 
 // Generate a unique user ID for referrals
 const generateUserId = () => {
@@ -129,8 +133,8 @@ const PinModal = ({ isOpen, onClose }: PinModalProps) => {
     if (isLocked) return;
 
     if (pin === CORRECT_PIN) {
-      toast.success("Access Granted 🔓", {
-        description: "Redirecting to Admin Dashboard...",
+      toast.success("Доступ разрешён 🔓", {
+        description: "Перенаправление в панель администратора...",
       });
       setPin("");
       setError("");
@@ -147,9 +151,9 @@ const PinModal = ({ isOpen, onClose }: PinModalProps) => {
       if (newAttempts >= MAX_ATTEMPTS) {
         setIsLocked(true);
         setLockTimer(LOCKOUT_SECONDS);
-        setError("Too many attempts. Try again later.");
+        setError("Слишком много попыток. Попробуйте позже.");
       } else {
-        setError(`Invalid PIN (${MAX_ATTEMPTS - newAttempts} attempts left)`);
+        setError(`Неверный PIN (осталось ${MAX_ATTEMPTS - newAttempts} попыток)`);
       }
     }
   };
@@ -192,8 +196,8 @@ const PinModal = ({ isOpen, onClose }: PinModalProps) => {
             <Lock className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h2 className="font-mono text-lg font-semibold text-white">🔐 Developer Access</h2>
-            <p className="text-xs text-[#666]">Enter security PIN to continue</p>
+            <h2 className="font-mono text-lg font-semibold text-white">🔐 Режим разработчика</h2>
+            <p className="text-xs text-[#666]">Введите PIN для продолжения</p>
           </div>
         </div>
 
@@ -222,7 +226,7 @@ const PinModal = ({ isOpen, onClose }: PinModalProps) => {
                 {error}
                 {isLocked && lockTimer > 0 && (
                   <span className="block mt-1 text-xs text-red-400/70">
-                    Retry in {lockTimer}s
+                    Повторите через {lockTimer}с
                   </span>
                 )}
               </p>
@@ -235,29 +239,40 @@ const PinModal = ({ isOpen, onClose }: PinModalProps) => {
             disabled={pin.length !== 4 || isLocked}
             className="w-full py-3.5 rounded-xl font-medium text-sm bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-400 hover:to-purple-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-indigo-500 disabled:hover:to-purple-600"
           >
-            {isLocked ? `Locked (${lockTimer}s)` : "Confirm"}
+            {isLocked ? `Заблокировано (${lockTimer}с)` : "Подтвердить"}
           </button>
         </form>
 
         {/* Hint */}
         <p className="mt-4 text-center text-xs text-[#444]">
-          Enter 4-digit PIN to access admin controls
+          Введите 4-значный PIN для доступа к админ-панели
         </p>
       </div>
     </div>
   );
 };
 
+// Plan display names
+const planDisplayNames: Record<string, string> = {
+  free: "Бесплатный",
+  start: "START",
+  creator: "CREATOR",
+  pro_studio: "PRO STUDIO",
+  agency: "МАКСИМАЛЬНЫЙ",
+};
+
 // Referral Card Component
 const ReferralCard = () => {
+  const { user } = useAuth();
   const [userId, setUserId] = useState("");
   const [stats, setStats] = useState({ friendsInvited: 0, creditsEarned: 0 });
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    setUserId(getUserId());
+    // Use user.id if available, otherwise generate
+    setUserId(user?.id || getUserId());
     setStats(getReferralStats());
-  }, []);
+  }, [user]);
 
   const referralLink = userId ? `${window.location.origin}?ref=${userId}` : "";
 
@@ -265,10 +280,10 @@ const ReferralCard = () => {
     try {
       await navigator.clipboard.writeText(referralLink);
       setCopied(true);
-      toast.success("Link copied! Share with friends 📋");
+      toast.success("Ссылка скопирована! Поделитесь с друзьями 📋");
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error("Failed to copy link");
+      toast.error("Не удалось скопировать ссылку");
     }
   };
 
@@ -282,19 +297,19 @@ const ReferralCard = () => {
             <Gift className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h2 className="text-sm font-medium text-white">Invite Friends & Earn 🎁</h2>
+            <h2 className="text-sm font-medium text-white">Пригласи друзей и получи бонус 🎁</h2>
             <p className="text-xs text-[#888]">
-              Get <span className="text-indigo-400 font-semibold">500 Credits</span> for every friend who subscribes!
+              Получи <span className="text-indigo-400 font-semibold">500 кредитов</span> за каждого друга, который оформит подписку!
             </p>
           </div>
         </div>
 
         {/* Referral Link */}
         <div className="mb-4">
-          <label className="text-xs text-[#666] mb-2 block">Your Unique Referral Link</label>
+          <label className="text-xs text-[#666] mb-2 block">Ваша реферальная ссылка</label>
           <div className="flex gap-2">
             <div className="flex-1 px-3 py-2.5 rounded-lg bg-white/[0.02] border border-[#333] text-sm text-[#888] truncate min-w-0">
-              {referralLink || "Loading..."}
+              {referralLink || "Загрузка..."}
             </div>
             <button
               onClick={handleCopy}
@@ -306,7 +321,7 @@ const ReferralCard = () => {
               ) : (
                 <Copy className="w-4 h-4" />
               )}
-              <span className="text-sm hidden sm:inline">{copied ? "Copied!" : "Copy"}</span>
+              <span className="text-sm hidden sm:inline">{copied ? "Скопировано!" : "Копировать"}</span>
             </button>
           </div>
         </div>
@@ -316,14 +331,14 @@ const ReferralCard = () => {
           <div className="p-3 md:p-4 rounded-xl bg-white/[0.02] border border-[#333]">
             <div className="flex items-center gap-2 mb-1">
               <Users className="w-4 h-4 text-indigo-400" />
-              <span className="text-xs text-[#666]">Friends Invited</span>
+              <span className="text-xs text-[#666]">Приглашено друзей</span>
             </div>
             <p className="text-lg md:text-xl font-bold text-white">{stats.friendsInvited}</p>
           </div>
           <div className="p-3 md:p-4 rounded-xl bg-white/[0.02] border border-[#333]">
             <div className="flex items-center gap-2 mb-1">
               <Coins className="w-4 h-4 text-amber-400" />
-              <span className="text-xs text-[#666]">Credits Earned</span>
+              <span className="text-xs text-[#666]">Заработано кредитов</span>
             </div>
             <p className="text-lg md:text-xl font-bold text-white">{stats.creditsEarned}</p>
           </div>
@@ -340,7 +355,7 @@ const RedeemCodeCard = () => {
 
   const handleRedeem = () => {
     if (!code.trim()) {
-      toast.error("Please enter a code");
+      toast.error("Пожалуйста, введите код");
       return;
     }
 
@@ -357,7 +372,7 @@ const RedeemCodeCard = () => {
     );
 
     if (!foundCode) {
-      toast.error("Invalid or expired code");
+      toast.error("Неверный или истёкший код");
       setIsRedeeming(false);
       return;
     }
@@ -369,15 +384,15 @@ const RedeemCodeCard = () => {
       const newCredits = currentCredits + foundCode.value;
       localStorage.setItem("userCredits", newCredits.toString());
       
-      toast.success(`🎉 Code redeemed!`, {
-        description: `You received ${foundCode.value} credits!`,
+      toast.success(`🎉 Код активирован!`, {
+        description: `Вы получили ${foundCode.value} кредитов!`,
       });
     } else if (foundCode.type === "plan") {
       // Upgrade user's plan
       localStorage.setItem("userPlan", foundCode.value);
       
-      toast.success(`🎉 Code redeemed!`, {
-        description: `You're now on the ${foundCode.value} plan!`,
+      toast.success(`🎉 Код активирован!`, {
+        description: `Теперь у вас тариф ${foundCode.value}!`,
       });
     }
 
@@ -397,9 +412,9 @@ const RedeemCodeCard = () => {
           <Gift className="w-5 h-5 text-white" />
         </div>
         <div>
-          <h2 className="text-sm font-medium text-white">Redeem Gift Code</h2>
+          <h2 className="text-sm font-medium text-white">Активировать промокод</h2>
           <p className="text-xs text-[#666]">
-            Have a promo code? Enter it here to unlock credits or plans.
+            Есть промокод? Введите его здесь для получения кредитов или тарифа.
           </p>
         </div>
       </div>
@@ -420,7 +435,7 @@ const RedeemCodeCard = () => {
           disabled={isRedeeming || !code.trim()}
           className="px-5 py-3 rounded-xl font-medium text-sm bg-gradient-to-r from-pink-500 to-purple-600 text-white hover:from-pink-400 hover:to-purple-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
         >
-          {isRedeeming ? "..." : "Redeem"}
+          {isRedeeming ? "..." : "Активировать"}
         </button>
       </div>
     </section>
@@ -435,22 +450,56 @@ const SectionHeader = ({ icon: Icon, title }: { icon: React.ComponentType<{ clas
   </div>
 );
 
-export const SettingsPage = () => {
+interface SettingsPageProps {
+  onOpenPaywall?: () => void;
+}
+
+export const SettingsPage = ({ onOpenPaywall }: SettingsPageProps) => {
   const { showPinModal, handleClick, closePinModal } = useSecretKnock(5, 3000);
+  const { user } = useAuth();
+  const { creditBalance, userPlan, setShowPaywall } = useUsage();
+
+  // Get initials from name or email
+  const getInitials = (name?: string, email?: string | null) => {
+    if (name) {
+      return name
+        .split(" ")
+        .map((word) => word[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2);
+    }
+    if (email) {
+      return email.charAt(0).toUpperCase();
+    }
+    return "U";
+  };
+
+  const handleOpenPaywall = () => {
+    if (onOpenPaywall) {
+      onOpenPaywall();
+    } else {
+      setShowPaywall(true);
+    }
+  };
 
   const handleDeleteAccount = () => {
-    if (confirm("Are you sure you want to delete your account? This action cannot be undone and will erase all your data.")) {
-      if (confirm("This is your final warning. All your generations, chat history, and settings will be permanently deleted. Continue?")) {
+    if (confirm("Вы уверены, что хотите удалить аккаунт? Это действие нельзя отменить, все ваши данные будут удалены.")) {
+      if (confirm("Это последнее предупреждение. Все ваши генерации, история чата и настройки будут безвозвратно удалены. Продолжить?")) {
         // Clear all localStorage data
         localStorage.clear();
-        toast.success("Account deleted successfully", {
-          description: "All your data has been removed.",
+        toast.success("Аккаунт успешно удалён", {
+          description: "Все ваши данные были удалены.",
         });
         // Reload the page
         setTimeout(() => window.location.reload(), 1500);
       }
     }
   };
+
+  const displayName = user?.name || "Пользователь";
+  const displayEmail = user?.email || "Не указан";
+  const displayPlan = planDisplayNames[userPlan] || "Бесплатный";
 
   return (
     <div className="min-h-screen p-4 md:p-8">
@@ -461,53 +510,124 @@ export const SettingsPage = () => {
             <div className="w-10 h-10 rounded-xl bg-white/[0.05] border border-[#333] flex items-center justify-center">
               <SettingsIcon className="w-5 h-5 text-[#888]" />
             </div>
-            <h1 className="font-mono text-xl md:text-2xl font-semibold text-white">Settings</h1>
+            <h1 className="font-mono text-xl md:text-2xl font-semibold text-white">Настройки</h1>
           </div>
-          <p className="text-[#666] text-sm">Manage your Synapse preferences</p>
+          <p className="text-[#666] text-sm">Управление настройками Synapse</p>
         </div>
 
         <div className="space-y-5 md:space-y-6">
-          {/* Section 1: Account */}
+          {/* Section 1: Account / Profile */}
           <section className="p-5 md:p-6 rounded-2xl bg-white/[0.02] border border-[#222]">
-            <SectionHeader icon={User} title="Account" />
+            <SectionHeader icon={User} title="Профиль" />
             
             <div className="flex items-center gap-4 p-4 rounded-xl bg-white/[0.02] border border-[#222]">
-              <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-                <User className="w-6 h-6 md:w-7 md:h-7 text-white" />
-              </div>
+              {/* Avatar */}
+              {user?.avatar ? (
+                <img
+                  src={user.avatar}
+                  alt={displayName}
+                  className="w-12 h-12 md:w-14 md:h-14 rounded-full border border-[#333] flex-shrink-0"
+                />
+              ) : (
+                <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                  <span className="text-white text-lg font-medium">
+                    {getInitials(user?.name, user?.email)}
+                  </span>
+                </div>
+              )}
               <div className="flex-1 min-w-0">
-                <p className="text-sm md:text-base font-medium text-white truncate">Guest User</p>
-                <p className="text-xs text-[#666]">guest@synapse.ai</p>
+                <p className="text-sm md:text-base font-medium text-white truncate">{displayName}</p>
+                <p className="text-xs text-[#666] truncate">{displayEmail}</p>
               </div>
-              <span className="px-3 py-1 rounded-full text-xs bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex-shrink-0">
-                Free
-              </span>
+              <button 
+                onClick={() => toast.info("Редактирование профиля скоро будет доступно")}
+                className="px-3 py-1.5 rounded-lg text-xs bg-white/[0.05] text-[#888] border border-[#333] hover:bg-white/[0.08] transition-colors flex-shrink-0"
+              >
+                Редактировать
+              </button>
             </div>
           </section>
 
-          {/* Section 2: Referral Program */}
+          {/* Section 2: Balance and Plan */}
+          <section className="p-5 md:p-6 rounded-2xl bg-gradient-to-br from-indigo-500/5 via-purple-500/5 to-transparent border border-indigo-500/20">
+            <SectionHeader icon={Wallet} title="Баланс и тариф" />
+            
+            <div className="space-y-4">
+              {/* Balance */}
+              <div className="p-4 rounded-xl bg-white/[0.02] border border-[#222]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-[#666] mb-1">Текущий баланс</p>
+                    <p className="text-2xl md:text-3xl font-bold text-white">
+                      {creditBalance.toFixed(1)} <span className="text-lg text-[#888]">кредитов</span>
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center">
+                    <Coins className="w-6 h-6 text-amber-400" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Plan */}
+              <div className="p-4 rounded-xl bg-white/[0.02] border border-[#222]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-[#666] mb-1">Текущий тариф</p>
+                    <p className="text-lg font-semibold text-white">{displayPlan}</p>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium border ${
+                    userPlan === "free" 
+                      ? "bg-white/[0.05] text-[#888] border-[#333]"
+                      : "bg-indigo-500/20 text-indigo-400 border-indigo-500/30"
+                  }`}>
+                    {userPlan === "free" ? "Бесплатный" : "Активен"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={handleOpenPaywall}
+                  className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 text-white font-medium text-sm hover:from-indigo-500 hover:via-blue-500 hover:to-indigo-500 transition-all shadow-lg shadow-indigo-500/20"
+                >
+                  <CreditCard className="w-4 h-4" />
+                  <span>Пополнить баланс</span>
+                </button>
+                <button
+                  onClick={handleOpenPaywall}
+                  className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-white/[0.05] border border-[#333] text-white font-medium text-sm hover:bg-white/[0.08] transition-colors"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Управление тарифом</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          {/* Section 3: Referral Program */}
           <ReferralCard />
 
-          {/* Section 2.5: Redeem Gift Code */}
+          {/* Section 4: Redeem Gift Code */}
           <RedeemCodeCard />
 
-          {/* Section 3: Preferences */}
+          {/* Section 5: Preferences */}
           <section className="p-5 md:p-6 rounded-2xl bg-white/[0.02] border border-[#222]">
-            <SectionHeader icon={Globe} title="Preferences" />
+            <SectionHeader icon={Globe} title="Настройки" />
             
             <div className="space-y-3">
               {/* Theme */}
               <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-[#222]">
                 <div>
-                  <p className="text-sm font-medium text-white">Theme</p>
-                  <p className="text-xs text-[#666]">Interface appearance</p>
+                  <p className="text-sm font-medium text-white">Тема</p>
+                  <p className="text-xs text-[#666]">Внешний вид интерфейса</p>
                 </div>
                 <div className="flex gap-2">
                   <button className="px-3 py-1.5 rounded-lg text-xs bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
-                    Dark
+                    Тёмная
                   </button>
                   <button className="px-3 py-1.5 rounded-lg text-xs bg-white/[0.02] text-[#666] border border-[#333] cursor-not-allowed opacity-50">
-                    Light
+                    Светлая
                   </button>
                 </div>
               </div>
@@ -515,26 +635,30 @@ export const SettingsPage = () => {
               {/* Language */}
               <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-[#222]">
                 <div>
-                  <p className="text-sm font-medium text-white">Language</p>
-                  <p className="text-xs text-[#666]">Select language</p>
+                  <p className="text-sm font-medium text-white">Язык</p>
+                  <p className="text-xs text-[#666]">Выберите язык</p>
                 </div>
-                <select className="px-3 py-1.5 rounded-lg text-xs bg-white/[0.05] text-white border border-[#333] outline-none focus:border-indigo-500/50 cursor-pointer">
-                  <option value="en">English</option>
-                  <option value="ru">Русский</option>
-                </select>
+                <div className="flex gap-2">
+                  <button className="px-3 py-1.5 rounded-lg text-xs bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                    Русский
+                  </button>
+                  <button className="px-3 py-1.5 rounded-lg text-xs bg-white/[0.02] text-[#666] border border-[#333] cursor-not-allowed opacity-50">
+                    English
+                  </button>
+                </div>
               </div>
             </div>
           </section>
 
-          {/* Notifications */}
+          {/* Section 6: Notifications */}
           <section className="p-5 md:p-6 rounded-2xl bg-white/[0.02] border border-[#222]">
-            <SectionHeader icon={Bell} title="Notifications" />
+            <SectionHeader icon={Bell} title="Уведомления" />
             
             <div className="space-y-3">
               <label className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-[#222] cursor-pointer hover:bg-white/[0.03] transition-colors">
                 <div>
-                  <p className="text-sm font-medium text-white">Push Notifications</p>
-                  <p className="text-xs text-[#666]">Generation updates</p>
+                  <p className="text-sm font-medium text-white">Push-уведомления</p>
+                  <p className="text-xs text-[#666]">Уведомления о генерациях</p>
                 </div>
                 <div className="relative flex-shrink-0">
                   <input type="checkbox" className="sr-only peer" defaultChecked />
@@ -545,8 +669,8 @@ export const SettingsPage = () => {
 
               <label className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-[#222] cursor-pointer hover:bg-white/[0.03] transition-colors">
                 <div>
-                  <p className="text-sm font-medium text-white">Email Updates</p>
-                  <p className="text-xs text-[#666]">New features & tips</p>
+                  <p className="text-sm font-medium text-white">Email рассылка</p>
+                  <p className="text-xs text-[#666]">Новости и советы</p>
                 </div>
                 <div className="relative flex-shrink-0">
                   <input type="checkbox" className="sr-only peer" />
@@ -557,48 +681,48 @@ export const SettingsPage = () => {
             </div>
           </section>
 
-          {/* Section 4: Data & Privacy */}
+          {/* Section 7: Data & Privacy */}
           <section className="p-5 md:p-6 rounded-2xl bg-white/[0.02] border border-[#222]">
-            <SectionHeader icon={Shield} title="Data & Privacy" />
+            <SectionHeader icon={Shield} title="Данные и конфиденциальность" />
             
             <div className="space-y-3">
               <button 
                 onClick={() => {
-                  if (confirm("Clear all chat history? This cannot be undone.")) {
+                  if (confirm("Очистить всю историю чата? Это действие нельзя отменить.")) {
                     localStorage.removeItem("chatHistory");
-                    toast.success("Chat history cleared");
+                    toast.success("История чата очищена");
                   }
                 }}
                 className="w-full flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-[#222] hover:bg-white/[0.03] transition-colors text-left"
               >
                 <div>
-                  <p className="text-sm font-medium text-white">Clear Chat History</p>
-                  <p className="text-xs text-[#666]">Remove all conversations</p>
+                  <p className="text-sm font-medium text-white">Очистить историю чата</p>
+                  <p className="text-xs text-[#666]">Удалить все диалоги</p>
                 </div>
               </button>
 
               <button 
                 onClick={() => {
-                  if (confirm("Clear all generated images? This cannot be undone.")) {
+                  if (confirm("Очистить все сгенерированные изображения? Это действие нельзя отменить.")) {
                     localStorage.removeItem("generatedImages");
-                    toast.success("Generated images cleared");
+                    toast.success("Изображения удалены");
                   }
                 }}
                 className="w-full flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-[#222] hover:bg-white/[0.03] transition-colors text-left"
               >
                 <div>
-                  <p className="text-sm font-medium text-white">Clear Generated Images</p>
-                  <p className="text-xs text-[#666]">Remove image history</p>
+                  <p className="text-sm font-medium text-white">Очистить изображения</p>
+                  <p className="text-xs text-[#666]">Удалить историю генераций</p>
                 </div>
               </button>
 
               <button 
-                onClick={() => toast.info("Export feature coming soon")}
+                onClick={() => toast.info("Экспорт данных скоро будет доступен")}
                 className="w-full flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-[#222] hover:bg-white/[0.03] transition-colors text-left"
               >
                 <div>
-                  <p className="text-sm font-medium text-white">Export My Data</p>
-                  <p className="text-xs text-[#666]">Download your data</p>
+                  <p className="text-sm font-medium text-white">Экспорт данных</p>
+                  <p className="text-xs text-[#666]">Скачать ваши данные</p>
                 </div>
                 <ExternalLink className="w-4 h-4 text-[#666] flex-shrink-0" />
               </button>
@@ -610,8 +734,8 @@ export const SettingsPage = () => {
                   className="w-full flex items-center justify-between p-4 rounded-xl bg-red-500/5 border border-red-500/20 hover:bg-red-500/10 hover:border-red-500/30 transition-colors text-left group"
                 >
                   <div>
-                    <p className="text-sm font-medium text-red-400">Delete Account</p>
-                    <p className="text-xs text-red-400/60">Permanently remove all data</p>
+                    <p className="text-sm font-medium text-red-400">Удалить аккаунт</p>
+                    <p className="text-xs text-red-400/60">Безвозвратно удалить все данные</p>
                   </div>
                   <Trash2 className="w-4 h-4 text-red-400/60 group-hover:text-red-400 transition-colors flex-shrink-0" />
                 </button>
@@ -622,51 +746,51 @@ export const SettingsPage = () => {
           {/* PIN Modal for Developer Access */}
           <PinModal isOpen={showPinModal} onClose={closePinModal} />
 
-          {/* Section 5: About */}
+          {/* Section 8: About */}
           <section className="p-5 md:p-6 rounded-2xl bg-white/[0.02] border border-[#222]">
-            <SectionHeader icon={Sparkles} title="About" />
+            <SectionHeader icon={Sparkles} title="О приложении" />
             
             <div className="space-y-3">
               {/* Help Links */}
               <a 
                 href="#" 
-                onClick={(e) => { e.preventDefault(); toast.info("Help Center coming soon"); }}
+                onClick={(e) => { e.preventDefault(); toast.info("Центр помощи скоро будет доступен"); }}
                 className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-[#222] hover:bg-white/[0.03] transition-colors"
               >
                 <div className="flex items-center gap-3">
                   <HelpCircle className="w-4 h-4 text-[#666]" />
-                  <span className="text-sm font-medium text-white">Help Center</span>
+                  <span className="text-sm font-medium text-white">Центр помощи</span>
                 </div>
                 <ExternalLink className="w-4 h-4 text-[#666]" />
               </a>
 
               <a 
                 href="#" 
-                onClick={(e) => { e.preventDefault(); toast.info("Contact Support: support@synapse.ai"); }}
+                onClick={(e) => { e.preventDefault(); toast.info("Связь с поддержкой: support@synapse.ai"); }}
                 className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-[#222] hover:bg-white/[0.03] transition-colors"
               >
                 <div className="flex items-center gap-3">
                   <MessageCircle className="w-4 h-4 text-[#666]" />
-                  <span className="text-sm font-medium text-white">Contact Support</span>
+                  <span className="text-sm font-medium text-white">Связаться с поддержкой</span>
                 </div>
                 <ExternalLink className="w-4 h-4 text-[#666]" />
               </a>
 
               <a 
                 href="#" 
-                onClick={(e) => { e.preventDefault(); toast.info("Bug report feature coming soon"); }}
+                onClick={(e) => { e.preventDefault(); toast.info("Отчёт об ошибке скоро будет доступен"); }}
                 className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-[#222] hover:bg-white/[0.03] transition-colors"
               >
                 <div className="flex items-center gap-3">
                   <Bug className="w-4 h-4 text-[#666]" />
-                  <span className="text-sm font-medium text-white">Report a Bug</span>
+                  <span className="text-sm font-medium text-white">Сообщить об ошибке</span>
                 </div>
                 <ExternalLink className="w-4 h-4 text-[#666]" />
               </a>
 
               {/* Social Links */}
               <div className="pt-4 mt-4 border-t border-[#222]">
-                <p className="text-xs text-[#666] mb-3">Follow us</p>
+                <p className="text-xs text-[#666] mb-3">Подписывайтесь на нас</p>
                 <div className="flex gap-3">
                   <a 
                     href="#" 

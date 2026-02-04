@@ -1820,13 +1820,13 @@ const GeneratePanel = ({
 
           {/* Aspect Ratio */}
           <div className="space-y-3" data-tour="aspect-ratio">
-            <label className="text-sm font-medium text-[#888]">Aspect Ratio</label>
+            <label className="text-sm font-medium text-[#888]">Соотношение сторон</label>
             <AspectRatioSelector selected={aspectRatio} onChange={setAspectRatio} />
           </div>
 
           {/* Number of Images */}
           <div className="space-y-3">
-            <label className="text-sm font-medium text-[#888]">Number of Images</label>
+            <label className="text-sm font-medium text-[#888]">Количество изображений</label>
             <div className="p-4 rounded-xl bg-white/[0.02] border border-[#333]">
               <ImageCountSlider value={imageCount} onChange={setImageCount} />
             </div>
@@ -1851,10 +1851,10 @@ const GeneratePanel = ({
             >
               <Lock className="w-5 h-5 text-amber-400" />
               <span className="text-amber-400 font-medium text-sm text-center">
-                Free image generations exhausted
+                Бесплатные генерации исчерпаны
               </span>
               <span className="text-amber-400/60 text-xs group-hover:text-amber-400 transition-colors">
-                Upgrade →
+                Пополнить →
               </span>
             </button>
           )}
@@ -1888,27 +1888,27 @@ const GeneratePanel = ({
               {isGenerating ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>{nijiModeActive ? "Creating with Nana Banana..." : "Generating..."}</span>
+                  <span>{nijiModeActive ? "Создаём с Nana Banana..." : "Генерация..."}</span>
                 </>
               ) : atLimit ? (
                 <>
                   <Lock className="w-5 h-5 text-[#555]" />
-                  <span>Upgrade to Generate</span>
+                  <span>Пополнить для генерации</span>
                 </>
               ) : !isImg2ImgReady ? (
                 <>
                   <Upload className="w-5 h-5 text-[#555]" />
-                  <span>Upload Reference Image</span>
+                  <span>Загрузите изображение</span>
                 </>
               ) : nijiModeActive ? (
                 <>
                   <Sparkles className={`w-5 h-5 ${prompt.trim() ? "text-amber-200" : "text-[#555]"}`} />
-                  <span>🍌 Generate with Nana Banana</span>
+                  <span>🍌 Создать с Nana Banana</span>
                 </>
               ) : (
                 <>
                   <Sparkles className={`w-5 h-5 ${prompt.trim() ? "text-white/90" : "text-[#555]"}`} />
-                  <span>{mode === "image-to-image" ? "Transform Image" : "Generate Images"}</span>
+                  <span>{mode === "image-to-image" ? "Трансформировать" : "Сгенерировать"}</span>
                 </>
               )}
             </div>
@@ -1928,7 +1928,7 @@ const GeneratePanel = ({
             <span className="text-xs text-[#666]">
               <span className={`font-medium ${atLimit ? "text-red-400" : "text-white/80"}`}>
                 {usedImages}/{limits.maxImages}
-              </span> free generations used
+              </span> бесплатных генераций использовано
             </span>
           </div>
         </div>
@@ -1939,9 +1939,9 @@ const GeneratePanel = ({
         {/* Gallery Header */}
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <div>
-            <h3 className="font-mono text-lg font-semibold text-white">Gallery</h3>
+            <h3 className="font-mono text-lg font-semibold text-white">Галерея</h3>
             <p className="text-sm text-[#666]">
-              {generatedImages.length} {generatedImages.length === 1 ? "image" : "images"} generated
+              {generatedImages.length} {generatedImages.length === 1 ? "изображение" : generatedImages.length < 5 ? "изображения" : "изображений"} сгенерировано
             </p>
           </div>
         </div>
@@ -1952,11 +1952,11 @@ const GeneratePanel = ({
             <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-white/[0.02] border border-[#333] flex items-center justify-center mb-4 md:mb-6">
               <Sparkles className="w-8 h-8 md:w-10 md:h-10 text-[#444]" />
             </div>
-            <h3 className="text-base md:text-lg font-medium text-white/80 mb-2">No images yet</h3>
+            <h3 className="text-base md:text-lg font-medium text-white/80 mb-2">Пока нет изображений</h3>
             <p className="text-sm text-[#666] max-w-xs">
               {mode === "image-to-image" 
-                ? "Upload a reference image and describe how to transform it"
-                : "Enter a prompt and click \"Generate Images\" to create your first masterpiece"
+                ? "Загрузите референс и опишите, как его трансформировать"
+                : "Введите промпт и нажмите \"Сгенерировать\" для создания вашего первого шедевра"
               }
             </p>
           </div>
