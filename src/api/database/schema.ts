@@ -53,6 +53,18 @@ export const expenses = sqliteTable("expenses", {
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 })
 
+// Таблица платежей (история оплат через Lava)
+export const payments = sqliteTable("payments", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id),
+  amount: real("amount").notNull(), // сумма в рублях
+  credits: integer("credits").notNull(), // количество кредитов
+  status: text("status").default("pending"), // pending, completed, failed, refunded
+  lavaOrderId: text("lava_order_id"), // ID заказа в Lava
+  packageId: text("package_id"), // start, creator, pro_studio, unlimited
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+})
+
 // Type exports for use in application
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
@@ -62,3 +74,5 @@ export type GiftCode = typeof giftCodes.$inferSelect
 export type NewGiftCode = typeof giftCodes.$inferInsert
 export type Expense = typeof expenses.$inferSelect
 export type NewExpense = typeof expenses.$inferInsert
+export type Payment = typeof payments.$inferSelect
+export type NewPayment = typeof payments.$inferInsert

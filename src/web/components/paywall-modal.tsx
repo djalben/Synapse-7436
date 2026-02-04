@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, Check, Sparkles, Zap, Crown, Rocket, XCircle } from "lucide-react";
+import { X, Check, Sparkles, Zap, Crown, Rocket, XCircle, Star } from "lucide-react";
 import { useUsage } from "./usage-context";
 import { toast } from "sonner";
 
@@ -43,127 +43,182 @@ const processReferralReward = () => {
   return false;
 };
 
-interface Feature {
-  text: string;
-  included: boolean;
-}
-
-interface PricingTier {
+// Credit Package Types - NEW WITH LAVA 12% COMMISSION
+interface CreditPackage {
   id: string;
   name: string;
-  price: number;
-  tagline: string;
+  credits: number;
+  price: number; // Price in RUB (including 12% Lava commission)
+  pricePerCredit: string;
+  savings?: string;
+  description: string;
   icon: React.ComponentType<{ className?: string }>;
-  features: Feature[];
+  features: string[];
   highlighted?: boolean;
   badge?: string;
-  buttonText: string;
-  accentColor?: string;
+  accentColor?: "indigo" | "amber" | "emerald";
 }
 
-const pricingTiers: PricingTier[] = [
+// Credit packages with prices accounting for Lava 12% commission
+const creditPackages: CreditPackage[] = [
   {
-    id: "lite",
-    name: "Lite",
-    price: 690,
-    tagline: "Идеально для новичков",
+    id: "start",
+    name: "START",
+    credits: 100,
+    price: 590,
+    pricePerCredit: "5.9 ₽",
+    description: "Для знакомства",
     icon: Zap,
-    buttonText: "Выбрать Lite",
     features: [
-      { text: "Доступ к GPT-4o Mini", included: true },
-      { text: "Генерация изображений Flux", included: true },
-      { text: "500 кредитов включено", included: true },
-      { text: "Генерация видео", included: false },
-      { text: "Клонирование голоса", included: false },
-      { text: "Генерация музыки", included: false },
+      "GPT-4o Mini",
+      "Генерация изображений Flux",
+      "Идеально для тестирования",
     ],
+    accentColor: "emerald",
   },
   {
-    id: "standard",
-    name: "Standard",
-    price: 1890,
-    tagline: "Лучший выбор для креаторов",
+    id: "creator",
+    name: "CREATOR",
+    credits: 500,
+    price: 2490,
+    pricePerCredit: "4.98 ₽",
+    savings: "Экономия 15%",
+    description: "Для активных креаторов",
     icon: Sparkles,
     highlighted: true,
     badge: "Популярный",
-    buttonText: "Выбрать Standard",
     features: [
-      { text: "Все функции Lite", included: true },
-      { text: "Доступ к GPT-4o и Claude", included: true },
-      { text: "Генерация музыки", included: true },
-      { text: "Стили Midjourney/Niji", included: true },
-      { text: "2 000 кредитов включено", included: true },
-      { text: "Генерация видео", included: false },
-      { text: "Клонирование голоса", included: false },
+      "GPT-4o, Claude Sonnet",
+      "Nana Banana стили",
+      "Генерация музыки",
+      "Все базовые функции",
     ],
+    accentColor: "indigo",
   },
   {
-    id: "ultra",
-    name: "Ultra",
-    price: 4990,
-    tagline: "Для профессионалов и команд",
+    id: "pro_studio",
+    name: "PRO STUDIO",
+    credits: 1500,
+    price: 5990,
+    pricePerCredit: "3.99 ₽",
+    savings: "Экономия 32%",
+    description: "Для профессионалов",
     icon: Crown,
-    buttonText: "Выбрать Ultra",
     badge: "Pro",
-    accentColor: "amber",
     features: [
-      { text: "Все функции Standard", included: true },
-      { text: "Генерация видео (Veo/Kling)", included: true },
-      { text: "Клонирование голоса", included: true },
-      { text: "Приоритетная обработка", included: true },
-      { text: "6 000 кредитов включено", included: true },
-      { text: "API доступ", included: true },
+      "Все модели без ограничений",
+      "Видео генерация (Veo/Kling)",
+      "Клонирование голоса",
+      "AI Аватары",
+      "Приоритетная обработка",
     ],
+    accentColor: "amber",
+  },
+  {
+    id: "unlimited",
+    name: "UNLIMITED",
+    credits: 5000,
+    price: 14990,
+    pricePerCredit: "2.99 ₽",
+    savings: "Экономия 49%",
+    description: "Максимальные возможности",
+    icon: Star,
+    badge: "Best Value",
+    features: [
+      "Все функции PRO STUDIO",
+      "Приоритетная обработка",
+      "Ранний доступ к новинкам",
+      "Поддержка в приоритете",
+    ],
+    accentColor: "amber",
   },
 ];
 
-interface PricingCardProps {
-  tier: PricingTier;
-  onSelect: (tierId: string) => void;
+interface PackageCardProps {
+  pkg: CreditPackage;
+  onSelect: (packageId: string) => void;
 }
 
-const PricingCard = ({ tier, onSelect }: PricingCardProps) => {
-  const Icon = tier.icon;
-  const isUltra = tier.id === "ultra";
+const PackageCard = ({ pkg, onSelect }: PackageCardProps) => {
+  const Icon = pkg.icon;
+  const isHighlighted = pkg.highlighted;
+  const isPro = pkg.id === "pro_studio" || pkg.id === "unlimited";
 
   // Format price with spaces for thousands (Russian format)
-  const formattedPrice = tier.price.toLocaleString("ru-RU");
+  const formattedPrice = pkg.price.toLocaleString("ru-RU");
+  const formattedCredits = pkg.credits.toLocaleString("ru-RU");
+
+  const accentStyles = {
+    indigo: {
+      border: "border-indigo-500/40",
+      hoverBorder: "hover:border-indigo-500/60",
+      glow: "bg-indigo-500/20",
+      iconBg: "from-indigo-500/30 to-blue-500/30",
+      iconColor: "text-indigo-400",
+      checkBg: "bg-indigo-500/20",
+      checkColor: "text-indigo-400",
+      button: "from-indigo-600 via-blue-600 to-indigo-600",
+      buttonShadow: "shadow-indigo-500/30 hover:shadow-indigo-500/50",
+      badgeBg: "from-indigo-500 to-blue-500",
+      badgeShadow: "shadow-indigo-500/30",
+    },
+    amber: {
+      border: "border-amber-500/30",
+      hoverBorder: "hover:border-amber-500/50",
+      glow: "bg-amber-500/10",
+      iconBg: "from-amber-500/20 to-orange-500/20",
+      iconColor: "text-amber-400",
+      checkBg: "bg-amber-500/20",
+      checkColor: "text-amber-400",
+      button: "from-amber-600 via-orange-600 to-amber-600",
+      buttonShadow: "shadow-amber-500/30 hover:shadow-amber-500/50",
+      badgeBg: "from-amber-500 to-orange-500",
+      badgeShadow: "shadow-amber-500/30",
+    },
+    emerald: {
+      border: "border-[#333]",
+      hoverBorder: "hover:border-[#444]",
+      glow: "",
+      iconBg: "bg-white/[0.05]",
+      iconColor: "text-emerald-400",
+      checkBg: "bg-emerald-500/20",
+      checkColor: "text-emerald-400",
+      button: "bg-white/[0.05] hover:bg-white/[0.08] border border-[#333]",
+      buttonShadow: "",
+      badgeBg: "from-emerald-500 to-green-500",
+      badgeShadow: "shadow-emerald-500/30",
+    },
+  };
+
+  const styles = accentStyles[pkg.accentColor || "emerald"];
 
   return (
     <div
       className={`
-        relative flex flex-col rounded-2xl p-4 md:p-6
+        relative flex flex-col rounded-2xl p-4 md:p-5
         transition-all duration-500
-        ${tier.highlighted
-          ? "bg-gradient-to-b from-indigo-500/10 via-indigo-500/5 to-transparent border-2 border-indigo-500/40 md:scale-105"
-          : isUltra
-            ? "bg-gradient-to-b from-amber-500/5 via-amber-500/[0.02] to-transparent border border-amber-500/30 hover:border-amber-500/50"
-            : "bg-white/[0.02] border border-[#333] hover:border-[#444]"
+        ${isHighlighted
+          ? `bg-gradient-to-b from-indigo-500/10 via-indigo-500/5 to-transparent border-2 ${styles.border} md:scale-105`
+          : isPro
+            ? `bg-gradient-to-b from-amber-500/5 via-amber-500/[0.02] to-transparent border ${styles.border} ${styles.hoverBorder}`
+            : `bg-white/[0.02] border ${styles.border} ${styles.hoverBorder}`
         }
       `}
     >
       {/* Badge */}
-      {tier.badge && (
+      {pkg.badge && (
         <div className={`
           absolute -top-3 left-1/2 -translate-x-1/2 px-3 md:px-4 py-1 rounded-full 
           text-xs font-semibold text-white shadow-lg whitespace-nowrap
-          ${tier.highlighted 
-            ? "bg-gradient-to-r from-indigo-500 to-blue-500 shadow-indigo-500/30" 
-            : isUltra
-              ? "bg-gradient-to-r from-amber-500 to-orange-500 shadow-amber-500/30"
-              : "bg-gradient-to-r from-gray-600 to-gray-700"
-          }
+          bg-gradient-to-r ${styles.badgeBg} ${styles.badgeShadow}
         `}>
-          {tier.badge}
+          {pkg.badge}
         </div>
       )}
 
-      {/* Glow effect for highlighted */}
-      {tier.highlighted && (
-        <div className="absolute inset-0 -z-10 rounded-2xl bg-indigo-500/20 blur-2xl" />
-      )}
-      {isUltra && (
-        <div className="absolute inset-0 -z-10 rounded-2xl bg-amber-500/10 blur-2xl" />
+      {/* Glow effect */}
+      {(isHighlighted || isPro) && (
+        <div className={`absolute inset-0 -z-10 rounded-2xl ${styles.glow} blur-2xl`} />
       )}
 
       {/* Header */}
@@ -171,96 +226,73 @@ const PricingCard = ({ tier, onSelect }: PricingCardProps) => {
         <div
           className={`
             w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center flex-shrink-0
-            ${tier.highlighted
-              ? "bg-gradient-to-br from-indigo-500/30 to-blue-500/30"
-              : isUltra
-                ? "bg-gradient-to-br from-amber-500/20 to-orange-500/20"
-                : "bg-white/[0.05]"
-            }
+            bg-gradient-to-br ${styles.iconBg}
           `}
         >
-          <Icon
-            className={`w-5 h-5 md:w-6 md:h-6 ${
-              tier.highlighted 
-                ? "text-indigo-400" 
-                : isUltra 
-                  ? "text-amber-400" 
-                  : "text-[#888]"
-            }`}
-          />
+          <Icon className={`w-5 h-5 md:w-6 md:h-6 ${styles.iconColor}`} />
         </div>
         <div>
-          <h3 className="text-base md:text-lg font-semibold text-white">{tier.name}</h3>
-          <p className="text-xs text-[#666]">{tier.tagline}</p>
+          <h3 className="text-base md:text-lg font-semibold text-white">{pkg.name}</h3>
+          <p className="text-xs text-[#666]">{pkg.description}</p>
         </div>
+      </div>
+
+      {/* Credits Amount */}
+      <div className="mb-2">
+        <span className="text-3xl md:text-4xl font-bold text-white">{formattedCredits}</span>
+        <span className="text-lg md:text-xl font-medium text-[#888] ml-2">кредитов</span>
       </div>
 
       {/* Price */}
-      <div className="mb-4 md:mb-6">
-        <span className="text-2xl md:text-3xl font-bold text-white">{formattedPrice}</span>
-        <span className="text-lg md:text-xl font-medium text-white ml-1">₽</span>
-        <span className="text-[#666] text-sm ml-1">/мес</span>
+      <div className="mb-4">
+        <span className="text-xl md:text-2xl font-bold text-white">{formattedPrice}</span>
+        <span className="text-base font-medium text-white ml-1">₽</span>
+        <div className="flex items-center gap-2 mt-1">
+          <span className="text-sm text-[#666]">{pkg.pricePerCredit}/кредит</span>
+          {pkg.savings && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-medium">
+              {pkg.savings}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Features */}
-      <ul className="space-y-2 md:space-y-2.5 mb-6 md:mb-8 flex-1">
-        {tier.features.map((feature, index) => (
+      <ul className="space-y-2 md:space-y-2.5 mb-6 flex-1">
+        {pkg.features.map((feature, index) => (
           <li key={index} className="flex items-start gap-2 md:gap-3">
-            {feature.included ? (
-              <div
-                className={`
-                  flex-shrink-0 w-4 h-4 md:w-5 md:h-5 rounded-full flex items-center justify-center mt-0.5
-                  ${tier.highlighted 
-                    ? "bg-indigo-500/20" 
-                    : isUltra 
-                      ? "bg-amber-500/20" 
-                      : "bg-emerald-500/20"
-                  }
-                `}
-              >
-                <Check
-                  className={`w-2.5 h-2.5 md:w-3 md:h-3 ${
-                    tier.highlighted 
-                      ? "text-indigo-400" 
-                      : isUltra 
-                        ? "text-amber-400" 
-                        : "text-emerald-400"
-                  }`}
-                />
-              </div>
-            ) : (
-              <div className="flex-shrink-0 w-4 h-4 md:w-5 md:h-5 rounded-full flex items-center justify-center mt-0.5 bg-red-500/10">
-                <XCircle className="w-2.5 h-2.5 md:w-3 md:h-3 text-red-400/60" />
-              </div>
-            )}
-            <span className={`text-xs md:text-sm ${feature.included ? "text-[#aaa]" : "text-[#555]"}`}>
-              {feature.text}
-            </span>
+            <div
+              className={`
+                flex-shrink-0 w-4 h-4 md:w-5 md:h-5 rounded-full flex items-center justify-center mt-0.5
+                ${styles.checkBg}
+              `}
+            >
+              <Check className={`w-2.5 h-2.5 md:w-3 md:h-3 ${styles.checkColor}`} />
+            </div>
+            <span className="text-xs md:text-sm text-[#aaa]">{feature}</span>
           </li>
         ))}
       </ul>
 
       {/* CTA Button */}
       <button
-        onClick={() => onSelect(tier.id)}
+        onClick={() => onSelect(pkg.id)}
         className={`
           w-full py-3 md:py-3.5 rounded-xl font-medium text-sm
           transition-all duration-300
           relative overflow-hidden group
           active:scale-[0.98]
-          ${tier.highlighted
-            ? "bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50"
-            : isUltra
-              ? "bg-gradient-to-r from-amber-600 via-orange-600 to-amber-600 text-white shadow-lg shadow-amber-500/30 hover:shadow-amber-500/50"
-              : "bg-white/[0.05] text-white hover:bg-white/[0.08] border border-[#333]"
+          ${isHighlighted || isPro
+            ? `bg-gradient-to-r ${styles.button} text-white shadow-lg ${styles.buttonShadow}`
+            : `${styles.button} text-white`
           }
         `}
       >
         {/* Shimmer effect */}
-        {(tier.highlighted || isUltra) && (
+        {(isHighlighted || isPro) && (
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
         )}
-        <span className="relative">{tier.buttonText}</span>
+        <span className="relative">Купить {pkg.name}</span>
       </button>
     </div>
   );
@@ -269,14 +301,17 @@ const PricingCard = ({ tier, onSelect }: PricingCardProps) => {
 export const PaywallModal = () => {
   const { showPaywall, setShowPaywall, paywallReason, messageCount, imageCount, limits } = useUsage();
 
-  const handleSelect = (tierId: string) => {
-    const tierName = tierId.charAt(0).toUpperCase() + tierId.slice(1);
+  const handleSelect = (packageId: string) => {
+    const selectedPkg = creditPackages.find(p => p.id === packageId);
+    if (!selectedPkg) return;
     
     // Process referral reward when someone subscribes
     processReferralReward();
     
-    // For now, just show an alert - in production, this would redirect to payment
-    alert(`Спасибо за интерес к тарифу ${tierName}! Интеграция платежей скоро будет доступна.`);
+    // For now, just show a toast - in production, this would redirect to Lava payment
+    toast.info(`Оплата через Lava скоро будет доступна!`, {
+      description: `Пакет ${selectedPkg.name} - ${selectedPkg.credits.toLocaleString()} кредитов за ${selectedPkg.price.toLocaleString()} ₽`,
+    });
   };
 
   const handleClose = () => {
@@ -298,7 +333,7 @@ export const PaywallModal = () => {
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl md:rounded-3xl bg-[#0a0a0a] border border-[#333] shadow-2xl">
+      <div className="relative w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-2xl md:rounded-3xl bg-[#0a0a0a] border border-[#333] shadow-2xl">
         {/* Background effects */}
         <div className="absolute inset-0 overflow-hidden rounded-2xl md:rounded-3xl pointer-events-none">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 md:w-96 h-64 md:h-96 bg-indigo-500/10 rounded-full blur-3xl" />
@@ -325,34 +360,53 @@ export const PaywallModal = () => {
               Откройте безграничные возможности 🚀
             </h2>
             <p className="text-[#888] text-sm md:text-lg max-w-xl mx-auto px-2">
-              {reasonText} Улучшите тариф чтобы продолжить творить с Synapse.
+              {reasonText} Пополните баланс чтобы продолжить творить с Synapse.
             </p>
           </div>
 
-          {/* Pricing Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 max-w-4xl mx-auto">
-            {pricingTiers.map((tier) => (
-              <PricingCard key={tier.id} tier={tier} onSelect={handleSelect} />
+          {/* Credit Package Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5 max-w-5xl mx-auto">
+            {creditPackages.map((pkg) => (
+              <PackageCard key={pkg.id} pkg={pkg} onSelect={handleSelect} />
             ))}
           </div>
 
           {/* Credit costs info */}
-          <div className="mt-6 md:mt-8 p-4 rounded-xl bg-white/[0.02] border border-[#222] max-w-md mx-auto">
-            <h4 className="text-sm font-medium text-white mb-2 text-center">Стоимость в кредитах</h4>
-            <div className="flex justify-center gap-6 text-xs text-[#666]">
-              <div className="flex items-center gap-1.5">
-                <span className="text-violet-400">50</span> кредитов — Клон голоса
+          <div className="mt-6 md:mt-8 p-4 rounded-xl bg-white/[0.02] border border-[#222] max-w-2xl mx-auto">
+            <h4 className="text-sm font-medium text-white mb-3 text-center">Стоимость в кредитах</h4>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div className="flex flex-col items-center p-2 rounded-lg bg-white/[0.02]">
+                <span className="text-violet-400 font-bold text-lg">1</span>
+                <span className="text-[#666]">Сообщение</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-violet-400">10</span> кредитов — Музыка
+              <div className="flex flex-col items-center p-2 rounded-lg bg-white/[0.02]">
+                <span className="text-violet-400 font-bold text-lg">5</span>
+                <span className="text-[#666]">Изображение</span>
               </div>
+              <div className="flex flex-col items-center p-2 rounded-lg bg-white/[0.02]">
+                <span className="text-violet-400 font-bold text-lg">50</span>
+                <span className="text-[#666]">Клон голоса</span>
+              </div>
+              <div className="flex flex-col items-center p-2 rounded-lg bg-white/[0.02]">
+                <span className="text-violet-400 font-bold text-lg">100</span>
+                <span className="text-[#666]">Видео</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Payment info */}
+          <div className="mt-6 text-center">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/[0.02] border border-[#222]">
+              <span className="text-xs text-[#666]">Безопасная оплата через</span>
+              <span className="text-xs font-medium text-white">Lava</span>
+              <span className="text-xs text-[#666]">• Карты РФ</span>
             </div>
           </div>
 
           {/* Footer */}
           <div className="text-center mt-6 md:mt-8 pt-4 md:pt-6 border-t border-[#222]">
             <p className="text-xs md:text-sm text-[#666]">
-              7 дней бесплатной пробной версии. Отменить можно в любое время.
+              Кредиты не сгорают. Используйте в любое время.
             </p>
           </div>
         </div>
@@ -360,3 +414,5 @@ export const PaywallModal = () => {
     </div>
   );
 };
+
+export default PaywallModal;

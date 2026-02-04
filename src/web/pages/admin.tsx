@@ -72,12 +72,23 @@ interface Expense {
   note?: string;
 }
 
-// Plan prices in RUB
+// Credit Package prices in RUB (new pricing with Lava commission)
+const CREDIT_PACKAGES: Record<string, { credits: number; price: number }> = {
+  start: { credits: 100, price: 590 },
+  creator: { credits: 500, price: 2490 },
+  pro_studio: { credits: 1500, price: 5990 },
+  unlimited: { credits: 5000, price: 14990 },
+};
+
+// Legacy plan prices for backwards compatibility
 const PLAN_PRICES: Record<string, number> = {
   LITE: 690,
   STANDARD: 1890,
   ULTRA: 4990,
 };
+
+// Lava payment gateway commission
+const LAVA_COMMISSION = 0.12; // 12%
 
 // AI cost estimates per generation
 const AI_COSTS = {
@@ -596,12 +607,12 @@ export const AdminDashboard = () => {
   
   // Calculate financial metrics
   const grossRevenue = calculateGrossRevenue(giftCodes);
-  const taxAmount = Math.round(grossRevenue * 0.11);
-  const revenueAfterTax = grossRevenue - taxAmount;
+  const lavaCommission = Math.round(grossRevenue * LAVA_COMMISSION); // 12% Lava commission
+  const revenueAfterLava = grossRevenue - lavaCommission;
   const aiCosts = calculateAICosts(usageStats);
   const serverExpenses = calculateTotalExpenses(expenses);
   const totalCosts = aiCosts + serverExpenses;
-  const netProfit = revenueAfterTax - totalCosts;
+  const netProfit = revenueAfterLava - totalCosts;
 
   // Calculate totals
   const totalGenerations = usageStats.totalMessages + usageStats.totalImages + usageStats.totalVideos + usageStats.totalEnhancements;
@@ -815,9 +826,9 @@ export const AdminDashboard = () => {
         />
         <FinanceKPICard
           icon={netProfit >= 0 ? TrendingUp : TrendingDown}
-          label="Net Profit"
+          label="Чистая прибыль"
           value={`${netProfit >= 0 ? "" : "-"}${formatNumber(Math.abs(netProfit))} ₽`}
-          subtitle="After tax & expenses"
+          subtitle="После комиссии Lava 12%"
           trend={netProfit >= 0 ? "up" : "down"}
           color={netProfit >= 0 ? "bg-emerald-500" : "bg-red-500"}
         />
@@ -887,38 +898,54 @@ export const AdminDashboard = () => {
           </div>
 
           <div className="space-y-3">
-            {/* Tax Rate Info */}
+            {/* Lava Commission Info */}
             <div className="p-3 rounded-lg bg-white/[0.02] border border-[#222] flex items-center justify-between">
-              <span className="text-sm text-[#888]">Tax Rate</span>
-              <span className="text-sm font-medium text-white">11%</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-[#888]">Комиссия Lava</span>
+                <span className="text-xs px-2 py-0.5 rounded bg-orange-500/20 text-orange-400">платежный шлюз</span>
+              </div>
+              <span className="text-sm font-medium text-white">12%</span>
             </div>
 
             {/* Breakdown */}
             <div className="space-y-2 pt-2">
               <div className="flex justify-between items-center py-2">
-                <span className="text-sm text-[#888]">Gross Revenue</span>
+                <span className="text-sm text-[#888]">Валовый доход</span>
                 <span className="text-sm font-medium text-emerald-400">+{formatNumber(grossRevenue)} ₽</span>
               </div>
               <div className="flex justify-between items-center py-2">
-                <span className="text-sm text-[#888]">Tax (11%)</span>
-                <span className="text-sm font-medium text-red-400">-{formatNumber(taxAmount)} ₽</span>
+                <span className="text-sm text-[#888]">Комиссия Lava (12%)</span>
+                <span className="text-sm font-medium text-red-400">-{formatNumber(lavaCommission)} ₽</span>
               </div>
               <div className="flex justify-between items-center py-2">
-                <span className="text-sm text-[#888]">AI Costs</span>
+                <span className="text-sm text-[#888]">Затраты OpenRouter</span>
                 <span className="text-sm font-medium text-red-400">-{formatNumber(aiCosts)} ₽</span>
               </div>
               <div className="flex justify-between items-center py-2">
-                <span className="text-sm text-[#888]">Server Expenses</span>
+                <span className="text-sm text-[#888]">Затраты Replicate</span>
                 <span className="text-sm font-medium text-red-400">-{formatNumber(serverExpenses)} ₽</span>
               </div>
               <div className="h-px bg-[#333] my-2" />
               <div className="flex justify-between items-center py-2">
-                <span className="text-sm font-medium text-white">Net Profit</span>
+                <span className="text-sm font-medium text-white">ЧИСТАЯ ПРИБЫЛЬ</span>
                 <span className={`text-lg font-bold ${netProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                   {netProfit >= 0 ? "+" : ""}{formatNumber(netProfit)} ₽
                 </span>
               </div>
+              {/* USD equivalent */}
+              <div className="flex justify-end">
+                <span className="text-xs text-[#555]">
+                  ≈ ${Math.abs(Math.round(netProfit / USD_TO_RUB)).toLocaleString()} USD
+                </span>
+              </div>
             </div>
+          </div>
+
+          {/* Formula Info */}
+          <div className="mt-4 p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
+            <p className="text-xs text-indigo-400/80 font-mono">
+              Прибыль = (Доход - 12% Lava) - OpenRouter - Replicate
+            </p>
           </div>
         </div>
 
