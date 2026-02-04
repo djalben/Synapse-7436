@@ -224,7 +224,7 @@ export const ModelSelector = ({
         <ChevronDown className={`w-4 h-4 text-[#666] transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
       </button>
 
-      {/* ВЫПАДАЮЩИЙ СПИСОК - ПОЛНЫЙ РЕФАКТОРИНГ */}
+      {/* ВЫПАДАЮЩИЙ СПИСОК */}
       {isOpen && (
         <div
           className="
@@ -234,7 +234,6 @@ export const ModelSelector = ({
             z-[9999]
           "
           style={{
-            // Гарантируем что dropdown НЕ обрезается
             position: "absolute",
             zIndex: 9999,
           }}
@@ -246,12 +245,11 @@ export const ModelSelector = ({
             </p>
           </div>
 
-          {/* СПИСОК МОДЕЛЕЙ - со скроллом */}
-          <ul className="max-h-[400px] overflow-y-auto p-2">
+          {/* СПИСОК МОДЕЛЕЙ */}
+          <ul className="max-h-[400px] overflow-y-auto p-2 space-y-1">
             {models.map((model) => {
               const isSelected = model.id === selectedModel;
               const isLocked = !canAccessModel(userPlan, model.requiredPlan);
-              const hasBadge = !!model.badge;
 
               return (
                 <li key={model.id}>
@@ -259,36 +257,31 @@ export const ModelSelector = ({
                     onClick={() => handleSelect(model)}
                     className={`
                       w-full flex items-center gap-3 px-3 py-3 rounded-lg
-                      transition-colors duration-200
-                      cursor-pointer
+                      transition-all duration-200 cursor-pointer
+                      border
                       ${isSelected 
-                        ? "bg-indigo-500/20 border border-indigo-500/30" 
-                        : "hover:bg-white/10 border border-transparent"
+                        ? "border-emerald-500 bg-emerald-500/10 text-white" 
+                        : "border-transparent hover:border-emerald-500/50 hover:bg-emerald-500/5"
                       }
-                      ${isLocked ? "opacity-50" : ""}
+                      ${isLocked ? "opacity-60" : ""}
                     `}
                   >
                     {/* Цветная точка статуса */}
                     <div className={`w-2.5 h-2.5 rounded-full ${model.dotColor} flex-shrink-0`} />
                     
                     {/* Лого провайдера */}
-                    <div className={`flex-shrink-0 ${isSelected ? "text-white" : "text-[#666]"}`}>
+                    <div className={`flex-shrink-0 ${isSelected ? "text-white" : "text-[#888]"}`}>
                       {model.providerLogo}
                     </div>
                     
                     {/* Информация о модели */}
                     <div className="flex-1 text-left min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className={`text-sm font-medium ${
-                          isSelected ? "text-white" 
-                            : model.isGodMode ? "text-amber-200" 
-                            : hasBadge ? "text-emerald-200" 
-                            : "text-white/80"
-                        }`}>
+                        <span className={`text-sm font-medium ${isSelected ? "text-white" : "text-white/80"}`}>
                           {model.name}
                         </span>
                         {model.isGodMode && <Diamond className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />}
-                        {hasBadge && (
+                        {model.badge && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-medium border border-emerald-500/30 whitespace-nowrap">
                             {model.badge}
                           </span>
@@ -301,9 +294,7 @@ export const ModelSelector = ({
                     <div className={`text-xs px-2 py-1 rounded font-medium flex-shrink-0 ${
                       model.isGodMode 
                         ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" 
-                        : hasBadge
-                          ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                          : "bg-white/[0.06] text-[#888]"
+                        : "bg-white/[0.06] text-[#888]"
                     }`}>
                       {model.creditCost} кр
                     </div>
@@ -311,9 +302,9 @@ export const ModelSelector = ({
                     {/* Иконка: замок или галочка */}
                     <div className="flex-shrink-0 w-5 flex justify-center">
                       {isLocked ? (
-                        <Lock className="w-4 h-4 text-[#555]" />
+                        <Lock className="w-4 h-4 text-amber-500" />
                       ) : isSelected ? (
-                        <Check className="w-4 h-4 text-indigo-400" />
+                        <Check className="w-4 h-4 text-emerald-400" />
                       ) : null}
                     </div>
                   </button>
@@ -326,7 +317,7 @@ export const ModelSelector = ({
           <div className="px-4 py-3 border-t border-[#222] bg-white/[0.02]">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
                 <span className="text-xs text-[#888]">
                   Ваш план: <span className="text-white font-medium capitalize">{userPlan}</span>
                 </span>
@@ -337,7 +328,7 @@ export const ModelSelector = ({
                   setShowPaywall(true);
                   setIsOpen(false);
                 }}
-                className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors font-medium"
+                className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors font-medium"
               >
                 Улучшить →
               </button>
