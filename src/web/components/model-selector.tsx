@@ -248,7 +248,9 @@ export const ModelSelector = ({
           {/* СПИСОК МОДЕЛЕЙ */}
           <ul className="max-h-[400px] overflow-y-auto p-2 space-y-1">
             {models.map((model) => {
-              const isSelected = model.id === selectedModel;
+              // ПУНКТ 1: Динамическое определение активности
+              const isActive = model.id === selectedModel;
+              // ПУНКТ 3: Проверка блокировки для логики клика
               const isLocked = !canAccessModel(userPlan, model.requiredPlan);
 
               return (
@@ -259,9 +261,9 @@ export const ModelSelector = ({
                       w-full flex items-center gap-3 px-3 py-3 rounded-lg
                       transition-all duration-200 cursor-pointer
                       border
-                      ${isSelected 
+                      ${isActive 
                         ? "border-emerald-500 bg-emerald-500/10 text-white" 
-                        : "border-transparent hover:border-emerald-500/50 hover:bg-emerald-500/5"
+                        : "border-transparent text-gray-400 hover:bg-white/5 hover:border-white/10 hover:text-white"
                       }
                       ${isLocked ? "opacity-60" : ""}
                     `}
@@ -270,14 +272,14 @@ export const ModelSelector = ({
                     <div className={`w-2.5 h-2.5 rounded-full ${model.dotColor} flex-shrink-0`} />
                     
                     {/* Лого провайдера */}
-                    <div className={`flex-shrink-0 ${isSelected ? "text-white" : "text-[#888]"}`}>
+                    <div className={`flex-shrink-0 ${isActive ? "text-white" : "text-[#888]"}`}>
                       {model.providerLogo}
                     </div>
                     
                     {/* Информация о модели */}
                     <div className="flex-1 text-left min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className={`text-sm font-medium ${isSelected ? "text-white" : "text-white/80"}`}>
+                        <span className={`text-sm font-medium ${isActive ? "text-white" : "text-white/80"}`}>
                           {model.name}
                         </span>
                         {model.isGodMode && <Diamond className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />}
@@ -299,11 +301,11 @@ export const ModelSelector = ({
                       {model.creditCost} кр
                     </div>
                     
-                    {/* Иконка: замок или галочка */}
+                    {/* Иконка: замок (locked) или галочка (active) */}
                     <div className="flex-shrink-0 w-5 flex justify-center">
                       {isLocked ? (
                         <Lock className="w-4 h-4 text-amber-500" />
-                      ) : isSelected ? (
+                      ) : isActive ? (
                         <Check className="w-4 h-4 text-emerald-400" />
                       ) : null}
                     </div>
