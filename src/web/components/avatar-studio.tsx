@@ -16,7 +16,6 @@ import {
   Download,
 } from "lucide-react";
 import { useUsage } from "./usage-context";
-import { PremiumButtonWithStyles } from "./premium-button";
 
 // Cost for avatar generation (heavy GPU processing)
 const AVATAR_COST = 30;
@@ -455,13 +454,12 @@ export const AvatarStudio = () => {
                     <User className="w-5 h-5 text-white" />
                   </div>
                 </div>
-                Создайте гиперреалистичные AI-персонажи
+                Аватары
               </h1>
               <p className="text-[#888] mt-2 text-sm md:text-base">
-                Загрузите целевое лицо и управляющее видео для анимации аватара.
+                Создавайте гиперреалистичные AI-персонажи с анимацией лица.
               </p>
             </div>
-            <PremiumButtonWithStyles />
           </div>
         </div>
       </div>

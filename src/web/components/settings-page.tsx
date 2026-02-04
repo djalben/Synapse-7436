@@ -753,8 +753,9 @@ export const SettingsPage = ({ onOpenPaywall }: SettingsPageProps) => {
             <div className="space-y-3">
               {/* Help Links */}
               <a 
-                href="#" 
-                onClick={(e) => { e.preventDefault(); toast.info("Центр помощи скоро будет доступен"); }}
+                href="https://t.me/synapse_support" 
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-[#222] hover:bg-white/[0.03] transition-colors"
               >
                 <div className="flex items-center gap-3">
@@ -765,8 +766,7 @@ export const SettingsPage = ({ onOpenPaywall }: SettingsPageProps) => {
               </a>
 
               <a 
-                href="#" 
-                onClick={(e) => { e.preventDefault(); toast.info("Связь с поддержкой: support@synapse.ai"); }}
+                href="mailto:aalabin5@gmail.com?subject=Вопрос по Synapse" 
                 className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-[#222] hover:bg-white/[0.03] transition-colors"
               >
                 <div className="flex items-center gap-3">
@@ -777,8 +777,7 @@ export const SettingsPage = ({ onOpenPaywall }: SettingsPageProps) => {
               </a>
 
               <a 
-                href="#" 
-                onClick={(e) => { e.preventDefault(); toast.info("Отчёт об ошибке скоро будет доступен"); }}
+                href="mailto:aalabin5@gmail.com?subject=Баг репорт Synapse" 
                 className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-[#222] hover:bg-white/[0.03] transition-colors"
               >
                 <div className="flex items-center gap-3">
@@ -793,22 +792,25 @@ export const SettingsPage = ({ onOpenPaywall }: SettingsPageProps) => {
                 <p className="text-xs text-[#666] mb-3">Подписывайтесь на нас</p>
                 <div className="flex gap-3">
                   <a 
-                    href="#" 
-                    onClick={(e) => e.preventDefault()}
+                    href="https://t.me/synapse_ai_ru" 
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="w-10 h-10 rounded-lg bg-white/[0.02] border border-[#333] flex items-center justify-center hover:bg-white/[0.05] hover:border-[#444] transition-colors"
                   >
                     <Twitter className="w-4 h-4 text-[#888]" />
                   </a>
                   <a 
-                    href="#" 
-                    onClick={(e) => e.preventDefault()}
+                    href="https://github.com/djalben/Synapse" 
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="w-10 h-10 rounded-lg bg-white/[0.02] border border-[#333] flex items-center justify-center hover:bg-white/[0.05] hover:border-[#444] transition-colors"
                   >
                     <Github className="w-4 h-4 text-[#888]" />
                   </a>
                   <a 
-                    href="#" 
-                    onClick={(e) => e.preventDefault()}
+                    href="https://instagram.com/synapse_ai"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="w-10 h-10 rounded-lg bg-white/[0.02] border border-[#333] flex items-center justify-center hover:bg-white/[0.05] hover:border-[#444] transition-colors"
                   >
                     <Instagram className="w-4 h-4 text-[#888]" />

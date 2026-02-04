@@ -21,7 +21,6 @@ import {
   Crown,
 } from "lucide-react";
 import { useUsage } from "./usage-context";
-import { PremiumButtonWithStyles } from "./premium-button";
 
 // ===== TYPES & INTERFACES =====
 
@@ -1453,7 +1452,7 @@ const EnhancePhotoPanel = ({
           {/* Upload Zone */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-[#888]">
-              Your Photo
+              Ваше фото
               <span className="text-indigo-400 ml-1">*</span>
             </label>
             <ImageUpload
@@ -1465,15 +1464,15 @@ const EnhancePhotoPanel = ({
               required
               disabled={isEnhancing}
               large
-              title="Upload a photo to enhance"
-              subtitle="Drop your photo here or click to browse"
+              title="Загрузите фото для улучшения"
+              subtitle="Перетащите фото или нажмите для выбора"
             />
           </div>
 
           {/* Magic Tools Section */}
           {enhanceImage && (
             <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <label className="text-sm font-medium text-[#888]">Choose Enhancement</label>
+              <label className="text-sm font-medium text-[#888]">Выберите улучшение</label>
               <EnhancementToolSelector
                 selected={selectedTool}
                 onChange={(tool) => {
@@ -1539,22 +1538,22 @@ const EnhancePhotoPanel = ({
               {isEnhancing ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Enhancing...</span>
+                  <span>Улучшаем...</span>
                 </>
               ) : enhancedResult ? (
                 <>
                   <Sparkles className="w-5 h-5" />
-                  <span>Enhance Another Photo</span>
+                  <span>Улучшить ещё фото</span>
                 </>
               ) : atLimit ? (
                 <>
                   <Lock className="w-5 h-5 text-[#555]" />
-                  <span>Upgrade to Enhance</span>
+                  <span>Обновите для улучшения</span>
                 </>
               ) : (
                 <>
                   <Wand2 className={`w-5 h-5 ${canEnhance ? "text-white/90" : "text-[#555]"}`} />
-                  <span>Enhance Photo ⚡</span>
+                  <span>Улучшить фото ⚡</span>
                 </>
               )}
             </div>
@@ -1563,13 +1562,13 @@ const EnhancePhotoPanel = ({
           {/* Credits Note */}
           <div className="flex items-center justify-center gap-2 py-3 px-4 rounded-lg bg-white/[0.02] border border-[#222]">
             <span className="text-xs text-[#666]">
-              Uses <span className="text-indigo-400 font-medium">2 credits</span> per enhancement
+              Расход: <span className="text-indigo-400 font-medium">2 кредита</span> за улучшение
             </span>
             <span className="text-[#444]">•</span>
             <span className={`text-xs ${atLimit ? "text-red-400" : "text-[#666]"}`}>
               <span className={`font-medium ${atLimit ? "text-red-400" : "text-white/80"}`}>
                 {imageCount}/{limits.maxImages}
-              </span> used
+              </span> использовано
             </span>
           </div>
         </div>
@@ -1580,9 +1579,9 @@ const EnhancePhotoPanel = ({
         <div className="max-w-2xl mx-auto">
           {/* Header */}
           <div className="mb-6">
-            <h3 className="font-mono text-lg font-semibold text-white">Results</h3>
+            <h3 className="font-mono text-lg font-semibold text-white">Результат</h3>
             <p className="text-sm text-[#666]">
-              {enhancedResult ? "Your enhanced photo is ready" : "Enhancement results will appear here"}
+              {enhancedResult ? "Ваше улучшенное фото готово" : "Здесь появится результат улучшения"}
             </p>
           </div>
 
@@ -1597,14 +1596,14 @@ const EnhancePhotoPanel = ({
               </div>
               <h3 className="text-base md:text-lg font-medium text-white/80 mb-2">
                 {enhanceImage 
-                  ? "Select an enhancement tool"
-                  : "Upload a photo to enhance"
+                  ? "Выберите инструмент улучшения"
+                  : "Загрузите фото для улучшения"
                 }
               </h3>
               <p className="text-sm text-[#666] max-w-xs">
                 {enhanceImage 
-                  ? "Choose Face Restore, Colorize, or Beauty Retouch to transform your photo"
-                  : "Our AI will restore blurry faces, add color to B&W photos, or apply professional retouching"
+                  ? "Выберите Face Restore, Colorize или Beauty Retouch для преображения фото"
+                  : "Наш ИИ восстановит размытые лица, добавит цвет к ч/б фото или применит ретушь"
                 }
               </p>
             </div>
@@ -1656,7 +1655,7 @@ const GeneratePanel = ({
     
     // Check if we have reference image in img2img mode
     if (mode === "image-to-image" && !referenceImage) {
-      setError("Please upload a reference image for Image-to-Image mode");
+      setError("Пожалуйста, загрузите референсное изображение для режима Image-to-Image");
       return;
     }
     
@@ -1708,9 +1707,9 @@ const GeneratePanel = ({
   // Dynamic placeholder based on mode
   const getPromptPlaceholder = () => {
     if (mode === "image-to-image") {
-      return "Describe how to transform this image... (e.g., 'as a cyberpunk character', 'in anime style', 'as a renaissance painting')";
+      return "Опишите, как трансформировать изображение... (например, 'в стиле киберпанк', 'в аниме стиле', 'как картина эпохи Возрождения')";
     }
-    return "Describe your image in detail...";
+    return "Опишите ваше изображение детально...";
   };
 
   return (
@@ -1722,14 +1721,11 @@ const GeneratePanel = ({
           <div className="flex items-start justify-between">
             <div>
               <h2 className="font-mono text-xl md:text-2xl font-semibold text-white mb-1">
-                Image Studio
+                Изображения
               </h2>
               <p className="text-sm text-[#666]">
-                Generate and transform images with AI
+                Генерируйте и трансформируйте изображения с ИИ
               </p>
-            </div>
-            <div className="hidden md:block mr-44">
-              <PremiumButtonWithStyles />
             </div>
           </div>
 
@@ -1742,14 +1738,14 @@ const GeneratePanel = ({
 
           {/* Mode Toggle */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-[#888]">Generation Mode</label>
+            <label className="text-sm font-medium text-[#888]">Режим генерации</label>
             <ModeToggle mode={mode} onChange={setMode} />
           </div>
 
           {/* Reference Image Upload - Always visible but required indicator changes */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-[#888]">
-              Reference Image
+              Референс
               {mode === "image-to-image" && (
                 <span className="text-amber-400 ml-1">*</span>
               )}
@@ -1762,19 +1758,19 @@ const GeneratePanel = ({
             />
             {mode === "image-to-image" && (
               <p className="text-xs text-[#555]">
-                Upload an image to transform. The AI will use your prompt to modify it.
+                Загрузите изображение для трансформации. ИИ использует ваш промпт для его изменения.
               </p>
             )}
             {mode === "text-to-image" && (
               <p className="text-xs text-[#555]">
-                Optional: Upload a reference for style inspiration.
+                Опционально: загрузите референс для вдохновения стилем.
               </p>
             )}
           </div>
 
           {/* Prompt Area */}
           <div className="space-y-2" data-tour="image-prompt">
-            <label className="text-sm font-medium text-[#888]">Prompt</label>
+            <label className="text-sm font-medium text-[#888]">Промпт</label>
             <div className="relative">
               <textarea
                 value={prompt}
@@ -1803,9 +1799,9 @@ const GeneratePanel = ({
           {/* Style Selector */}
           <div className={`space-y-3 transition-all duration-300 ${nijiModeActive ? "opacity-40 pointer-events-none" : ""}`} data-tour="style-selector">
             <label className="text-sm font-medium text-[#888] flex items-center gap-2">
-              Style
+              Стиль
               {nijiModeActive && (
-                <span className="text-xs text-amber-400/70">(Overridden by Nana Banana)</span>
+                <span className="text-xs text-amber-400/70">(Переопределён Nana Banana)</span>
               )}
             </label>
             <StyleSelector selected={selectedStyle} onChange={setSelectedStyle} />
@@ -1826,7 +1822,7 @@ const GeneratePanel = ({
 
           {/* Number of Images */}
           <div className="space-y-3">
-            <label className="text-sm font-medium text-[#888]">Количество изображений</label>
+            <label className="text-sm font-medium text-[#888]">Количество</label>
             <div className="p-4 rounded-xl bg-white/[0.02] border border-[#333]">
               <ImageCountSlider value={imageCount} onChange={setImageCount} />
             </div>

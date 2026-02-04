@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
 import { ModelSelector, models, getModelCreditCost } from "./model-selector"
-import { PremiumButtonWithStyles } from "./premium-button"
 import { Paperclip, Mic, ArrowUp, Sparkles, Zap, Lightbulb, Code, Bot, User, Copy, Check, Lock, Coins, HelpCircle } from "lucide-react"
 import { useUsage } from "./usage-context"
 import { useTour } from "./onboarding-tour"
@@ -500,11 +499,6 @@ export const ChatInterface = () => {
             onModelChange={setSelectedModel}
             userPlan={userPlan}
           />
-          
-          {/* Credit Balance - Desktop */}
-          <div className="hidden md:block">
-            <CreditBalanceIndicator balance={creditBalance} cost={currentCreditCost} />
-          </div>
         </div>
 
         <div className="hidden md:flex items-center gap-3 mr-44">
@@ -525,7 +519,6 @@ export const ChatInterface = () => {
               Помощь
             </span>
           </button>
-          <PremiumButtonWithStyles />
         </div>
       </header>
 
@@ -617,11 +610,6 @@ export const ChatInterface = () => {
         `}
       >
         <div className="max-w-3xl mx-auto">
-          {/* Credit Balance - Mobile */}
-          <div className="md:hidden mb-3 flex justify-center">
-            <CreditBalanceIndicator balance={creditBalance} cost={currentCreditCost} />
-          </div>
-          
           {/* Limit warning banner */}
           {(atLimit || notEnoughCredits) && (
             <button

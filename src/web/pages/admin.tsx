@@ -438,7 +438,7 @@ export const AdminDashboard = () => {
   
   // Clear all usage data
   const clearUsageData = () => {
-    if (confirm("Are you sure you want to clear all usage data? This cannot be undone.")) {
+    if (confirm("Вы уверены, что хотите очистить все данные использования? Это действие нельзя отменить.")) {
       localStorage.removeItem("messageCount");
       localStorage.removeItem("imageCount");
       localStorage.removeItem("videoCount");
@@ -449,7 +449,7 @@ export const AdminDashboard = () => {
   
   // Grant admin access
   const grantAccess = () => {
-    const password = prompt("Enter admin password:");
+    const password = prompt("Введите пароль администратора:");
     if (password === "synapse2024") {
       localStorage.setItem("adminAccess", "true");
       setIsAuthorized(true);
@@ -462,7 +462,7 @@ export const AdminDashboard = () => {
       setDailyVisitsData(getDailyVisitsData());
       checkApiStatus();
     } else {
-      alert("Incorrect password");
+      alert("Неверный пароль");
     }
   };
   
@@ -481,8 +481,8 @@ export const AdminDashboard = () => {
     saveGiftCodes(updatedCodes);
     setGiftCodes(updatedCodes);
     setGeneratedCode(newCode.code);
-    toast.success("Gift code generated!", {
-      description: `Code: ${newCode.code}`,
+    toast.success("Промокод создан!", {
+      description: `Код: ${newCode.code}`,
     });
   };
   
@@ -490,29 +490,29 @@ export const AdminDashboard = () => {
     try {
       await navigator.clipboard.writeText(code);
       setCopiedCode(true);
-      toast.success("Code copied to clipboard!");
+      toast.success("Код скопирован в буфер обмена!");
       setTimeout(() => setCopiedCode(false), 2000);
     } catch {
-      toast.error("Failed to copy code");
+      toast.error("Не удалось скопировать код");
     }
   };
   
   const handleDeleteCode = (codeToDelete: string) => {
-    if (confirm("Are you sure you want to delete this code?")) {
+    if (confirm("Вы уверены, что хотите удалить этот код?")) {
       const updatedCodes = giftCodes.filter(c => c.code !== codeToDelete);
       saveGiftCodes(updatedCodes);
       setGiftCodes(updatedCodes);
       if (generatedCode === codeToDelete) {
         setGeneratedCode(null);
       }
-      toast.success("Code deleted");
+      toast.success("Код удалён");
     }
   };
 
   // Expense Functions
   const handleAddExpense = () => {
     if (!newExpense.amount || newExpense.amount <= 0) {
-      toast.error("Please enter a valid amount");
+      toast.error("Пожалуйста, введите корректную сумму");
       return;
     }
 
@@ -536,18 +536,18 @@ export const AdminDashboard = () => {
       date: new Date().toISOString().split("T")[0],
       note: "",
     });
-    toast.success("Expense logged!");
+    toast.success("Расход добавлен!");
   };
 
   const handleDeleteExpense = (id: string) => {
     const updatedExpenses = expenses.filter((e) => e.id !== id);
     saveExpenses(updatedExpenses);
     setExpenses(updatedExpenses);
-    toast.success("Expense deleted");
+    toast.success("Расход удалён");
   };
   
   const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleDateString("en-US", {
+    return new Date(timestamp).toLocaleDateString("ru-RU", {
       month: "short",
       day: "numeric",
       hour: "2-digit",

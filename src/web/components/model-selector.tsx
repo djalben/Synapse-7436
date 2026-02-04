@@ -165,8 +165,8 @@ export const ModelSelector = ({
     
     // Show warning for God Mode
     if (model.isGodMode) {
-      toast.warning("⚠️ High Cost Mode: 5 credits per message", {
-        description: "This model uses significantly more credits.",
+      toast.warning("⚠️ Режим высокой мощности: 5 кредитов за сообщение", {
+        description: "Эта модель потребляет значительно больше кредитов.",
         duration: 5000,
       });
     }

@@ -44,7 +44,7 @@ export const PremiumButton = ({ className = "", compact = false }: PremiumButton
       {/* Content */}
       <span className="relative flex items-center gap-2">
         <Crown className={`${compact ? "w-3.5 h-3.5" : "w-4 h-4"}`} />
-        {!compact && <span>Get Premium</span>}
+        {!compact && <span>Premium</span>}
       </span>
     </button>
   );

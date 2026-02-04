@@ -17,7 +17,6 @@ import {
   Crown,
 } from "lucide-react";
 import { useUsage } from "./usage-context";
-import { PremiumButtonWithStyles } from "./premium-button";
 
 type AudioMode = "music" | "voice";
 type MusicType = "instrumental" | "lyrics";
@@ -500,12 +499,9 @@ export const AudioStudio = () => {
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 flex items-center justify-center">
                 <Music className="w-5 h-5 text-violet-400" />
               </div>
-              Audio Studio
+              Аудио
             </h1>
             <p className="text-sm text-[#666]">Генерация музыки и синтез речи с AI</p>
-          </div>
-          <div className="hidden lg:block mr-44">
-            <PremiumButtonWithStyles />
           </div>
         </div>
 
