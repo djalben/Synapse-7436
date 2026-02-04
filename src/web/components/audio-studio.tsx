@@ -642,7 +642,7 @@ export const AudioStudio = () => {
 
         {/* Voice Lab Controls */}
         {mode === "voice" && (
-          <div className="space-y-5">
+          <div className="space-y-5 animate-in fade-in duration-300">
             {/* Voice Lab Header */}
             <div className="p-4 rounded-xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/20">
               <div className="flex items-center gap-3">
@@ -676,22 +676,23 @@ export const AudioStudio = () => {
               <label className="block text-sm text-[#888] mb-2">Выберите голос</label>
               <div className="relative">
                 <select
-                  value={selectedVoice.id}
+                  value={selectedVoice?.id ?? presetVoices[0].id}
                   onChange={(e) => {
                     const voice = allVoices.find(v => v.id === e.target.value);
                     if (voice) setSelectedVoice(voice);
                   }}
                   className="w-full px-4 py-3 rounded-xl bg-white/[0.03] border border-[#333] text-white appearance-none cursor-pointer focus:border-blue-500/50 focus:outline-none transition-colors"
+                  style={{ backgroundColor: "rgba(255,255,255,0.03)" }}
                 >
                   <optgroup label="Готовые голоса">
                     {presetVoices.map((voice) => (
-                      <option key={voice.id} value={voice.id}>{voice.name}</option>
+                      <option key={voice.id} value={voice.id} className="bg-[#1a1a1a] text-white">{voice.name}</option>
                     ))}
                   </optgroup>
                   {clonedVoices.length > 0 && (
                     <optgroup label="Мои клонированные голоса">
                       {clonedVoices.map((voice) => (
-                        <option key={voice.id} value={voice.id}>{voice.name}</option>
+                        <option key={voice.id} value={voice.id} className="bg-[#1a1a1a] text-white">{voice.name}</option>
                       ))}
                     </optgroup>
                   )}

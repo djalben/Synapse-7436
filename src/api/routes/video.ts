@@ -145,6 +145,11 @@ const SAMPLE_ANIMATION_VIDEOS = [
 // Dedicated endpoint for portrait animation (Bring Photos to Life feature)
 videoRoutes.post("/animate", async (c) => {
   try {
+    // Log request in development
+    if (import.meta.env.DEV) {
+      console.log("[Video API] Portrait animation request received")
+    }
+
     const { image, preset, duration } = await c.req.json()
 
     // Validate required fields
@@ -168,7 +173,12 @@ videoRoutes.post("/animate", async (c) => {
     
     // Use sample video as fallback
     if (!videoUrl) {
+      if (import.meta.env.DEV) {
+        console.warn("[Video API] Replicate unavailable or failed, using sample video")
+      }
       videoUrl = SAMPLE_ANIMATION_VIDEOS[Math.floor(Math.random() * SAMPLE_ANIMATION_VIDEOS.length)]
+    } else if (import.meta.env.DEV) {
+      console.log("[Video API] Successfully generated animation via Replicate")
     }
 
     return c.json({
@@ -181,7 +191,7 @@ videoRoutes.post("/animate", async (c) => {
     })
   } catch (error) {
     if (import.meta.env.DEV) {
-      console.error("Portrait animation error:", error)
+      console.error("[Video API] Portrait animation error:", error)
     }
     return c.json({ error: "High load on GPU servers, please try again later." }, 500)
   }
@@ -190,6 +200,11 @@ videoRoutes.post("/animate", async (c) => {
 // Original text-to-video and image-to-video endpoint
 videoRoutes.post("/", async (c) => {
   try {
+    // Log request in development
+    if (import.meta.env.DEV) {
+      console.log("[Video API] Video generation request received")
+    }
+
     const { prompt, duration, aspectRatio, motionScale, mode, referenceImage, videoModel } = await c.req.json()
 
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
@@ -229,7 +244,12 @@ videoRoutes.post("/", async (c) => {
     
     // Use sample video as fallback
     if (!videoUrl) {
+      if (import.meta.env.DEV) {
+        console.warn("[Video API] Replicate unavailable or failed, using sample video")
+      }
       videoUrl = SAMPLE_VIDEOS[Math.floor(Math.random() * SAMPLE_VIDEOS.length)]
+    } else if (import.meta.env.DEV) {
+      console.log("[Video API] Successfully generated video via Replicate")
     }
 
     return c.json({
@@ -245,7 +265,7 @@ videoRoutes.post("/", async (c) => {
     })
   } catch (error) {
     if (import.meta.env.DEV) {
-      console.error("Video generation error:", error)
+      console.error("[Video API] Video generation error:", error)
     }
     return c.json({ error: "High load on GPU servers, please try again later." }, 500)
   }

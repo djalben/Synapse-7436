@@ -208,6 +208,11 @@ async function fallbackOpenRouterEnhancement(image: string, tool: EnhancementToo
 
 enhanceRoutes.post("/", async (c) => {
   try {
+    // Log request in development
+    if (import.meta.env.DEV) {
+      console.log("[Enhance API] Image enhancement request received")
+    }
+
     const { image, tool } = await c.req.json()
 
     // Validate inputs
@@ -228,16 +233,27 @@ enhanceRoutes.post("/", async (c) => {
     let enhancedUrl: string | null = null
     
     // Try Replicate first (better quality for specific tasks)
+    if (import.meta.env.DEV) {
+      console.log(`[Enhance API] Attempting Replicate enhancement for tool: ${tool}`)
+    }
     enhancedUrl = await tryReplicateEnhancement(image, tool as EnhancementTool)
     
     // Fall back to OpenRouter if Replicate unavailable or failed
     if (!enhancedUrl) {
+      if (import.meta.env.DEV) {
+        console.warn("[Enhance API] Replicate failed, falling back to OpenRouter")
+      }
       enhancedUrl = await fallbackOpenRouterEnhancement(image, tool as EnhancementTool)
+    } else if (import.meta.env.DEV) {
+      console.log("[Enhance API] Successfully enhanced via Replicate")
     }
     
     const processingTime = Date.now() - startTime
 
     if (enhancedUrl) {
+      if (import.meta.env.DEV) {
+        console.log(`[Enhance API] Enhancement completed in ${processingTime}ms`)
+      }
       return c.json({
         originalUrl: image,
         enhancedUrl: enhancedUrl,
@@ -248,11 +264,14 @@ enhanceRoutes.post("/", async (c) => {
     }
 
     // If no image was returned, return user-friendly error
+    if (import.meta.env.DEV) {
+      console.error("[Enhance API] Both Replicate and OpenRouter failed")
+    }
     return c.json({ error: "High load on GPU servers, please try again later." }, 500)
   } catch (error) {
     // Log errors in development only
     if (import.meta.env.DEV) {
-      console.error("Image enhancement error:", error)
+      console.error("[Enhance API] Image enhancement error:", error)
     }
     return c.json({ error: "Enhancement is taking longer than expected. Please try again." }, 500)
   }

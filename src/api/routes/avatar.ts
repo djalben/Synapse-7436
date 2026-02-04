@@ -103,6 +103,11 @@ async function tryReplicateAvatar(
 // Avatar animation endpoint
 avatarRoutes.post("/", async (c) => {
   try {
+    // Log request in development
+    if (import.meta.env.DEV) {
+      console.log("[Avatar API] Avatar generation request received")
+    }
+
     // Get form data (supports multipart/form-data for file uploads)
     const formData = await c.req.formData()
     
@@ -150,6 +155,9 @@ avatarRoutes.post("/", async (c) => {
     const drivingVideoBase64 = `data:${drivingVideoFile.type};base64,${Buffer.from(drivingVideoBuffer).toString("base64")}`
     
     // Try Replicate for actual avatar generation
+    if (import.meta.env.DEV) {
+      console.log("[Avatar API] Attempting Replicate avatar generation")
+    }
     let videoUrl = await tryReplicateAvatar(targetImageBase64, drivingVideoBase64)
     
     // Use sample video as fallback for demo
@@ -157,6 +165,9 @@ avatarRoutes.post("/", async (c) => {
     if (!videoUrl) {
       // For demo purposes, return a sample video
       // In production, you might want to return an error instead
+      if (import.meta.env.DEV) {
+        console.warn("[Avatar API] Replicate unavailable or failed, using sample video")
+      }
       videoUrl = SAMPLE_AVATAR_VIDEOS[Math.floor(Math.random() * SAMPLE_AVATAR_VIDEOS.length)]
       
       // Uncomment the following to require actual API configuration
@@ -164,6 +175,8 @@ avatarRoutes.post("/", async (c) => {
       //   error: "Avatar generation service is not configured. Please try again later.",
       //   creditCost: AVATAR_COST 
       // }, 503)
+    } else if (import.meta.env.DEV) {
+      console.log("[Avatar API] Successfully generated avatar via Replicate")
     }
     
     return c.json({
@@ -176,7 +189,7 @@ avatarRoutes.post("/", async (c) => {
     
   } catch (error) {
     if (import.meta.env.DEV) {
-      console.error("Avatar generation error:", error)
+      console.error("[Avatar API] Avatar generation error:", error)
     }
     return c.json({ 
       error: "High load on GPU servers, please try again later.",
@@ -188,6 +201,11 @@ avatarRoutes.post("/", async (c) => {
 // Alternative JSON endpoint for testing (base64 images/videos)
 avatarRoutes.post("/json", async (c) => {
   try {
+    // Log request in development
+    if (import.meta.env.DEV) {
+      console.log("[Avatar API] JSON avatar generation request received")
+    }
+
     const { targetImage, drivingVideo } = await c.req.json()
     
     // Validate required inputs
@@ -206,11 +224,19 @@ avatarRoutes.post("/json", async (c) => {
     }
     
     // Try Replicate for actual avatar generation
+    if (import.meta.env.DEV) {
+      console.log("[Avatar API] Attempting Replicate avatar generation (JSON)")
+    }
     let videoUrl = await tryReplicateAvatar(targetImage, drivingVideo)
     
     // Use sample video as fallback
     if (!videoUrl) {
+      if (import.meta.env.DEV) {
+        console.warn("[Avatar API] Replicate unavailable or failed, using sample video")
+      }
       videoUrl = SAMPLE_AVATAR_VIDEOS[Math.floor(Math.random() * SAMPLE_AVATAR_VIDEOS.length)]
+    } else if (import.meta.env.DEV) {
+      console.log("[Avatar API] Successfully generated avatar via Replicate")
     }
     
     return c.json({
@@ -223,7 +249,7 @@ avatarRoutes.post("/json", async (c) => {
     
   } catch (error) {
     if (import.meta.env.DEV) {
-      console.error("Avatar generation error:", error)
+      console.error("[Avatar API] JSON avatar generation error:", error)
     }
     return c.json({ 
       error: "High load on GPU servers, please try again later.",
