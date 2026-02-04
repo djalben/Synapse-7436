@@ -224,7 +224,7 @@ export const ModelSelector = ({
         <ChevronDown className={`w-4 h-4 text-[#666] transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
       </button>
 
-      {/* ВЫПАДАЮЩИЙ СПИСОК */}
+      {/* ВЫПАДАЮЩИЙ СПИСОК - ВСЕ 4 КРИТИЧЕСКИЕ ПРАВКИ */}
       {isOpen && (
         <div
           className="
@@ -233,35 +233,29 @@ export const ModelSelector = ({
             shadow-2xl
             z-[9999]
           "
-          style={{
-            position: "absolute",
-            zIndex: 9999,
-          }}
         >
           {/* ЗАГОЛОВОК */}
-          <div className="px-4 py-3 border-b border-gray-800">
+          <div className="px-4 py-3 border-b border-gray-800 bg-[#0B0F17] rounded-t-xl">
             <p className="text-xs text-[#666] uppercase tracking-wider font-medium">
               Выберите модель
             </p>
           </div>
 
-          {/* СПИСОК МОДЕЛЕЙ */}
-          <ul className="max-h-[400px] overflow-y-auto p-2 space-y-1 bg-[#0B0F17]">
+          {/* 
+            СПИСОК МОДЕЛЕЙ
+            ПРАВКА 1: bg-[#0B0F17] - сплошной тёмный фон (не прозрачный)
+            ПРАВКА 2: max-h-[60vh] overflow-y-auto pb-12 - ограничение высоты + отступ снизу
+          */}
+          <ul className="max-h-[60vh] overflow-y-auto p-2 pb-12 space-y-1 bg-[#0B0F17]">
             {models.map((model) => {
-              // ПУНКТ 1: Динамическое определение активности
-              // currentModel - это объект текущей выбранной модели
-              // model - это модель в текущей итерации цикла
+              // ПРАВКА 3: Динамическое определение активности
               const isActive = currentModel.id === model.id;
               
-              // ПУНКТ 3: Проверка блокировки
+              // ПРАВКА 4: Проверка блокировки для логики клика
               const isLocked = !canAccessModel(userPlan, model.requiredPlan);
 
               return (
                 <li key={model.id}>
-                  {/* 
-                    ПУНКТ 1: isActive === true → border-emerald-500 bg-emerald-500/10 text-white
-                    ПУНКТ 2: isActive === false → border-transparent text-gray-400 + hover эффекты
-                  */}
                   <button
                     onClick={() => handleSelect(model)}
                     className={`
@@ -309,7 +303,7 @@ export const ModelSelector = ({
                       {model.creditCost} кр
                     </div>
                     
-                    {/* ПУНКТ 1: Галочка для активной модели, замок для заблокированной */}
+                    {/* Иконка: замок (locked) или галочка (active) */}
                     <div className="flex-shrink-0 w-5 flex justify-center">
                       {isLocked ? (
                         <Lock className="w-4 h-4 text-amber-500" />
