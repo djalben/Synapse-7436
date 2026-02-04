@@ -248,22 +248,28 @@ export const ModelSelector = ({
           {/* СПИСОК МОДЕЛЕЙ */}
           <ul className="max-h-[400px] overflow-y-auto p-2 space-y-1">
             {models.map((model) => {
-              // ПУНКТ 1: Динамическое определение активности через currentModel (объект)
+              // ПУНКТ 1: Динамическое определение активности
+              // currentModel - это объект текущей выбранной модели
+              // model - это модель в текущей итерации цикла
               const isActive = currentModel.id === model.id;
-              // ПУНКТ 3: Проверка блокировки для логики клика
+              
+              // ПУНКТ 3: Проверка блокировки
               const isLocked = !canAccessModel(userPlan, model.requiredPlan);
 
               return (
                 <li key={model.id}>
+                  {/* 
+                    ПУНКТ 1: isActive === true → border-emerald-500 bg-emerald-500/10 text-white
+                    ПУНКТ 2: isActive === false → border-transparent text-gray-400 + hover эффекты
+                  */}
                   <button
                     onClick={() => handleSelect(model)}
                     className={`
-                      w-full flex items-center gap-3 px-3 py-3 rounded-lg
-                      transition-all duration-200 cursor-pointer
-                      border
+                      group w-full flex items-center gap-3 px-3 py-3 rounded-lg
+                      transition-all duration-200 cursor-pointer border
                       ${isActive 
-                        ? "border-emerald-500 bg-emerald-500/10" 
-                        : "border-transparent hover:bg-white/5 hover:border-white/10"
+                        ? "border-emerald-500 bg-emerald-500/10 text-white" 
+                        : "border-transparent text-gray-400 hover:bg-white/5 hover:border-white/10 hover:text-white"
                       }
                       ${isLocked ? "opacity-60" : ""}
                     `}
@@ -272,14 +278,14 @@ export const ModelSelector = ({
                     <div className={`w-2.5 h-2.5 rounded-full ${model.dotColor} flex-shrink-0`} />
                     
                     {/* Лого провайдера */}
-                    <div className={`flex-shrink-0 ${isActive ? "text-white" : "text-[#666] group-hover:text-white"}`}>
+                    <div className={`flex-shrink-0 transition-colors ${isActive ? "text-white" : "text-[#666] group-hover:text-white"}`}>
                       {model.providerLogo}
                     </div>
                     
                     {/* Информация о модели */}
                     <div className="flex-1 text-left min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className={`text-sm font-medium ${isActive ? "text-white" : "text-gray-400 hover:text-white"}`}>
+                        <span className={`text-sm font-medium transition-colors ${isActive ? "text-white" : "text-gray-400 group-hover:text-white"}`}>
                           {model.name}
                         </span>
                         {model.isGodMode && <Diamond className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />}
@@ -289,7 +295,9 @@ export const ModelSelector = ({
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-[#666] mt-0.5">{model.subtitle}</p>
+                      <p className={`text-xs mt-0.5 transition-colors ${isActive ? "text-gray-300" : "text-[#666] group-hover:text-gray-400"}`}>
+                        {model.subtitle}
+                      </p>
                     </div>
                     
                     {/* Стоимость в кредитах */}
@@ -301,7 +309,7 @@ export const ModelSelector = ({
                       {model.creditCost} кр
                     </div>
                     
-                    {/* Иконка: замок (locked) или галочка (active) */}
+                    {/* ПУНКТ 1: Галочка для активной модели, замок для заблокированной */}
                     <div className="flex-shrink-0 w-5 flex justify-center">
                       {isLocked ? (
                         <Lock className="w-4 h-4 text-amber-500" />
