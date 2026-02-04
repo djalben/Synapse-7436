@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { ChevronDown, Check, Lock, Diamond, AlertTriangle, Sparkles } from "lucide-react";
+import { ChevronDown, Check, Lock, Diamond, AlertTriangle, Sparkles, Zap } from "lucide-react";
 import { useUsage } from "./usage-context";
 import { toast } from "sonner";
 
@@ -13,6 +13,12 @@ const OpenAILogo = () => (
 const AnthropicLogo = () => (
   <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
     <path d="M17.304 3.541h-3.672l6.696 16.918h3.672l-6.696-16.918zm-10.608 0L0 20.459h3.744l1.37-3.553h7.005l1.369 3.553h3.744L10.536 3.541H6.696zm.847 10.4 2.378-6.161 2.377 6.161H7.543z" />
+  </svg>
+);
+
+const DeepSeekLogo = () => (
+  <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
+    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
   </svg>
 );
 
@@ -30,15 +36,27 @@ export interface Model {
   providerLogo: React.ReactNode;
   requiredPlan: UserPlan;
   isGodMode?: boolean;
+  badge?: string;
 }
 
 // Available models with tiered access
 export const models: Model[] = [
   {
+    id: "deepseek-r1",
+    backendId: "deepseek/deepseek-r1",
+    name: "DeepSeek R1",
+    subtitle: "Бесплатно / Быстрый",
+    creditCost: 0.1,
+    dotColor: "bg-emerald-400",
+    providerLogo: <DeepSeekLogo />,
+    requiredPlan: "free",
+    badge: "Рекомендуем",
+  },
+  {
     id: "gpt-4o-mini",
     backendId: "openai/gpt-4o-mini",
     name: "GPT-4o Mini",
-    subtitle: "Fast & Efficient",
+    subtitle: "Быстрый и эффективный",
     creditCost: 0.1,
     dotColor: "bg-emerald-500",
     providerLogo: <OpenAILogo />,
@@ -48,7 +66,7 @@ export const models: Model[] = [
     id: "gpt-4o",
     backendId: "openai/gpt-4o",
     name: "GPT-4o",
-    subtitle: "Smart Agent",
+    subtitle: "Умный агент",
     creditCost: 1,
     dotColor: "bg-blue-500",
     providerLogo: <OpenAILogo />,
@@ -58,7 +76,7 @@ export const models: Model[] = [
     id: "claude-3.5-sonnet",
     backendId: "anthropic/claude-3.5-sonnet",
     name: "Claude 3.5 Sonnet",
-    subtitle: "Coding Genius",
+    subtitle: "Гений кода",
     creditCost: 3,
     dotColor: "bg-violet-500",
     providerLogo: <AnthropicLogo />,
@@ -68,7 +86,7 @@ export const models: Model[] = [
     id: "gpt-5-o1",
     backendId: "openai/o1",
     name: "GPT-5 / o1",
-    subtitle: "God Mode",
+    subtitle: "Режим бога",
     creditCost: 20,
     dotColor: "bg-gradient-to-r from-amber-400 to-orange-500",
     providerLogo: <OpenAILogo />,
@@ -99,7 +117,7 @@ export const getModelCreditCost = (modelId: string): number => {
 // Get backend model ID
 export const getBackendModelId = (modelId: string): string => {
   const model = models.find(m => m.id === modelId);
-  return model?.backendId ?? "openai/gpt-4o-mini";
+  return model?.backendId ?? "deepseek/deepseek-r1";
 };
 
 interface ModelSelectorProps {
@@ -168,6 +186,7 @@ export const ModelSelector = ({
           transition-all duration-200
           ${isOpen ? "bg-white/[0.08] border-[#444]" : ""}
           ${currentModel.isGodMode ? "border-amber-500/30 hover:border-amber-500/50" : ""}
+          ${currentModel.badge ? "border-emerald-500/30 hover:border-emerald-500/50" : ""}
         `}
       >
         {/* Status Dot */}
@@ -177,7 +196,7 @@ export const ModelSelector = ({
         <div className="text-[#888]">{currentModel.providerLogo}</div>
         
         {/* Model Name */}
-        <span className={`text-sm font-medium ${currentModel.isGodMode ? "text-amber-200" : "text-white/90"}`}>
+        <span className={`text-sm font-medium ${currentModel.isGodMode ? "text-amber-200" : currentModel.badge ? "text-emerald-200" : "text-white/90"}`}>
           {currentModel.name}
         </span>
         
@@ -186,15 +205,22 @@ export const ModelSelector = ({
           <Diamond className="w-3.5 h-3.5 text-amber-400" />
         )}
         
+        {/* Badge for recommended */}
+        {currentModel.badge && (
+          <Zap className="w-3.5 h-3.5 text-emerald-400" />
+        )}
+        
         {/* Credit Badge */}
         <span className={`
           text-xs px-1.5 py-0.5 rounded-md
           ${currentModel.isGodMode 
             ? "bg-amber-500/20 text-amber-400 font-medium" 
-            : "bg-white/[0.06] text-[#888]"
+            : currentModel.badge
+              ? "bg-emerald-500/20 text-emerald-400 font-medium"
+              : "bg-white/[0.06] text-[#888]"
           }
         `}>
-          {currentModel.creditCost} cr
+          {currentModel.creditCost} кр
         </span>
         
         <ChevronDown
@@ -221,7 +247,7 @@ export const ModelSelector = ({
             {/* Header */}
             <div className="px-3 py-2 mb-1">
               <p className="text-xs text-[#666] uppercase tracking-wider font-medium">
-                Select Model
+                Выберите модель
               </p>
             </div>
             
@@ -229,6 +255,7 @@ export const ModelSelector = ({
               const isSelected = model.id === selectedModel;
               const hasAccess = canAccessModel(userPlan, model.requiredPlan);
               const isLocked = !hasAccess;
+              const hasBadge = model.badge;
               
               return (
                 <button
@@ -240,6 +267,7 @@ export const ModelSelector = ({
                     ${isSelected ? "bg-white/[0.08]" : "hover:bg-white/[0.04]"}
                     ${isLocked ? "opacity-60" : ""}
                     ${model.isGodMode && !isLocked ? "bg-gradient-to-r from-amber-500/5 to-orange-500/5 hover:from-amber-500/10 hover:to-orange-500/10" : ""}
+                    ${hasBadge && !isLocked ? "bg-gradient-to-r from-emerald-500/5 to-teal-500/5 hover:from-emerald-500/10 hover:to-teal-500/10" : ""}
                   `}
                 >
                   {/* Status Dot */}
@@ -255,12 +283,17 @@ export const ModelSelector = ({
                     <div className="flex items-center gap-2">
                       <span className={`
                         text-sm font-medium
-                        ${isSelected ? "text-white" : model.isGodMode ? "text-amber-200" : "text-white/80"}
+                        ${isSelected ? "text-white" : model.isGodMode ? "text-amber-200" : hasBadge ? "text-emerald-200" : "text-white/80"}
                       `}>
                         {model.name}
                       </span>
                       {model.isGodMode && (
                         <Diamond className="w-3.5 h-3.5 text-amber-400" />
+                      )}
+                      {hasBadge && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-medium border border-emerald-500/30">
+                          {model.badge}
+                        </span>
                       )}
                     </div>
                     <div className="text-xs text-[#666]">{model.subtitle}</div>
@@ -271,10 +304,12 @@ export const ModelSelector = ({
                     text-xs px-2 py-1 rounded-md font-medium flex-shrink-0
                     ${model.isGodMode 
                       ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" 
-                      : "bg-white/[0.06] text-[#888]"
+                      : hasBadge
+                        ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                        : "bg-white/[0.06] text-[#888]"
                     }
                   `}>
-                    {model.creditCost} cr/msg
+                    {model.creditCost} кр/сообщ
                   </div>
                   
                   {/* Lock or Check Icon */}
@@ -296,7 +331,7 @@ export const ModelSelector = ({
               <div className="flex items-center gap-2">
                 <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
                 <span className="text-xs text-[#888]">
-                  Your plan: <span className="text-white font-medium capitalize">{userPlan}</span>
+                  Ваш план: <span className="text-white font-medium capitalize">{userPlan}</span>
                 </span>
               </div>
               <button

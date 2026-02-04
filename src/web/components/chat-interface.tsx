@@ -3,8 +3,9 @@ import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
 import { ModelSelector, models, getModelCreditCost } from "./model-selector"
 import { PremiumButtonWithStyles } from "./premium-button"
-import { Paperclip, Mic, ArrowUp, Sparkles, Zap, Lightbulb, Code, Bot, User, Copy, Check, Lock, Coins } from "lucide-react"
+import { Paperclip, Mic, ArrowUp, Sparkles, Zap, Lightbulb, Code, Bot, User, Copy, Check, Lock, Coins, HelpCircle } from "lucide-react"
 import { useUsage } from "./usage-context"
+import { useTour } from "./onboarding-tour"
 import { toast } from "sonner"
 
 // Provider logos as SVG components
@@ -20,8 +21,15 @@ const AnthropicLogo = () => (
   </svg>
 )
 
+const DeepSeekLogo = () => (
+  <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
+    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
+  </svg>
+)
+
 // Model logos mapped by ID
 const MODEL_LOGOS: Record<string, React.ReactNode> = {
+  "deepseek-r1": <DeepSeekLogo />,
   "gpt-4o-mini": <OpenAILogo />,
   "gpt-4o": <OpenAILogo />,
   "claude-3.5-sonnet": <AnthropicLogo />,
@@ -30,6 +38,7 @@ const MODEL_LOGOS: Record<string, React.ReactNode> = {
 
 // Model names mapped by ID
 const MODEL_NAMES: Record<string, string> = {
+  "deepseek-r1": "DeepSeek R1",
   "gpt-4o-mini": "GPT-4o Mini",
   "gpt-4o": "GPT-4o",
   "claude-3.5-sonnet": "Claude 3.5 Sonnet",
@@ -291,7 +300,7 @@ const ChatInputComponent = ({ value, onChange, onSubmit, disabled }: ChatInputPr
   }, [value])
 
   return (
-    <div className="relative">
+    <div className="relative" data-tour="chat-input">
       {/* Glow effect on focus */}
       <div
         className={`
@@ -370,6 +379,7 @@ const ChatInputComponent = ({ value, onChange, onSubmit, disabled }: ChatInputPr
             <button
               onClick={handleSubmit}
               disabled={!value.trim() || disabled}
+              data-tour="send-button"
               className={`
                 p-3 md:p-2.5 rounded-xl
                 transition-all duration-300
@@ -392,11 +402,12 @@ const ChatInputComponent = ({ value, onChange, onSubmit, disabled }: ChatInputPr
 
 // Main chat interface
 export const ChatInterface = () => {
-  const [selectedModel, setSelectedModel] = useState("gpt-4o-mini")
+  const [selectedModel, setSelectedModel] = useState("deepseek-r1")
   const [isLoaded, setIsLoaded] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [inputValue, setInputValue] = useState("")
   const selectedModelRef = useRef(selectedModel)
+  const { startTour } = useTour()
   const { 
     checkMessageLimit, 
     incrementMessages, 
@@ -483,7 +494,7 @@ export const ChatInterface = () => {
           ${isLoaded ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"}
         `}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3" data-tour="model-selector">
           <ModelSelector
             selectedModel={selectedModel}
             onModelChange={setSelectedModel}
@@ -496,7 +507,24 @@ export const ChatInterface = () => {
           </div>
         </div>
 
-        <div className="hidden md:flex items-center gap-6 mr-44">
+        <div className="hidden md:flex items-center gap-3 mr-44">
+          {/* Help Button */}
+          <button
+            onClick={() => startTour("chat")}
+            className="
+              p-2 rounded-lg
+              text-[#666] hover:text-white/80
+              hover:bg-white/[0.04]
+              transition-all duration-200
+              group relative
+            "
+            title="Запустить обучение"
+          >
+            <HelpCircle className="w-5 h-5" />
+            <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-xs text-[#888] opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+              Помощь
+            </span>
+          </button>
           <PremiumButtonWithStyles />
         </div>
       </header>

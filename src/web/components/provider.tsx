@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Metadata } from "./metadata";
 import { Toaster } from "./ui/sonner";
 import { AuthProvider } from "./auth-context";
+import { TourProvider } from "./onboarding-tour";
 
 interface ProviderProps {
   children: React.ReactNode;
@@ -70,9 +71,11 @@ export function Provider({ children }: ProviderProps) {
 
   return (
     <AuthProvider>
-      <Metadata />
-      {children}
-      <Toaster />
+      <TourProvider>
+        <Metadata />
+        {children}
+        <Toaster />
+      </TourProvider>
     </AuthProvider>
   );
 }

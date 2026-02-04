@@ -1773,7 +1773,7 @@ const GeneratePanel = ({
           </div>
 
           {/* Prompt Area */}
-          <div className="space-y-2">
+          <div className="space-y-2" data-tour="image-prompt">
             <label className="text-sm font-medium text-[#888]">Prompt</label>
             <div className="relative">
               <textarea
@@ -1801,7 +1801,7 @@ const GeneratePanel = ({
           </div>
 
           {/* Style Selector */}
-          <div className={`space-y-3 transition-all duration-300 ${nijiModeActive ? "opacity-40 pointer-events-none" : ""}`}>
+          <div className={`space-y-3 transition-all duration-300 ${nijiModeActive ? "opacity-40 pointer-events-none" : ""}`} data-tour="style-selector">
             <label className="text-sm font-medium text-[#888] flex items-center gap-2">
               Style
               {nijiModeActive && (
@@ -1819,7 +1819,7 @@ const GeneratePanel = ({
           />
 
           {/* Aspect Ratio */}
-          <div className="space-y-3">
+          <div className="space-y-3" data-tour="aspect-ratio">
             <label className="text-sm font-medium text-[#888]">Aspect Ratio</label>
             <AspectRatioSelector selected={aspectRatio} onChange={setAspectRatio} />
           </div>
@@ -1863,6 +1863,7 @@ const GeneratePanel = ({
           <button
             onClick={handleGenerate}
             disabled={!prompt.trim() || isGenerating || atLimit || !isImg2ImgReady}
+            data-tour="generate-button"
             className={`
               w-full py-4 rounded-xl
               font-medium text-base
@@ -1934,7 +1935,7 @@ const GeneratePanel = ({
       </div>
 
       {/* Right Panel - Gallery */}
-      <div className="flex-1 p-4 md:p-6 overflow-y-auto">
+      <div className="flex-1 p-4 md:p-6 overflow-y-auto" data-tour="gallery">
         {/* Gallery Header */}
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <div>

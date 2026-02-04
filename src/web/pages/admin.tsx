@@ -88,7 +88,7 @@ const PLAN_PRICES: Record<string, number> = {
 };
 
 // Lava payment gateway commission
-const LAVA_COMMISSION = 0.12; // 12%
+const LAVA_COMMISSION = 0.15; // 15%
 
 // AI cost estimates per generation
 const AI_COSTS = {
@@ -607,7 +607,7 @@ export const AdminDashboard = () => {
   
   // Calculate financial metrics
   const grossRevenue = calculateGrossRevenue(giftCodes);
-  const lavaCommission = Math.round(grossRevenue * LAVA_COMMISSION); // 12% Lava commission
+  const lavaCommission = Math.round(grossRevenue * LAVA_COMMISSION); // 15% Lava commission
   const revenueAfterLava = grossRevenue - lavaCommission;
   const aiCosts = calculateAICosts(usageStats);
   const serverExpenses = calculateTotalExpenses(expenses);
@@ -944,7 +944,7 @@ export const AdminDashboard = () => {
           {/* Formula Info */}
           <div className="mt-4 p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
             <p className="text-xs text-indigo-400/80 font-mono">
-              Прибыль = (Доход - 12% Lava) - OpenRouter - Replicate
+              Прибыль = (Доход - 15% Lava) - OpenRouter - Replicate
             </p>
           </div>
         </div>

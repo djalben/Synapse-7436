@@ -7,6 +7,7 @@ export const chatRoutes = new Hono()
 
 // Model mapping from frontend IDs to OpenRouter model IDs
 const MODEL_MAP: Record<string, string> = {
+  "deepseek-r1": "deepseek/deepseek-r1",
   "gpt-4o-mini": "openai/gpt-4o-mini",
   "gpt-4o": "openai/gpt-4o",
   "claude-3.5-sonnet": "anthropic/claude-3.5-sonnet",
@@ -17,6 +18,7 @@ const MODEL_MAP: Record<string, string> = {
 
 // Credit costs per model
 const CREDIT_COSTS: Record<string, number> = {
+  "deepseek-r1": 0.1,
   "gpt-4o-mini": 0.1,
   "gpt-4o": 1,
   "claude-3.5-sonnet": 3,
@@ -51,8 +53,8 @@ chatRoutes.post("/", async (c) => {
       return c.json({ error: "Invalid model selected. Please choose a valid model." }, 400)
     }
 
-    // Map the model ID to OpenRouter format (default to GPT-4o Mini)
-    const modelId = MODEL_MAP[model] || "openai/gpt-4o-mini"
+    // Map the model ID to OpenRouter format (default to DeepSeek R1)
+    const modelId = MODEL_MAP[model] || "deepseek/deepseek-r1"
     
     // Get credit cost for response metadata
     const creditCost = CREDIT_COSTS[model] || 0.1

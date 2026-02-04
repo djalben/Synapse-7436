@@ -39,8 +39,9 @@ const FREE_LIMITS: UsageLimits = {
   maxVideos: 0, // Video requires Studio plan
 };
 
-// Initial free credits
-const INITIAL_FREE_CREDITS = 10;
+// Initial free credits (Welcome Bonus)
+const INITIAL_FREE_CREDITS = 15;
+const WELCOME_BONUS = 15;
 
 const STORAGE_KEY = "synapse_usage";
 
