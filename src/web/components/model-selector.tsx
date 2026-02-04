@@ -248,8 +248,8 @@ export const ModelSelector = ({
           {/* СПИСОК МОДЕЛЕЙ */}
           <ul className="max-h-[400px] overflow-y-auto p-2 space-y-1">
             {models.map((model) => {
-              // ПУНКТ 1: Динамическое определение активности
-              const isActive = model.id === selectedModel;
+              // ПУНКТ 1: Динамическое определение активности через currentModel (объект)
+              const isActive = currentModel.id === model.id;
               // ПУНКТ 3: Проверка блокировки для логики клика
               const isLocked = !canAccessModel(userPlan, model.requiredPlan);
 
@@ -262,8 +262,8 @@ export const ModelSelector = ({
                       transition-all duration-200 cursor-pointer
                       border
                       ${isActive 
-                        ? "border-emerald-500 bg-emerald-500/10 text-white" 
-                        : "border-transparent text-gray-400 hover:bg-white/5 hover:border-white/10 hover:text-white"
+                        ? "border-emerald-500 bg-emerald-500/10" 
+                        : "border-transparent hover:bg-white/5 hover:border-white/10"
                       }
                       ${isLocked ? "opacity-60" : ""}
                     `}
@@ -272,14 +272,14 @@ export const ModelSelector = ({
                     <div className={`w-2.5 h-2.5 rounded-full ${model.dotColor} flex-shrink-0`} />
                     
                     {/* Лого провайдера */}
-                    <div className={`flex-shrink-0 ${isActive ? "text-white" : "text-[#888]"}`}>
+                    <div className={`flex-shrink-0 ${isActive ? "text-white" : "text-[#666] group-hover:text-white"}`}>
                       {model.providerLogo}
                     </div>
                     
                     {/* Информация о модели */}
                     <div className="flex-1 text-left min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className={`text-sm font-medium ${isActive ? "text-white" : "text-white/80"}`}>
+                        <span className={`text-sm font-medium ${isActive ? "text-white" : "text-gray-400 hover:text-white"}`}>
                           {model.name}
                         </span>
                         {model.isGodMode && <Diamond className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />}
