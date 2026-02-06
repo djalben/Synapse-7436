@@ -95,7 +95,7 @@ export const AnimatedBackground = () => {
   }, []);
 
   return (
-    <div className="fixed inset-0 pointer-events-none overflow-hidden z-[2] min-h-full min-w-full bg-cover">
+    <div className="absolute inset-0 pointer-events-none overflow-hidden min-h-full min-w-full bg-cover">
       {/* Сетка нейронных нитей — чуть заметнее */}
       <div 
         className="absolute inset-0 opacity-[0.045]"

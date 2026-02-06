@@ -46,9 +46,9 @@ function Index() {
 
   return (
     <UsageProvider>
-      <div className="min-h-screen bg-black text-white overflow-x-hidden">
-        {/* Фон на весь экран: fixed + object-cover, узоры под всеми элементами */}
-        <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 min-h-full min-w-full">
+      <div className="min-h-screen bg-transparent text-white overflow-x-hidden">
+        {/* Глобальный фон: один слой под всем контентом (-z-10), сквозной для всего экрана */}
+        <div className="fixed top-0 left-0 w-full h-full -z-10 pointer-events-none overflow-hidden min-h-full min-w-full">
           <video
             ref={videoRef}
             autoPlay
@@ -80,16 +80,12 @@ function Index() {
               ${videoLoaded ? "opacity-100" : "opacity-0"}
             `}
           />
+          <div className="absolute inset-0 min-h-full min-w-full">
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(99,102,241,0.14),transparent)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(59,130,246,0.08),transparent)]" />
+          </div>
+          <AnimatedBackground />
         </div>
-
-        {/* Паттерн на весь экран */}
-        <div className="fixed inset-0 pointer-events-none z-[1] min-h-full min-w-full">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(99,102,241,0.14),transparent)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(59,130,246,0.08),transparent)]" />
-        </div>
-
-        {/* Animated Background Effects */}
-        <AnimatedBackground />
 
         {/* Mobile Navigation */}
         <MobileNav activeTab={activeTab} onTabChange={setActiveTab} />

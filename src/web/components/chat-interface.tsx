@@ -511,16 +511,16 @@ export const ChatInterface = () => {
 
   return (
     <div
-      className="flex flex-col w-full overflow-hidden h-[100dvh] max-h-[100dvh] min-h-0"
+      className="flex flex-col w-full overflow-hidden h-[100dvh] max-h-[100dvh] min-h-0 border-none"
       style={{ height: "100dvh", maxHeight: "100dvh" }}
     >
-      {/* Шапка: фиксирована, flex-shrink-0 — никогда не уходит за экран */}
+      {/* Шапка: матовое стекло, фон сквозной, без границ */}
       <header
         className={`
-          flex-shrink-0
+          flex-shrink-0 border-none
           px-4 md:px-6 py-3 md:py-4
           flex items-center justify-between gap-4
-          bg-black/40 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.2)]
+          bg-black/10 backdrop-blur-xl
           transition-all duration-700 ease-out
           ${isLoaded ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"}
         `}
@@ -635,12 +635,12 @@ export const ChatInterface = () => {
         )}
       </div>
 
-      {/* Поле ввода: flex-shrink-0, зафиксировано внизу; при клавиатуре на мобильных остаётся над ней (100dvh) */}
+      {/* Поле ввода: матовое стекло, фон сквозной, без границ */}
       <div
         className={`
-          flex-shrink-0 w-full
+          flex-shrink-0 w-full border-none
           px-4 md:px-6 py-4 md:py-6
-          bg-black/50 backdrop-blur-sm shadow-[0_-4px_20px_rgba(0,0,0,0.2)]
+          bg-black/10 backdrop-blur-xl
           transition-opacity duration-700 delay-300
           pb-[env(safe-area-inset-bottom,0px)]
           ${isLoaded ? "opacity-100" : "opacity-0"}

@@ -114,7 +114,7 @@ export const Sidebar = ({ activeTab, onTabChange }: SidebarProps) => {
   };
 
   return (
-    <aside className="hidden md:flex fixed left-0 top-0 h-screen w-[240px] bg-black/85 backdrop-blur-xl flex-col z-50 shadow-[4px_0_24px_rgba(0,0,0,0.4)]">
+    <aside className="hidden md:flex fixed left-0 top-0 h-screen w-[240px] bg-black/10 backdrop-blur-xl flex-col z-50 border-none shadow-[2px_0_20px_rgba(0,0,0,0.15)]">
       {/* Logo Section */}
       <div className="p-6 pb-8">
         <div className="flex items-center gap-3 group cursor-default">
