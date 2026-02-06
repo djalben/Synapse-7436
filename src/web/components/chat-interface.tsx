@@ -404,6 +404,8 @@ export const ChatInterface = () => {
   const [selectedModel, setSelectedModel] = useState("deepseek-r1")
   const [isLoaded, setIsLoaded] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
+  const userAtBottomRef = useRef(true)
   const [inputValue, setInputValue] = useState("")
   const selectedModelRef = useRef(selectedModel)
   const { startTour } = useTour()
@@ -455,10 +457,34 @@ export const ChatInterface = () => {
     return () => clearTimeout(timer)
   }, [])
 
-  // Auto-scroll to latest message
+  // Умная авто-прокрутка: не дергаем экран при стриминге, не возвращаем насильно, если пользователь ушёл вверх
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages])
+    const el = messagesContainerRef.current
+    const endEl = messagesEndRef.current
+    if (!el || !endEl) return
+
+    const isStreaming = status === "streaming"
+    const wasAtBottom = userAtBottomRef.current
+
+    if (isStreaming) {
+      // Во время печати: только если пользователь у низа — держим скролл внизу без анимации (без тряски)
+      if (wasAtBottom) {
+        el.scrollTop = el.scrollHeight
+      }
+    } else {
+      // Не стриминг: плавно к последнему сообщению (новая реплика или конец ответа)
+      endEl.scrollIntoView({ behavior: "smooth", block: "end" })
+    }
+  }, [messages, status])
+
+  // Отслеживание: пользователь прокрутил вверх — не возвращать его вниз до конца печати
+  const handleMessagesScroll = () => {
+    const el = messagesContainerRef.current
+    if (!el) return
+    const threshold = 120
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= threshold
+    userAtBottomRef.current = atBottom
+  }
 
   const handleSendMessage = () => {
     if (!inputValue.trim() || isLoading) return
@@ -470,6 +496,7 @@ export const ChatInterface = () => {
     const cost = getModelCreditCost(selectedModel)
     if (!checkCredits(cost)) return
     
+    userAtBottomRef.current = true
     sendMessage({ text: inputValue })
     setInputValue("")
   }
@@ -483,10 +510,11 @@ export const ChatInterface = () => {
   const notEnoughCredits = creditBalance < currentCreditCost
 
   return (
-    <div className="flex-1 flex flex-col h-full">
-      {/* Top Bar */}
+    <div className="flex-1 flex flex-col h-full min-h-0">
+      {/* Top Bar — фиксированная высота, не сжимается */}
       <header
         className={`
+          flex-shrink-0
           px-4 md:px-6 py-3 md:py-4 border-b border-[#222]
           flex items-center justify-between gap-4
           transition-all duration-700 ease-out
@@ -522,8 +550,12 @@ export const ChatInterface = () => {
         </div>
       </header>
 
-      {/* Chat Messages Area */}
-      <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 md:py-6">
+      {/* Контейнер сообщений: занимает всё свободное место, скролл только здесь — без тряски */}
+      <div
+        ref={messagesContainerRef}
+        onScroll={handleMessagesScroll}
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 md:px-6 py-4 md:py-6"
+      >
         {!hasMessages ? (
           // Empty state
           <div
@@ -599,14 +631,14 @@ export const ChatInterface = () => {
         )}
       </div>
 
-      {/* Input Area */}
+      {/* Нижняя панель ввода: жёстко внизу, не двигается при появлении текста */}
       <div
         className={`
-          sticky bottom-0 left-0 right-0 z-10
+          flex-shrink-0 w-full
           px-4 md:px-6 py-4 md:py-6
-          bg-gradient-to-t from-black via-black/95 to-transparent
-          transition-all duration-700 ease-out delay-300
-          ${isLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}
+          bg-black border-t border-[#222]
+          transition-opacity duration-700 delay-300
+          ${isLoaded ? "opacity-100" : "opacity-0"}
         `}
       >
         <div className="max-w-3xl mx-auto">
