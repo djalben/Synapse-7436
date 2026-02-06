@@ -141,8 +141,9 @@ export const ModelSelector = ({
 
   return (
     <div
-      className="w-full flex items-center justify-center gap-2 flex-wrap py-0.5"
+      className="w-full flex items-center gap-2 py-0.5 overflow-x-auto overflow-y-hidden flex-nowrap md:flex-wrap md:justify-center md:overflow-visible"
       data-tour="model-selector"
+      style={{ WebkitOverflowScrolling: "touch" }}
     >
       {models.map((model) => {
         const isActive = selectedModel === model.id;
@@ -154,8 +155,8 @@ export const ModelSelector = ({
             type="button"
             onClick={() => handleModelClick(model)}
             className={`
-              group inline-flex items-center gap-1.5 px-2.5 py-2 rounded-xl
-              border transition-all duration-300 ease-out
+              group inline-flex items-center gap-1 md:gap-1.5 px-2 py-1.5 md:px-2.5 md:py-2 rounded-lg md:rounded-xl
+              border transition-all duration-300 ease-out flex-shrink-0
               hover:scale-105 hover:shadow-[0_0_20px_rgba(99,102,241,0.15)]
               active:scale-[0.98]
               ${isActive
@@ -165,16 +166,16 @@ export const ModelSelector = ({
               ${isLocked ? "cursor-pointer" : ""}
             `}
           >
-            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${model.dotColor}`} />
-            <span className="flex items-center [&_svg]:block" aria-hidden>
+            <div className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full flex-shrink-0 ${model.dotColor}`} />
+            <span className="flex items-center [&_svg]:block [&_svg]:w-3.5 [&_svg]:h-3.5 md:[&_svg]:w-4 md:[&_svg]:h-4" aria-hidden>
               {model.providerLogo}
             </span>
-            <span className="text-sm font-medium whitespace-nowrap">
+            <span className="text-xs md:text-sm font-medium whitespace-nowrap">
               {model.name}
             </span>
             {model.isPremium && (
               <Lock
-                className={`w-4 h-4 flex-shrink-0 ${isLocked ? "text-amber-400/90" : "text-white/50"}`}
+                className={`w-3.5 h-3.5 md:w-4 md:h-4 flex-shrink-0 ${isLocked ? "text-amber-400/90" : "text-white/50"}`}
                 aria-hidden
               />
             )}

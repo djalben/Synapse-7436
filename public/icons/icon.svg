@@ -1,5 +1,5 @@
 <svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="512" height="512" rx="108" fill="black"/>
+  <rect width="512" height="512" rx="108" fill="#000000"/>
   <defs>
     <linearGradient id="sparkleGradient" x1="128" y1="128" x2="384" y2="384" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#6366f1"/>
@@ -7,7 +7,7 @@
       <stop offset="100%" stop-color="#818cf8"/>
     </linearGradient>
   </defs>
-  <!-- Sparkle icon -->
+  <!-- Основная искра (как на экране приветствия) -->
   <path d="M256 96L288 176L368 208L288 240L256 320L224 240L144 208L224 176L256 96Z" fill="url(#sparkleGradient)"/>
   <path d="M352 256L368 296L408 312L368 328L352 368L336 328L296 312L336 296L352 256Z" fill="url(#sparkleGradient)" opacity="0.7"/>
   <path d="M176 320L188 352L220 364L188 376L176 408L164 376L132 364L164 352L176 320Z" fill="url(#sparkleGradient)" opacity="0.5"/>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { X, Download, Smartphone } from "lucide-react";
 
 interface BeforeInstallPromptEvent extends Event {
@@ -6,65 +6,68 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
+const PWA_DELAY_MS = 5 * 60 * 1000; // 5 минут
+const VISIT_KEY = "synapse-pwa-visits";
+
 export const PWAInstallBanner = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showBanner, setShowBanner] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
+  const mountedAt = useRef(Date.now());
 
   useEffect(() => {
-    // Check if running in standalone mode
     const standalone = window.matchMedia("(display-mode: standalone)").matches ||
-      (window.navigator as any).standalone === true;
+      (window.navigator as unknown as { standalone?: boolean }).standalone === true;
     setIsStandalone(standalone);
 
-    // Check if iOS
-    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as unknown as { MSStream?: boolean }).MSStream;
     setIsIOS(ios);
 
-    // Check if banner was dismissed recently
     const dismissedAt = localStorage.getItem("pwa-banner-dismissed");
     if (dismissedAt) {
       const dismissedTime = parseInt(dismissedAt, 10);
-      // Don't show for 7 days after dismissal
-      if (Date.now() - dismissedTime < 7 * 24 * 60 * 60 * 1000) {
-        return;
-      }
+      if (Date.now() - dismissedTime < 7 * 24 * 60 * 60 * 1000) return;
     }
 
-    // Check if on mobile
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-      navigator.userAgent
-    );
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (!isMobile || standalone) return;
 
-    // Listen for beforeinstallprompt event (Android/Chrome)
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-      if (isMobile && !standalone) {
-        setShowBanner(true);
-      }
     };
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
 
-    // For iOS, show banner immediately on mobile if not standalone
-    if (ios && isMobile && !standalone) {
-      setShowBanner(true);
-    }
+    const visits = parseInt(localStorage.getItem(VISIT_KEY) ?? "0", 10);
+    localStorage.setItem(VISIT_KEY, String(visits + 1));
+    const isSecondVisit = visits >= 1;
+
+    const tryShow = () => {
+      if (!localStorage.getItem("cookieConsent")) return;
+      const v = parseInt(localStorage.getItem(VISIT_KEY) ?? "0", 10);
+      const elapsed = Date.now() - mountedAt.current;
+      if (elapsed >= PWA_DELAY_MS || v >= 2) setShowBanner(true);
+    };
+
+    const t1 = isSecondVisit ? setTimeout(tryShow, 8000) : null;
+    const t2 = setTimeout(tryShow, PWA_DELAY_MS);
 
     return () => {
+      if (t1) clearTimeout(t1);
+      clearTimeout(t2);
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
     };
   }, []);
 
   const handleInstall = async () => {
-    if (deferredPrompt) {
+    if (!deferredPrompt) return;
+    try {
       await deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === "accepted") {
-        setShowBanner(false);
-      }
+      if (outcome === "accepted") setShowBanner(false);
+    } finally {
       setDeferredPrompt(null);
     }
   };
@@ -103,15 +106,15 @@ export const PWAInstallBanner = () => {
         {/* Text */}
         <div className="flex-1 min-w-0">
           <p className="text-white font-medium text-sm md:text-base">
-            Install Synapse for a better experience 📲
+            Установите Synapse для быстрого доступа
           </p>
           {isIOS ? (
             <p className="text-[#888] text-xs mt-0.5 truncate">
-              Tap the share button, then "Add to Home Screen"
+              Нажмите «Поделиться» → «На экран Домой»
             </p>
           ) : (
             <p className="text-[#888] text-xs mt-0.5 truncate">
-              Get faster access and offline support
+              Быстрый доступ и работа офлайн
             </p>
           )}
         </div>
@@ -120,6 +123,7 @@ export const PWAInstallBanner = () => {
         <div className="flex items-center gap-2 flex-shrink-0">
           {!isIOS && deferredPrompt && (
             <button
+              type="button"
               onClick={handleInstall}
               className="
                 px-4 py-2.5 rounded-xl
@@ -132,7 +136,7 @@ export const PWAInstallBanner = () => {
               "
             >
               <Download className="w-4 h-4" />
-              <span className="hidden sm:inline">Install</span>
+              <span>Установить</span>
             </button>
           )}
           

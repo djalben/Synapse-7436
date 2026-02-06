@@ -6,13 +6,12 @@ export const CookieConsentBanner = () => {
   const [isExiting, setIsExiting] = useState(false);
 
   useEffect(() => {
-    // Check if consent was already given
     const consent = localStorage.getItem("cookieConsent");
     if (!consent) {
-      // Small delay before showing for smoother UX
+      // Плашка куки — через 5 секунд после входа
       const timer = setTimeout(() => {
         setIsVisible(true);
-      }, 500);
+      }, 5000);
       return () => clearTimeout(timer);
     }
   }, []);
