@@ -20,6 +20,18 @@ const DeepSeekLogo = () => (
   </svg>
 );
 
+const MistralLogo = () => (
+  <svg viewBox="0 0 24 24" className="w-4 h-4 flex-shrink-0" fill="#ff6b35" aria-hidden>
+    <path d="M12 2L4 22h4l4-8 4 8h4L12 2z" />
+  </svg>
+);
+
+const XiaomiLogo = () => (
+  <svg viewBox="0 0 24 24" className="w-4 h-4 flex-shrink-0" fill="#ff6900" aria-hidden>
+    <path d="M12 2l2.5 7.5H22L15 13l2.5 7.5L12 16l-5.5 4.5L9 13 2 9.5h7.5L12 2z" />
+  </svg>
+);
+
 export type UserPlan = "free" | "lite" | "standard" | "ultra";
 
 export interface Model {
@@ -34,7 +46,7 @@ export interface Model {
   isPremium: boolean; // true = show lock, click opens paywall/pricing
 }
 
-/** Chat models: 2 free (DeepSeek R1, GPT-4o mini) + 3 premium (Lock). */
+/** Chat models: 4 free (DeepSeek R1, GPT-4o mini, MiMo, Devstral) + 3 premium (Lock). */
 export const models: Model[] = [
   {
     id: "deepseek-r1",
@@ -55,6 +67,28 @@ export const models: Model[] = [
     creditCost: 0.1,
     dotColor: "bg-emerald-500",
     providerLogo: <OpenAILogo />,
+    requiredPlan: "free",
+    isPremium: false,
+  },
+  {
+    id: "mimo-v2-flash",
+    backendId: "xiaomi/mimo-v2-flash",
+    name: "Xiaomi MiMo-V2-Flash",
+    subtitle: "Бесплатно",
+    creditCost: 0,
+    dotColor: "bg-orange-400",
+    providerLogo: <XiaomiLogo />,
+    requiredPlan: "free",
+    isPremium: false,
+  },
+  {
+    id: "devstral-2512",
+    backendId: "mistralai/devstral-2512:free",
+    name: "Devstral 2 2512",
+    subtitle: "Бесплатно",
+    creditCost: 0,
+    dotColor: "bg-amber-400",
+    providerLogo: <MistralLogo />,
     requiredPlan: "free",
     isPremium: false,
   },

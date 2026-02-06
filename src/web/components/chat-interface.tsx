@@ -26,10 +26,24 @@ const DeepSeekLogo = () => (
   </svg>
 )
 
+const MistralLogo = () => (
+  <svg viewBox="0 0 24 24" className="w-4 h-4 flex-shrink-0" fill="#ff6b35" aria-hidden>
+    <path d="M12 2L4 22h4l4-8 4 8h4L12 2z" />
+  </svg>
+)
+
+const XiaomiLogo = () => (
+  <svg viewBox="0 0 24 24" className="w-4 h-4 flex-shrink-0" fill="#ff6900" aria-hidden>
+    <path d="M12 2l2.5 7.5H22L15 13l2.5 7.5L12 16l-5.5 4.5L9 13 2 9.5h7.5L12 2z" />
+  </svg>
+)
+
 // Model logos mapped by ID (must match model-selector models)
 const MODEL_LOGOS: Record<string, React.ReactNode> = {
   "deepseek-r1": <DeepSeekLogo />,
   "gpt-4o-mini": <OpenAILogo />,
+  "mimo-v2-flash": <XiaomiLogo />,
+  "devstral-2512": <MistralLogo />,
   "gpt-4o": <OpenAILogo />,
   "claude-3.5-sonnet": <AnthropicLogo />,
   "gpt-5-o1": <OpenAILogo />,
@@ -39,6 +53,8 @@ const MODEL_LOGOS: Record<string, React.ReactNode> = {
 const MODEL_NAMES: Record<string, string> = {
   "deepseek-r1": "DeepSeek R1",
   "gpt-4o-mini": "GPT-4o mini",
+  "mimo-v2-flash": "Xiaomi MiMo-V2-Flash",
+  "devstral-2512": "Devstral 2 2512",
   "gpt-4o": "GPT-4o",
   "claude-3.5-sonnet": "Claude 3.5 Sonnet",
   "gpt-5-o1": "GPT-5 (o1)",

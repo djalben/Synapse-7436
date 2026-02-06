@@ -9,6 +9,8 @@ export const chatRoutes = new Hono()
 const MODEL_MAP: Record<string, string> = {
   "deepseek-r1": "deepseek/deepseek-r1",
   "gpt-4o-mini": "openai/gpt-4o-mini",
+  "mimo-v2-flash": "xiaomi/mimo-v2-flash",
+  "devstral-2512": "mistralai/devstral-2512:free",
   "gpt-4o": "openai/gpt-4o",
   "claude-3.5-sonnet": "anthropic/claude-3.5-sonnet",
   "gpt-5-o1": "openai/o1",
@@ -16,15 +18,16 @@ const MODEL_MAP: Record<string, string> = {
   "deepseek-v3": "deepseek/deepseek-chat",
 }
 
-// Credit costs per model
-// UPDATED: Balanced economy pricing
+// Credit costs per model (0 = free tier)
 const CREDIT_COSTS: Record<string, number> = {
-  "deepseek-r1": 0.1,     // Free lead magnet
-  "gpt-4o-mini": 0.1,     // Cheap fast option
-  "gpt-4o": 1,            // 1 credit (was 1)
-  "claude-3.5-sonnet": 1, // 1 credit (was 3)
-  "gpt-5-o1": 5,          // 5 credits (was 20)
-  "deepseek-v3": 0.5,     // Legacy
+  "deepseek-r1": 0.1,
+  "gpt-4o-mini": 0.1,
+  "mimo-v2-flash": 0,
+  "devstral-2512": 0,
+  "gpt-4o": 1,
+  "claude-3.5-sonnet": 1,
+  "gpt-5-o1": 5,
+  "deepseek-v3": 0.5,
 }
 
 chatRoutes.post("/", async (c) => {

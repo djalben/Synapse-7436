@@ -168,6 +168,8 @@ imageRoutes.post("/", async (c) => {
         // Extract image URL from the response
         // Format: data[0].url or data[0].b64_json
         if (data.data && data.data.length > 0) {
+          // Flux.1 [schnell] — основная бесплатная модель (0 кредитов)
+          const creditCost = 0
           for (const image of data.data) {
             const imageUrl = image.url || (image.b64_json ? `data:image/png;base64,${image.b64_json}` : null)
             if (imageUrl) {
@@ -179,7 +181,7 @@ imageRoutes.post("/", async (c) => {
                 style: specializedEngine === "niji-v6" ? "nana-banana" : style,
                 mode: mode || "text-to-image",
                 createdAt: new Date().toISOString(),
-                creditCost: 3, // Image generation costs 3 credits
+                creditCost,
               })
             }
           }

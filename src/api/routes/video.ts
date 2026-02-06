@@ -86,9 +86,9 @@ async function tryReplicateVideo(
       loop: false,
     }
     
-    // Add duration if model supports it
+    // Add duration if model supports it (2 = free preview, 5, 10)
     if (duration) {
-      input.duration = duration <= 5 ? 5 : 10
+      input.duration = duration === 2 ? 2 : duration <= 5 ? 5 : 10
     }
     
     // Add reference image for image-to-video
@@ -216,9 +216,10 @@ videoRoutes.post("/", async (c) => {
       return c.json({ error: "Please upload a reference image for Image-to-Video mode." }, 400)
     }
 
-    const validDurations = [5, 10]
+    const validDurations = [2, 5, 10]
     const finalDuration = validDurations.includes(duration) ? duration : 5
-    
+    const isFreePreview = finalDuration === 2
+
     const validAspectRatios = ["16:9", "9:16", "1:1"]
     const finalAspectRatio = validAspectRatios.includes(aspectRatio) ? aspectRatio : "16:9"
 
@@ -261,7 +262,7 @@ videoRoutes.post("/", async (c) => {
       mode: mode || "text-to-video",
       videoModel: videoModel || "standard",
       createdAt: new Date().toISOString(),
-      creditCost: 30, // Expensive GPU operation - 30 credits
+      creditCost: isFreePreview ? 0 : 30, // 2s preview free (Kling), full video 30 credits
     })
   } catch (error) {
     if (import.meta.env.DEV) {

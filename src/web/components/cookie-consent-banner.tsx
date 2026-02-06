@@ -1,14 +1,18 @@
 import { useState, useEffect } from "react";
 import { Cookie } from "lucide-react";
 
-export const CookieConsentBanner = () => {
+interface CookieConsentBannerProps {
+  onVisibleChange?: (visible: boolean) => void;
+}
+
+export const CookieConsentBanner = ({ onVisibleChange }: CookieConsentBannerProps) => {
   const [isVisible, setIsVisible] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
 
   useEffect(() => {
     const consent = localStorage.getItem("cookieConsent");
     if (!consent) {
-      // Плашка куки — через 5 секунд после входа
+      // Плашка куки — через 5 секунд после входа (не показывать вместе с Install Prompt)
       const timer = setTimeout(() => {
         setIsVisible(true);
       }, 5000);
@@ -16,9 +20,13 @@ export const CookieConsentBanner = () => {
     }
   }, []);
 
+  useEffect(() => {
+    onVisibleChange?.(isVisible && !isExiting);
+  }, [isVisible, isExiting, onVisibleChange]);
+
   const handleConsent = (choice: "accepted" | "declined") => {
     setIsExiting(true);
-    // Wait for animation to complete before hiding
+    onVisibleChange?.(false);
     setTimeout(() => {
       localStorage.setItem("cookieConsent", choice);
       setIsVisible(false);

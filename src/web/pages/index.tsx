@@ -20,6 +20,7 @@ import { UserAvatar } from "../components/user-avatar";
 function Index() {
   const [activeTab, setActiveTab] = useState("chat");
   const [videoLoaded, setVideoLoaded] = useState(false);
+  const [cookieBannerVisible, setCookieBannerVisible] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Render the content based on active tab
@@ -122,11 +123,11 @@ function Index() {
         {/* Paywall Modal */}
         <PaywallModal />
 
-        {/* PWA Install Banner */}
-        <PWAInstallBanner />
+        {/* PWA Install Banner — не показывать одновременно с Cookie Banner */}
+        <PWAInstallBanner suppressWhenCookieVisible={cookieBannerVisible} />
 
-        {/* Cookie Consent Banner */}
-        <CookieConsentBanner />
+        {/* Cookie Consent Banner — через 5 с после входа */}
+        <CookieConsentBanner onVisibleChange={setCookieBannerVisible} />
 
         {/* Auth Modal - Must be logged in to use the app */}
         <AuthModal />

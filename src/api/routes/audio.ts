@@ -185,8 +185,45 @@ audioRoutes.post("/tts", async (c) => {
     }
     
     const voicePreset = VOICE_PRESETS[voice] || VOICE_PRESETS["female-warm"]
+    const hfToken = env.HUGGINGFACE_API_KEY ?? env.HF_API_TOKEN
     const apiToken = env.REPLICATE_API_TOKEN
-    
+
+    // Бесплатная озвучка через Hugging Face TTS (если задан токен)
+    if (hfToken) {
+      try {
+        const hfRes = await fetch("https://api-inference.huggingface.co/models/facebook/mms-tts-eng", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${hfToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ inputs: text.trim().slice(0, 500), text_inputs: text.trim().slice(0, 500) }),
+        })
+        if (hfRes.ok && hfRes.body) {
+          const audioBytes = await hfRes.arrayBuffer()
+          const b64 = btoa(String.fromCharCode(...new Uint8Array(audioBytes)))
+          const mime = hfRes.headers.get("content-type") || "audio/wav"
+          const dataUrl = `data:${mime};base64,${b64}`
+          const wordCount = text.trim().split(/\s+/).length
+          const durationSeconds = Math.ceil((wordCount / 150) * 60)
+          const durationStr = `${Math.floor(durationSeconds / 60)}:${(durationSeconds % 60).toString().padStart(2, "0")}`
+          return c.json({
+            id: `tts-hf-${Date.now()}`,
+            url: dataUrl,
+            text: text.trim(),
+            voice,
+            voiceDescription: voicePreset.description,
+            duration: durationStr,
+            type: "voice",
+            createdAt: new Date().toISOString(),
+            creditCost: 0,
+          })
+        }
+      } catch (e) {
+        if (import.meta.env.DEV) console.warn("[Audio API] Hugging Face TTS failed:", e)
+      }
+    }
+
     // Try Replicate XTTS if available
     if (apiToken) {
       try {

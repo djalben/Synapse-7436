@@ -520,7 +520,7 @@ interface DurationToggleProps {
 const DurationToggle = ({ value, onChange, disabled }: DurationToggleProps) => {
   return (
     <div className="flex gap-2">
-      {[5, 10].map((duration) => (
+      {[2, 5, 10].map((duration) => (
         <button
           key={duration}
           onClick={() => onChange(duration)}
@@ -535,7 +535,7 @@ const DurationToggle = ({ value, onChange, disabled }: DurationToggleProps) => {
             }
           `}
         >
-          {duration}s
+          {duration === 2 ? "2s (превью)" : `${duration}s`}
         </button>
       ))}
     </div>

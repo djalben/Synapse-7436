@@ -9,7 +9,12 @@ interface BeforeInstallPromptEvent extends Event {
 const PWA_DELAY_MS = 5 * 60 * 1000; // 5 минут
 const VISIT_KEY = "synapse-pwa-visits";
 
-export const PWAInstallBanner = () => {
+interface PWAInstallBannerProps {
+  /** Не показывать баннер, пока виден Cookie Banner (запрет одновременного показа) */
+  suppressWhenCookieVisible?: boolean;
+}
+
+export const PWAInstallBanner = ({ suppressWhenCookieVisible = false }: PWAInstallBannerProps) => {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showBanner, setShowBanner] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
@@ -48,6 +53,7 @@ export const PWAInstallBanner = () => {
       if (!localStorage.getItem("cookieConsent")) return;
       const v = parseInt(localStorage.getItem(VISIT_KEY) ?? "0", 10);
       const elapsed = Date.now() - mountedAt.current;
+      // Строго через 5 минут или при втором визите
       if (elapsed >= PWA_DELAY_MS || v >= 2) setShowBanner(true);
     };
 
@@ -63,9 +69,10 @@ export const PWAInstallBanner = () => {
 
   const handleInstall = async () => {
     if (!deferredPrompt) return;
+    const prompt = deferredPrompt;
     try {
-      await deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
+      await prompt.prompt();
+      const { outcome } = await prompt.userChoice;
       if (outcome === "accepted") setShowBanner(false);
     } finally {
       setDeferredPrompt(null);
@@ -77,8 +84,8 @@ export const PWAInstallBanner = () => {
     localStorage.setItem("pwa-banner-dismissed", Date.now().toString());
   };
 
-  // Don't render if in standalone mode or banner is hidden
-  if (isStandalone || !showBanner) return null;
+  // Не показывать вместе с Cookie Banner; не показывать в standalone или если скрыт
+  if (isStandalone || !showBanner || suppressWhenCookieVisible) return null;
 
   return (
     <div 
