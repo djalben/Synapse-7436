@@ -62,7 +62,7 @@ const MobileCreditsIndicator = () => {
   };
 
   return (
-    <div className="px-4 py-4 rounded-xl bg-white/[0.02] border border-[#222] space-y-3">
+    <div className="px-4 py-4 rounded-xl bg-white/[0.03] space-y-3 shadow-sm">
       <div className="flex justify-between items-center">
         <div className="text-xs font-medium text-[#666] uppercase tracking-wider">
           Баланс
@@ -73,7 +73,7 @@ const MobileCreditsIndicator = () => {
       </div>
 
       {/* Credit Balance - Primary display */}
-      <div className="p-3 rounded-lg bg-gradient-to-r from-indigo-500/10 via-blue-500/5 to-indigo-500/10 border border-indigo-500/20">
+      <div className="p-3 rounded-lg bg-gradient-to-r from-indigo-500/10 via-blue-500/5 to-indigo-500/10 shadow-sm">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className={`p-1.5 rounded-lg ${getCreditBgClass()}`}>
@@ -131,10 +131,10 @@ export const MobileNav = ({ activeTab, onTabChange }: MobileNavProps) => {
             md:hidden fixed top-4 left-4 z-50
             w-11 h-11 rounded-xl
             bg-black/80 backdrop-blur-xl
-            border border-[#333]
+            shadow-lg
             flex items-center justify-center
             text-white
-            hover:bg-black/90 hover:border-[#444]
+            hover:bg-black/90
             transition-all duration-200
             active:scale-95
           "
@@ -150,11 +150,11 @@ export const MobileNav = ({ activeTab, onTabChange }: MobileNavProps) => {
         className="
           w-[280px] p-0
           bg-black/95 backdrop-blur-xl
-          border-r border-[#222]
+          shadow-[8px_0_32px_rgba(0,0,0,0.5)]
         "
       >
         {/* Logo Section */}
-        <div className="p-6 pb-6 border-b border-[#222]">
+        <div className="p-6 pb-6 bg-white/[0.02]">
           <div className="flex items-center gap-3">
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-blue-500 rounded-lg blur-md opacity-50" />
@@ -270,8 +270,8 @@ export const MobileTopBar = ({ activeTab, children }: MobileTopBarProps) => {
     <div className="
       md:hidden fixed top-0 left-0 right-0 z-40
       h-16
-      bg-black/80 backdrop-blur-xl
-      border-b border-[#222]
+      bg-black/70 backdrop-blur-xl
+      shadow-[0_4px_20px_rgba(0,0,0,0.25)]
       flex items-center justify-between
       px-4 pl-16
     ">

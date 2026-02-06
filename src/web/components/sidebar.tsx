@@ -63,7 +63,7 @@ const CreditsIndicator = () => {
   };
 
   return (
-    <div className="px-3 py-4 mx-3 rounded-xl bg-white/[0.02] border border-[#222] space-y-3">
+    <div className="px-3 py-4 mx-3 rounded-xl bg-white/[0.03] space-y-3 shadow-sm">
       <div className="flex justify-between items-center">
         <div className="text-xs font-medium text-[#666] uppercase tracking-wider">
           Баланс
@@ -74,7 +74,7 @@ const CreditsIndicator = () => {
       </div>
 
       {/* Credit Balance - Primary display */}
-      <div className="p-3 rounded-lg bg-gradient-to-r from-indigo-500/10 via-blue-500/5 to-indigo-500/10 border border-indigo-500/20">
+      <div className="p-3 rounded-lg bg-gradient-to-r from-indigo-500/10 via-blue-500/5 to-indigo-500/10 shadow-sm">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className={`p-1.5 rounded-lg ${getCreditBgClass()}`}>
@@ -114,7 +114,7 @@ export const Sidebar = ({ activeTab, onTabChange }: SidebarProps) => {
   };
 
   return (
-    <aside className="hidden md:flex fixed left-0 top-0 h-screen w-[240px] bg-black/90 backdrop-blur-xl border-r border-[#222] flex-col z-50">
+    <aside className="hidden md:flex fixed left-0 top-0 h-screen w-[240px] bg-black/85 backdrop-blur-xl flex-col z-50 shadow-[4px_0_24px_rgba(0,0,0,0.4)]">
       {/* Logo Section */}
       <div className="p-6 pb-8">
         <div className="flex items-center gap-3 group cursor-default">

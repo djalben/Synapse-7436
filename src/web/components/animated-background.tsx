@@ -95,10 +95,10 @@ export const AnimatedBackground = () => {
   }, []);
 
   return (
-    <div className="fixed inset-0 pointer-events-none overflow-hidden z-[2]">
-      {/* Grid Pattern - very subtle */}
+    <div className="fixed inset-0 pointer-events-none overflow-hidden z-[2] min-h-full min-w-full bg-cover">
+      {/* Сетка нейронных нитей — чуть заметнее */}
       <div 
-        className="absolute inset-0 opacity-[0.03]"
+        className="absolute inset-0 opacity-[0.045]"
         style={{
           backgroundImage: `
             linear-gradient(rgba(99, 102, 241, 0.5) 1px, transparent 1px),
@@ -108,46 +108,43 @@ export const AnimatedBackground = () => {
         }}
       />
 
-      {/* Dot Pattern Overlay */}
+      {/* Точечный паттерн */}
       <div 
-        className="absolute inset-0 opacity-[0.04]"
+        className="absolute inset-0 opacity-[0.055]"
         style={{
           backgroundImage: `radial-gradient(circle, rgba(147, 155, 255, 0.8) 1px, transparent 1px)`,
           backgroundSize: '24px 24px',
         }}
       />
 
-      {/* Animated Gradient Blobs */}
+      {/* Градиентные блики */}
       <div className="absolute inset-0">
-        {/* Blob 1 - Large indigo, top left */}
         <div 
           className="absolute w-[600px] h-[600px] rounded-full animate-blob-1"
           style={{
             top: '-10%',
             left: '-5%',
-            background: 'radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, rgba(99, 102, 241, 0.05) 40%, transparent 70%)',
+            background: 'radial-gradient(circle, rgba(99, 102, 241, 0.18) 0%, rgba(99, 102, 241, 0.06) 40%, transparent 70%)',
             filter: 'blur(60px)',
           }}
         />
 
-        {/* Blob 2 - Medium blue, bottom right */}
         <div 
           className="absolute w-[500px] h-[500px] rounded-full animate-blob-2"
           style={{
             bottom: '-15%',
             right: '-5%',
-            background: 'radial-gradient(circle, rgba(59, 130, 246, 0.12) 0%, rgba(59, 130, 246, 0.04) 40%, transparent 70%)',
+            background: 'radial-gradient(circle, rgba(59, 130, 246, 0.14) 0%, rgba(59, 130, 246, 0.05) 40%, transparent 70%)',
             filter: 'blur(50px)',
           }}
         />
 
-        {/* Blob 3 - Small purple, center-right */}
         <div 
           className="absolute w-[400px] h-[400px] rounded-full animate-blob-3"
           style={{
             top: '30%',
             right: '20%',
-            background: 'radial-gradient(circle, rgba(139, 92, 246, 0.1) 0%, rgba(139, 92, 246, 0.03) 40%, transparent 70%)',
+            background: 'radial-gradient(circle, rgba(139, 92, 246, 0.12) 0%, rgba(139, 92, 246, 0.04) 40%, transparent 70%)',
             filter: 'blur(40px)',
           }}
         />
@@ -178,25 +175,25 @@ export const AnimatedBackground = () => {
         className="absolute inset-0 w-full h-full"
       />
 
-      {/* Gradient Glow - breathing effect from center */}
+      {/* Центральное свечение */}
       <div 
         className="absolute inset-0 animate-glow-breathe"
         style={{
-          background: 'radial-gradient(ellipse 50% 50% at 50% 50%, rgba(99, 102, 241, 0.08) 0%, transparent 60%)',
+          background: 'radial-gradient(ellipse 50% 50% at 50% 50%, rgba(99, 102, 241, 0.10) 0%, transparent 60%)',
         }}
       />
 
-      {/* Corner glows */}
+      {/* Угловые блики */}
       <div 
         className="absolute top-0 left-0 w-[40%] h-[40%] animate-corner-glow-1"
         style={{
-          background: 'radial-gradient(ellipse at top left, rgba(99, 102, 241, 0.06) 0%, transparent 50%)',
+          background: 'radial-gradient(ellipse at top left, rgba(99, 102, 241, 0.08) 0%, transparent 50%)',
         }}
       />
       <div 
         className="absolute bottom-0 right-0 w-[40%] h-[40%] animate-corner-glow-2"
         style={{
-          background: 'radial-gradient(ellipse at bottom right, rgba(59, 130, 246, 0.05) 0%, transparent 50%)',
+          background: 'radial-gradient(ellipse at bottom right, rgba(59, 130, 246, 0.07) 0%, transparent 50%)',
         }}
       />
 

@@ -47,8 +47,8 @@ function Index() {
   return (
     <UsageProvider>
       <div className="min-h-screen bg-black text-white overflow-x-hidden">
-        {/* Atmospheric Video Background */}
-        <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        {/* Фон на весь экран: fixed + object-cover, узоры под всеми элементами */}
+        <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 min-h-full min-w-full">
           <video
             ref={videoRef}
             autoPlay
@@ -57,10 +57,10 @@ function Index() {
             playsInline
             onLoadedData={() => setVideoLoaded(true)}
             className={`
-              absolute inset-0 w-full h-full object-cover
+              absolute inset-0 w-full h-full object-cover min-h-full min-w-full
               blur-sm
               transition-opacity duration-1000 ease-out
-              ${videoLoaded ? "opacity-[0.12]" : "opacity-0"}
+              ${videoLoaded ? "opacity-[0.14]" : "opacity-0"}
             `}
             style={{
               filter: "blur(4px) saturate(1.2)",
@@ -74,7 +74,7 @@ function Index() {
           <div 
             className={`
               absolute inset-0 
-              bg-gradient-to-br from-indigo-950/30 via-transparent to-blue-950/20
+              bg-gradient-to-br from-indigo-950/40 via-transparent to-blue-950/30
               mix-blend-overlay
               transition-opacity duration-1000
               ${videoLoaded ? "opacity-100" : "opacity-0"}
@@ -82,10 +82,10 @@ function Index() {
           />
         </div>
 
-        {/* Subtle background pattern */}
-        <div className="fixed inset-0 pointer-events-none z-[1]">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(99,102,241,0.1),transparent)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(59,130,246,0.05),transparent)]" />
+        {/* Паттерн на весь экран */}
+        <div className="fixed inset-0 pointer-events-none z-[1] min-h-full min-w-full">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(99,102,241,0.14),transparent)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(59,130,246,0.08),transparent)]" />
         </div>
 
         {/* Animated Background Effects */}

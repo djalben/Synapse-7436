@@ -518,8 +518,9 @@ export const ChatInterface = () => {
       <header
         className={`
           flex-shrink-0
-          px-4 md:px-6 py-3 md:py-4 border-b border-[#222]
+          px-4 md:px-6 py-3 md:py-4
           flex items-center justify-between gap-4
+          bg-black/40 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.2)]
           transition-all duration-700 ease-out
           ${isLoaded ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"}
         `}
@@ -639,7 +640,7 @@ export const ChatInterface = () => {
         className={`
           flex-shrink-0 w-full
           px-4 md:px-6 py-4 md:py-6
-          bg-black border-t border-[#222]
+          bg-black/50 backdrop-blur-sm shadow-[0_-4px_20px_rgba(0,0,0,0.2)]
           transition-opacity duration-700 delay-300
           pb-[env(safe-area-inset-bottom,0px)]
           ${isLoaded ? "opacity-100" : "opacity-0"}
