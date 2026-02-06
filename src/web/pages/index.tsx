@@ -47,8 +47,8 @@ function Index() {
   return (
     <UsageProvider>
       <div className="min-h-screen bg-transparent text-white overflow-x-hidden">
-        {/* Глобальный фон: один слой под всем контентом (-z-10), сквозной для всего экрана */}
-        <div className="fixed top-0 left-0 w-full h-full -z-10 pointer-events-none overflow-hidden min-h-full min-w-full">
+        {/* Глобальный фон: на 100% экрана, под сайдбаром и всем контентом (-z-10) */}
+        <div className="fixed inset-0 w-full h-full min-w-full min-h-full -z-10 pointer-events-none overflow-hidden" style={{ width: "100vw", height: "100vh" }}>
           <video
             ref={videoRef}
             autoPlay

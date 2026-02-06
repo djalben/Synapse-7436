@@ -514,13 +514,13 @@ export const ChatInterface = () => {
       className="flex flex-col w-full overflow-hidden h-[100dvh] max-h-[100dvh] min-h-0 border-none"
       style={{ height: "100dvh", maxHeight: "100dvh" }}
     >
-      {/* Шапка: матовое стекло, фон сквозной, без границ */}
+      {/* Шапка: полностью прозрачная, только размытие — парит над фоном */}
       <header
         className={`
           flex-shrink-0 border-none
           px-4 md:px-6 py-3 md:py-4
           flex items-center justify-between gap-4
-          bg-black/10 backdrop-blur-xl
+          bg-transparent backdrop-blur-lg
           transition-all duration-700 ease-out
           ${isLoaded ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"}
         `}
@@ -635,12 +635,12 @@ export const ChatInterface = () => {
         )}
       </div>
 
-      {/* Поле ввода: матовое стекло, фон сквозной, без границ */}
+      {/* Поле ввода: полностью прозрачное, только размытие — парит над фоном */}
       <div
         className={`
           flex-shrink-0 w-full border-none
           px-4 md:px-6 py-4 md:py-6
-          bg-black/10 backdrop-blur-xl
+          bg-transparent backdrop-blur-lg
           transition-opacity duration-700 delay-300
           pb-[env(safe-area-inset-bottom,0px)]
           ${isLoaded ? "opacity-100" : "opacity-0"}

@@ -149,8 +149,7 @@ export const MobileNav = ({ activeTab, onTabChange }: MobileNavProps) => {
         showCloseButton={false}
         className="
           w-[280px] p-0 border-none
-          bg-black/10 backdrop-blur-xl
-          shadow-[8px_0_32px_rgba(0,0,0,0.3)]
+          bg-transparent backdrop-blur-xl
         "
       >
         {/* Logo Section */}
@@ -270,7 +269,7 @@ export const MobileTopBar = ({ activeTab, children }: MobileTopBarProps) => {
     <div className="
       md:hidden fixed top-0 left-0 right-0 z-40 border-none
       h-16
-      bg-black/10 backdrop-blur-xl
+      bg-transparent backdrop-blur-lg
       flex items-center justify-between
       px-4 pl-16
     ">
