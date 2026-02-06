@@ -26,10 +26,9 @@ const DeepSeekLogo = () => (
   </svg>
 )
 
-// Model logos mapped by ID
+// Model logos mapped by ID (must match model-selector models)
 const MODEL_LOGOS: Record<string, React.ReactNode> = {
   "deepseek-r1": <DeepSeekLogo />,
-  "gpt-4o-mini": <OpenAILogo />,
   "gpt-4o": <OpenAILogo />,
   "claude-3.5-sonnet": <AnthropicLogo />,
   "gpt-5-o1": <OpenAILogo />,
@@ -38,10 +37,9 @@ const MODEL_LOGOS: Record<string, React.ReactNode> = {
 // Model names mapped by ID
 const MODEL_NAMES: Record<string, string> = {
   "deepseek-r1": "DeepSeek R1",
-  "gpt-4o-mini": "GPT-4o Mini",
   "gpt-4o": "GPT-4o",
   "claude-3.5-sonnet": "Claude 3.5 Sonnet",
-  "gpt-5-o1": "GPT-5 / o1",
+  "gpt-5-o1": "GPT-5 (o1)",
 }
 
 // Typing indicator component
