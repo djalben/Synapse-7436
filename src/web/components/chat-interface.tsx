@@ -514,11 +514,11 @@ export const ChatInterface = () => {
       className="flex flex-col w-full overflow-hidden h-[100dvh] max-h-[100dvh] min-h-0 border-none"
       style={{ height: "100dvh", maxHeight: "100dvh" }}
     >
-      {/* Шапка: полностью прозрачная, только размытие — парит над фоном */}
+      {/* Шапка: те же боковые отступы px-4 md:px-8 для единой вертикали с контентом */}
       <header
         className={`
           flex-shrink-0 border-none
-          px-4 md:px-6 py-3 md:py-4
+          px-4 md:px-8 py-3 md:py-4
           flex items-center justify-between gap-4
           bg-transparent backdrop-blur-lg
           transition-all duration-700 ease-out
@@ -554,11 +554,11 @@ export const ChatInterface = () => {
         </div>
       </header>
 
-      {/* Область сообщений: единственная прокручиваемая часть, flex-1 + overflow-y-auto */}
+      {/* Область сообщений: те же боковые отступы, что и у поля ввода — для выравнивания по правой линии */}
       <div
         ref={messagesContainerRef}
         onScroll={handleMessagesScroll}
-        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-4 md:px-6 py-4 md:py-6"
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-4 md:px-8 py-4 md:py-6"
       >
         {!hasMessages ? (
           // Empty state
@@ -635,18 +635,18 @@ export const ChatInterface = () => {
         )}
       </div>
 
-      {/* Поле ввода: полностью прозрачное, только размытие — парит над фоном */}
+      {/* Поле ввода: те же px, что и у сообщений — правый край на одной вертикали с пузырями пользователя */}
       <div
         className={`
           flex-shrink-0 w-full border-none
-          px-4 md:px-6 py-4 md:py-6
+          px-4 md:px-8 py-4 md:py-6
           bg-transparent backdrop-blur-lg
           transition-opacity duration-700 delay-300
           pb-[env(safe-area-inset-bottom,0px)]
           ${isLoaded ? "opacity-100" : "opacity-0"}
         `}
       >
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           {/* Limit warning banner */}
           {(atLimit || notEnoughCredits) && (
             <button
