@@ -1,7 +1,8 @@
-import { Lock } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Lock, ChevronDown } from "lucide-react";
 import { useUsage } from "./usage-context";
 
-// Provider logos — оригинальные иконки с явными цветами (не currentColor), чтобы не сливаться с фоном
+// Provider logos
 const OpenAILogo = () => (
   <svg viewBox="0 0 24 24" className="w-4 h-4 flex-shrink-0" fill="#10a37f" aria-hidden>
     <path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.677l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.896zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08-4.778 2.758a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z" />
@@ -39,20 +40,26 @@ export interface Model {
   backendId: string;
   name: string;
   subtitle: string;
+  description: string;
+  intelligence: number;
+  speed: number;
   creditCost: number;
   dotColor: string;
   providerLogo: React.ReactNode;
   requiredPlan: UserPlan;
-  isPremium: boolean; // true = show lock, click opens paywall/pricing
+  isPremium: boolean;
 }
 
-/** Chat models: 4 free (DeepSeek R1, GPT-4o mini, MiMo, Devstral) + 3 premium (Lock). */
+/** Chat models with metadata for dropdown cards. */
 export const models: Model[] = [
   {
     id: "deepseek-r1",
     backendId: "deepseek/deepseek-r1",
     name: "DeepSeek R1",
     subtitle: "Бесплатно",
+    description: "Рассуждение и логика. Лучший для сложных вычислений.",
+    intelligence: 9,
+    speed: 6,
     creditCost: 0.1,
     dotColor: "bg-emerald-400",
     providerLogo: <DeepSeekLogo />,
@@ -64,6 +71,9 @@ export const models: Model[] = [
     backendId: "openai/gpt-4o-mini",
     name: "GPT-4o mini",
     subtitle: "Бесплатно",
+    description: "Быстрый и экономный. Подходит для простых чатов.",
+    intelligence: 6,
+    speed: 10,
     creditCost: 0.1,
     dotColor: "bg-emerald-500",
     providerLogo: <OpenAILogo />,
@@ -75,6 +85,9 @@ export const models: Model[] = [
     backendId: "xiaomi/mimo-v2-flash",
     name: "Xiaomi MiMo-V2-Flash",
     subtitle: "Бесплатно",
+    description: "Рассуждения и код. Открытая модель с большим контекстом.",
+    intelligence: 9,
+    speed: 7,
     creditCost: 0,
     dotColor: "bg-orange-400",
     providerLogo: <XiaomiLogo />,
@@ -86,6 +99,9 @@ export const models: Model[] = [
     backendId: "mistralai/devstral-2512:free",
     name: "Devstral 2 2512",
     subtitle: "Бесплатно",
+    description: "Агентное программирование и работа с кодом.",
+    intelligence: 9,
+    speed: 7,
     creditCost: 0,
     dotColor: "bg-amber-400",
     providerLogo: <MistralLogo />,
@@ -97,6 +113,9 @@ export const models: Model[] = [
     backendId: "openai/gpt-4o",
     name: "GPT-4o",
     subtitle: "Премиум",
+    description: "Универсальный флагман. Творчество и анализ.",
+    intelligence: 9,
+    speed: 8,
     creditCost: 1,
     dotColor: "bg-blue-500",
     providerLogo: <OpenAILogo />,
@@ -108,6 +127,9 @@ export const models: Model[] = [
     backendId: "anthropic/claude-3.5-sonnet",
     name: "Claude 3.5 Sonnet",
     subtitle: "Премиум",
+    description: "Мастер текстов и кодинга. Очень человечный.",
+    intelligence: 9,
+    speed: 8,
     creditCost: 1,
     dotColor: "bg-violet-500",
     providerLogo: <AnthropicLogo />,
@@ -119,6 +141,9 @@ export const models: Model[] = [
     backendId: "openai/o1",
     name: "GPT-5 (o1)",
     subtitle: "Премиум",
+    description: "Максимальный интеллект. Решает невозможные задачи.",
+    intelligence: 10,
+    speed: 4,
     creditCost: 5,
     dotColor: "bg-amber-500",
     providerLogo: <OpenAILogo />,
@@ -148,6 +173,20 @@ export const getBackendModelId = (modelId: string): string => {
   return model?.backendId ?? "deepseek/deepseek-r1";
 };
 
+// Mini progress bar (0–10)
+const ProgressBar = ({ value, label, accentClass }: { value: number; label: string; accentClass: string }) => (
+  <div className="flex items-center gap-2 min-w-0">
+    <span className="text-[10px] text-[#666] w-14 shrink-0">{label}</span>
+    <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
+      <div
+        className={`h-full rounded-full transition-all duration-300 ${accentClass}`}
+        style={{ width: `${(value / 10) * 100}%` }}
+      />
+    </div>
+    <span className="text-[10px] text-[#888] w-5 shrink-0">{value}/10</span>
+  </div>
+);
+
 interface ModelSelectorProps {
   selectedModel: string;
   onModelChange: (modelId: string) => void;
@@ -159,63 +198,145 @@ export const ModelSelector = ({
   onModelChange,
   userPlan = "free",
 }: ModelSelectorProps) => {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const { setShowPaywall, setPaywallReason } = useUsage();
 
-  const handleModelClick = (model: Model) => {
-    const isLocked = model.isPremium && !canAccessModel(userPlan, model.requiredPlan);
+  const selected = models.find((m) => m.id === selectedModel) ?? models[0];
 
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+
+  const handleSelect = (model: Model) => {
+    const isLocked = model.isPremium && !canAccessModel(userPlan, model.requiredPlan);
     if (isLocked) {
       setPaywallReason("messages");
       setShowPaywall(true);
       return;
     }
-
     onModelChange(model.id);
+    setOpen(false);
   };
 
-  return (
+  const panelContent = (
     <div
-      className="w-full flex items-center gap-2 py-0.5 overflow-x-auto overflow-y-hidden flex-nowrap md:flex-wrap md:justify-center md:overflow-visible"
-      data-tour="model-selector"
-      style={{ WebkitOverflowScrolling: "touch" }}
+      className="
+        backdrop-blur-xl bg-black/40
+        border border-white/10 rounded-xl md:rounded-2xl
+        shadow-2xl shadow-black/50
+        overflow-hidden
+      "
     >
-      {models.map((model) => {
-        const isActive = selectedModel === model.id;
-        const isLocked = model.isPremium && !canAccessModel(userPlan, model.requiredPlan);
+      <div className="max-h-[70vh] md:max-h-[60vh] overflow-y-auto overscroll-contain py-2 md:py-2">
+        {models.map((model) => {
+          const isSelected = model.id === selectedModel;
+          const isLocked = model.isPremium && !canAccessModel(userPlan, model.requiredPlan);
+          return (
+            <button
+              key={model.id}
+              type="button"
+              onClick={() => handleSelect(model)}
+              className={`
+                w-full text-left px-4 py-3 md:px-4 md:py-3 flex items-start gap-3
+                transition-colors duration-200
+                hover:bg-white/[0.06] active:bg-white/[0.08]
+                ${isSelected ? "bg-indigo-500/15 border-l-2 border-indigo-400 md:border-l-0 md:bg-indigo-500/15" : ""}
+              `}
+            >
+              <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-white/[0.06] border border-white/10 flex items-center justify-center [&_svg]:w-5 [&_svg]:h-5">
+                {model.providerLogo}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-medium text-white/95">{model.name}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-[#888]">{model.subtitle}</span>
+                  {model.isPremium && (
+                    <Lock className={`w-3.5 h-3.5 shrink-0 ${isLocked ? "text-amber-400" : "text-white/40"}`} />
+                  )}
+                </div>
+                <p className="text-xs text-[#888] mt-0.5 leading-snug">{model.description}</p>
+                <div className="flex flex-col gap-1 mt-2">
+                  <ProgressBar value={model.intelligence} label="Интеллект" accentClass="bg-indigo-500" />
+                  <ProgressBar value={model.speed} label="Скорость" accentClass="bg-emerald-500" />
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 
-        return (
-          <button
-            key={model.id}
-            type="button"
-            onClick={() => handleModelClick(model)}
-            className={`
-              group inline-flex items-center gap-1 md:gap-1.5 px-2 py-1.5 md:px-2.5 md:py-2 rounded-lg md:rounded-xl
-              border transition-all duration-300 ease-out flex-shrink-0
-              hover:scale-105 hover:shadow-[0_0_20px_rgba(99,102,241,0.15)]
-              active:scale-[0.98]
-              ${isActive
-                ? "bg-indigo-500/20 border-indigo-400/60 text-white shadow-[0_0_16px_rgba(99,102,241,0.25)]"
-                : "bg-white/[0.04] border-[#333] text-[#888] hover:bg-white/[0.08] hover:border-[#444] hover:text-white/90"
-              }
-              ${isLocked ? "cursor-pointer" : ""}
-            `}
+  return (
+    <div ref={containerRef} className="relative flex justify-center" data-tour="model-selector">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="
+          inline-flex items-center gap-2 md:gap-3
+          px-4 py-2.5 md:px-5 md:py-3
+          rounded-xl md:rounded-2xl
+          bg-black/40 backdrop-blur-xl border border-white/10
+          text-white/95 hover:bg-white/[0.08] hover:border-white/20
+          transition-all duration-200
+          shadow-lg shadow-black/20
+        "
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        aria-label="Выбрать модель"
+      >
+        <span className="flex items-center [&_svg]:block [&_svg]:w-4 [&_svg]:h-4 md:[&_svg]:w-5 md:[&_svg]:h-5" aria-hidden>
+          {selected.providerLogo}
+        </span>
+        <span className="text-sm md:text-base font-medium truncate max-w-[140px] md:max-w-[200px]">
+          {selected.name}
+        </span>
+        <ChevronDown
+          className={`w-4 h-4 md:w-5 md:h-5 flex-shrink-0 text-[#888] transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          aria-hidden
+        />
+      </button>
+
+      {/* Desktop: dropdown below */}
+      {open && (
+        <>
+          <div
+            className="
+              hidden md:block absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50
+              w-[min(100vw-2rem,400px)]
+            "
           >
-            <div className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full flex-shrink-0 ${model.dotColor}`} />
-            <span className="flex items-center [&_svg]:block [&_svg]:w-3.5 [&_svg]:h-3.5 md:[&_svg]:w-4 md:[&_svg]:h-4" aria-hidden>
-              {model.providerLogo}
-            </span>
-            <span className="text-xs md:text-sm font-medium whitespace-nowrap">
-              {model.name}
-            </span>
-            {model.isPremium && (
-              <Lock
-                className={`w-3.5 h-3.5 md:w-4 md:h-4 flex-shrink-0 ${isLocked ? "text-amber-400/90" : "text-white/50"}`}
-                aria-hidden
-              />
-            )}
-          </button>
-        );
-      })}
+            {panelContent}
+          </div>
+          {/* Mobile: bottom drawer */}
+          <div
+            className="
+              md:hidden fixed inset-x-0 bottom-0 z-50
+              animate-in slide-in-from-bottom duration-300 ease-out
+              p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]
+              max-h-[85vh] flex flex-col
+            "
+          >
+            <div className="flex-shrink-0 flex justify-center mb-2">
+              <div className="w-10 h-1 rounded-full bg-white/20" aria-hidden />
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto rounded-2xl">
+              {panelContent}
+            </div>
+          </div>
+          <div
+            className="md:hidden fixed inset-0 bg-black/50 z-40 animate-in fade-in duration-200"
+            aria-hidden
+            onClick={() => setOpen(false)}
+          />
+        </>
+      )}
     </div>
   );
 };
