@@ -510,8 +510,11 @@ export const ChatInterface = () => {
   const notEnoughCredits = creditBalance < currentCreditCost
 
   return (
-    <div className="flex-1 flex flex-col h-full min-h-0">
-      {/* Top Bar — фиксированная высота, не сжимается */}
+    <div
+      className="flex flex-col w-full overflow-hidden h-[100dvh] max-h-[100dvh] min-h-0"
+      style={{ height: "100dvh", maxHeight: "100dvh" }}
+    >
+      {/* Шапка: фиксирована, flex-shrink-0 — никогда не уходит за экран */}
       <header
         className={`
           flex-shrink-0
@@ -550,11 +553,11 @@ export const ChatInterface = () => {
         </div>
       </header>
 
-      {/* Контейнер сообщений: занимает всё свободное место, скролл только здесь — без тряски */}
+      {/* Область сообщений: единственная прокручиваемая часть, flex-1 + overflow-y-auto */}
       <div
         ref={messagesContainerRef}
         onScroll={handleMessagesScroll}
-        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 md:px-6 py-4 md:py-6"
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-4 md:px-6 py-4 md:py-6"
       >
         {!hasMessages ? (
           // Empty state
@@ -631,13 +634,14 @@ export const ChatInterface = () => {
         )}
       </div>
 
-      {/* Нижняя панель ввода: жёстко внизу, не двигается при появлении текста */}
+      {/* Поле ввода: flex-shrink-0, зафиксировано внизу; при клавиатуре на мобильных остаётся над ней (100dvh) */}
       <div
         className={`
           flex-shrink-0 w-full
           px-4 md:px-6 py-4 md:py-6
           bg-black border-t border-[#222]
           transition-opacity duration-700 delay-300
+          pb-[env(safe-area-inset-bottom,0px)]
           ${isLoaded ? "opacity-100" : "opacity-0"}
         `}
       >

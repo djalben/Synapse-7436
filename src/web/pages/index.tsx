@@ -114,7 +114,8 @@ function Index() {
           pt-16 md:pt-0
           pb-20 md:pb-0
         ">
-          <div className="flex-1">
+          {/* Чат ограничен 100dvh и не создаёт двойной скролл; остальные вкладки — flex-1 */}
+          <div className={activeTab === "chat" ? "h-[100dvh] max-h-[100dvh] min-h-0 overflow-hidden" : "flex-1"}>
             {renderContent()}
           </div>
           
