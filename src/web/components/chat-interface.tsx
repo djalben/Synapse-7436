@@ -488,12 +488,12 @@ export const ChatInterface = () => {
       <header
         className={`
           px-4 md:px-6 py-3 md:py-4 border-b border-[#222]
-          flex items-center justify-between
+          flex items-center justify-between gap-4
           transition-all duration-700 ease-out
           ${isLoaded ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"}
         `}
       >
-        <div className="flex items-center gap-3" data-tour="model-selector">
+        <div className="flex-1 flex justify-center min-w-0">
           <ModelSelector
             selectedModel={selectedModel}
             onModelChange={setSelectedModel}
@@ -501,7 +501,7 @@ export const ChatInterface = () => {
           />
         </div>
 
-        <div className="hidden md:flex items-center gap-3 mr-44">
+        <div className="hidden md:flex items-center gap-3 flex-shrink-0">
           {/* Help Button */}
           <button
             onClick={() => startTour("chat")}

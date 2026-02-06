@@ -140,7 +140,10 @@ export const ModelSelector = ({
   };
 
   return (
-    <div className="flex items-center gap-2 flex-wrap" data-tour="model-selector">
+    <div
+      className="w-full flex items-center justify-center gap-2 flex-wrap py-0.5"
+      data-tour="model-selector"
+    >
       {models.map((model) => {
         const isActive = selectedModel === model.id;
         const isLocked = model.isPremium && !canAccessModel(userPlan, model.requiredPlan);
