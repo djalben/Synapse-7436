@@ -628,12 +628,12 @@ export const ChatInterface = () => {
         )}
       </div>
 
-      {/* Поле ввода: максимум вниз на мобильных (микро-зазор), только md — стандартные отступы */}
+      {/* Поле ввода: максимально низко на мобильных (зазор 4px), дисклеймер прижат к полю */}
       <div
         className={`
           flex-shrink-0 w-full border-none
           px-4 md:px-8
-          pt-3 pb-[max(0px,calc(env(safe-area-inset-bottom)-10px))] md:py-6 md:pb-6
+          pt-3 pb-[calc(env(safe-area-inset-bottom)+4px)] md:py-6 md:pb-6
           bg-transparent backdrop-blur-lg
           transition-opacity duration-700 delay-300
           ${isLoaded ? "opacity-100" : "opacity-0"}
