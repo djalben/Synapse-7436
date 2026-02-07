@@ -555,7 +555,7 @@ export const ChatInterface = () => {
       <div
         ref={messagesContainerRef}
         onScroll={handleMessagesScroll}
-        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-4 md:px-8 pt-[calc(env(safe-area-inset-top)+4rem+12px+3rem+8px)] md:pt-24 py-4 md:py-6"
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-4 md:px-8 pt-[calc(env(safe-area-inset-top)+4rem+12px+3rem+8px)] md:pt-24 py-4 md:py-6 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-6"
       >
         {!hasMessages ? (
           // Empty state
@@ -632,13 +632,16 @@ export const ChatInterface = () => {
         )}
       </div>
 
-      {/* Поле ввода: технический предел внизу на мобильных — pb = safe-area, без лишней пустоты */}
+      {/* Поле ввода: закрепленная панель внизу (WhatsApp/Telegram), только safe-area снизу */}
       <div
         className={`
           flex-shrink-0 w-full border-none
           px-4 md:px-8
           pt-3 pb-[env(safe-area-inset-bottom)] md:py-6 md:pb-6
-          bg-transparent backdrop-blur-lg
+          bg-black/95 backdrop-blur-xl
+          border-t border-white/10
+          shadow-[0_-4px_24px_rgba(0,0,0,0.4)]
+          md:bg-transparent md:border-t-0 md:shadow-none md:backdrop-blur-lg
           transition-opacity duration-700 delay-300
           ${isLoaded ? "opacity-100" : "opacity-0"}
         `}
