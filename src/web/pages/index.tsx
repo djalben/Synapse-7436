@@ -50,6 +50,12 @@ function Index() {
       <div className="min-h-[100dvh] h-dvh w-full min-w-0 overflow-hidden overflow-x-hidden bg-transparent text-white flex flex-col">
         {/* Глобальный фон: на весь экран, без белых полос */}
         <div className="fixed inset-0 w-full min-w-full h-full min-h-[100dvh] -z-10 pointer-events-none overflow-hidden" style={{ width: "100vw", minHeight: "100dvh" }}>
+          {/* Мобильный верхний градиент: black 0% → transparent 15%, только до 768px */}
+          <div
+            className="md:hidden absolute inset-0 z-[1] pointer-events-none"
+            style={{ background: "linear-gradient(to bottom, black 0%, transparent 15%)" }}
+            aria-hidden
+          />
           <video
             ref={videoRef}
             autoPlay
