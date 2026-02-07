@@ -90,14 +90,14 @@ export const PWAInstallBanner = ({ suppressWhenCookieVisible = false }: PWAInsta
   return (
     <div 
       className="
-        fixed bottom-0 left-0 right-0 z-[90]
+        fixed left-0 right-0 z-[60]
+        bottom-[80px] md:bottom-0
         animate-in slide-in-from-bottom duration-500
-        safe-area-bottom
       "
     >
       <div 
         className="
-          mx-3 mb-3 md:mx-4 md:mb-4
+          mx-3 mb-2 md:mx-4 md:mb-4
           p-4 rounded-2xl
           bg-[#0a0a0a]/95 backdrop-blur-xl
           border border-[#333]

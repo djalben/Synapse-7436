@@ -632,10 +632,10 @@ export const ChatInterface = () => {
         )}
       </div>
 
-      {/* Поле ввода: закрепленная панель внизу (WhatsApp/Telegram), только safe-area снизу */}
+      {/* Поле ввода: на мобильных — position:fixed к низу экрана, не выталкивается баннерами/футером */}
       <div
         className={`
-          flex-shrink-0 w-full border-none
+          w-full border-none
           px-4 md:px-8
           pt-3 pb-[env(safe-area-inset-bottom)] md:py-6 md:pb-6
           bg-black/95 backdrop-blur-xl
@@ -643,6 +643,8 @@ export const ChatInterface = () => {
           shadow-[0_-4px_24px_rgba(0,0,0,0.4)]
           md:bg-transparent md:border-t-0 md:shadow-none md:backdrop-blur-lg
           transition-opacity duration-700 delay-300
+          fixed bottom-0 left-0 right-0 z-50
+          md:static md:z-auto
           ${isLoaded ? "opacity-100" : "opacity-0"}
         `}
       >

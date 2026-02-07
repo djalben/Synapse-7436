@@ -38,7 +38,8 @@ export const CookieConsentBanner = ({ onVisibleChange }: CookieConsentBannerProp
   return (
     <div
       className={`
-        fixed bottom-0 left-0 right-0 z-50
+        fixed left-0 right-0 z-[60]
+        bottom-[80px] md:bottom-0
         transition-all duration-300 ease-out
         ${isExiting 
           ? "opacity-0 translate-y-4" 
@@ -46,8 +47,8 @@ export const CookieConsentBanner = ({ onVisibleChange }: CookieConsentBannerProp
         }
       `}
     >
-      {/* Glassmorphism container */}
-      <div className="mx-4 mb-4 md:mx-6 md:mb-6">
+      {/* Glassmorphism container: на мобильных всплывает над полем ввода (не выталкивает его) */}
+      <div className="mx-4 mb-2 md:mx-6 md:mb-6">
         <div 
           className="
             max-w-4xl mx-auto
