@@ -47,7 +47,7 @@ function Index() {
 
   return (
     <UsageProvider>
-      <div className="min-h-screen bg-transparent text-white overflow-x-hidden">
+      <div className="h-dvh min-h-0 overflow-hidden overflow-x-hidden bg-transparent text-white flex flex-col">
         {/* Глобальный фон: на 100% экрана, под сайдбаром и всем контентом (-z-10) */}
         <div className="fixed inset-0 w-full h-full min-w-full min-h-full -z-10 pointer-events-none overflow-hidden" style={{ width: "100vw", height: "100vh" }}>
           <video
@@ -104,15 +104,14 @@ function Index() {
           <UserAvatar onSettingsClick={() => setActiveTab("settings")} />
         </div>
 
-        {/* Main Content */}
+        {/* Main Content: без глобального скролла, только скролл внутри областей контента */}
         <main className="
-          relative z-10 min-h-screen flex flex-col
+          relative z-10 flex-1 min-h-0 overflow-hidden flex flex-col
           md:ml-[240px]
           pt-16 md:pt-0
           pb-20 md:pb-0
         ">
-          {/* Чат ограничен 100dvh и не создаёт двойной скролл; остальные вкладки — flex-1 */}
-          <div className={activeTab === "chat" ? "h-[100dvh] max-h-[100dvh] min-h-0 overflow-hidden" : "flex-1"}>
+          <div className={activeTab === "chat" ? "flex-1 min-h-0 overflow-hidden" : "flex-1 min-h-0 overflow-y-auto"}>
             {renderContent()}
           </div>
           

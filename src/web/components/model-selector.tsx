@@ -235,7 +235,7 @@ export const ModelSelector = ({
         className={`
           w-full text-left px-4 py-3 md:px-4 md:py-3 flex items-start gap-3
           transition-colors duration-200
-          hover:bg-white/[0.06] active:bg-white/[0.08]
+          hover:bg-white/10 active:bg-white/[0.12]
           ${isSelected ? "bg-indigo-500/15 border-l-2 border-indigo-400 md:border-l-0 md:bg-indigo-500/15" : ""}
         `}
       >
@@ -263,13 +263,13 @@ export const ModelSelector = ({
   const panelContent = (
     <div
       className="
-        bg-[#0a0a0a]/95 backdrop-blur-xl
+        bg-black backdrop-blur-xl
         border border-white/10 rounded-xl md:rounded-2xl
         shadow-2xl shadow-black/50
         overflow-hidden
       "
     >
-      <div className="max-h-[400px] overflow-y-auto overscroll-contain py-2 md:py-2">
+      <div className="max-h-[350px] overflow-y-auto overscroll-contain py-2 md:py-2 scroll-smooth">
         {listItems}
       </div>
     </div>
@@ -310,7 +310,7 @@ export const ModelSelector = ({
           {/* Desktop: выпадает влево-вниз под кнопкой, поверх всего */}
           <div
             className="
-              hidden md:block absolute top-full left-0 mt-2 z-[200]
+              hidden md:block absolute top-full left-0 mt-2 z-[9999]
               w-[min(100vw-2rem,400px)]
             "
           >
@@ -318,7 +318,7 @@ export const ModelSelector = ({
           </div>
           {/* Mobile: только нижнее меню (Bottom Sheet), без плавающего списка */}
           <div
-            className="md:hidden fixed inset-0 z-[200] flex flex-col justify-end"
+            className="md:hidden fixed inset-0 z-[9999] flex flex-col justify-end"
             aria-modal
             role="dialog"
           >
@@ -329,7 +329,7 @@ export const ModelSelector = ({
             />
             <div
               className="
-                relative bg-[#0a0a0a] border-t border-white/10
+                relative bg-black border-t border-white/10
                 rounded-t-2xl
                 max-h-[85vh] flex flex-col
                 animate-in slide-in-from-bottom duration-300 ease-out
@@ -339,7 +339,7 @@ export const ModelSelector = ({
               <div className="flex-shrink-0 flex justify-center py-3">
                 <div className="w-10 h-1 rounded-full bg-white/20" aria-hidden />
               </div>
-              <div className="flex-1 min-h-0 overflow-y-auto max-h-[400px] overscroll-contain py-2 pb-4">
+              <div className="flex-1 min-h-0 overflow-y-auto max-h-[350px] overscroll-contain py-2 pb-4 scroll-smooth">
                 {listItems}
               </div>
             </div>

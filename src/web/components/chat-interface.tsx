@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
 import { ModelSelector, models, getModelCreditCost } from "./model-selector"
-import { Paperclip, Mic, ArrowUp, Sparkles, Zap, Lightbulb, Code, Bot, User, Copy, Check, Lock, Coins, HelpCircle } from "lucide-react"
+import { Paperclip, Mic, ArrowUp, Sparkles, Zap, Lightbulb, Code, Bot, User, Copy, Check, Lock, Coins } from "lucide-react"
 import { useUsage } from "./usage-context"
 import { useTour } from "./onboarding-tour"
 import { toast } from "sonner"
@@ -527,54 +527,28 @@ export const ChatInterface = () => {
 
   return (
     <div
-      className="flex flex-col w-full overflow-hidden h-[100dvh] max-h-[100dvh] min-h-0 border-none"
-      style={{ height: "100dvh", maxHeight: "100dvh" }}
+      className="flex flex-col w-full h-full min-h-0 overflow-hidden border-none"
     >
-      {/* Шапка: те же боковые отступы px-4 md:px-8 для единой вертикали с контентом */}
-      <header
+      {/* Парящая кнопка выбора модели: симметрично аватару справа */}
+      <div
         className={`
-          flex-shrink-0 border-none
-          px-4 md:px-8 py-3 md:py-4
-          flex items-center justify-between gap-4
-          bg-transparent backdrop-blur-lg
-          transition-all duration-700 ease-out
-          ${isLoaded ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"}
+          fixed z-[10000] top-16 left-4 md:top-4 md:left-[260px]
+          transition-opacity duration-700 ease-out
+          ${isLoaded ? "opacity-100" : "opacity-0"}
         `}
       >
-        <div className="flex items-center min-w-0">
-          <ModelSelector
-            selectedModel={selectedModel}
-            onModelChange={setSelectedModel}
-            userPlan={userPlan}
-          />
-        </div>
+        <ModelSelector
+          selectedModel={selectedModel}
+          onModelChange={setSelectedModel}
+          userPlan={userPlan}
+        />
+      </div>
 
-        <div className="hidden md:flex items-center gap-3 flex-shrink-0 flex-1 justify-end">
-          {/* Help Button */}
-          <button
-            onClick={() => startTour("chat")}
-            className="
-              p-2 rounded-lg
-              text-[#666] hover:text-white/80
-              hover:bg-white/[0.04]
-              transition-all duration-200
-              group relative
-            "
-            title="Запустить обучение"
-          >
-            <HelpCircle className="w-5 h-5" />
-            <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-xs text-[#888] opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-              Помощь
-            </span>
-          </button>
-        </div>
-      </header>
-
-      {/* Область сообщений: те же боковые отступы, что и у поля ввода — для выравнивания по правой линии */}
+      {/* Область сообщений: единственная область с вертикальным скроллом */}
       <div
         ref={messagesContainerRef}
         onScroll={handleMessagesScroll}
-        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-4 md:px-8 py-4 md:py-6"
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-4 md:px-8 pt-20 md:pt-24 py-4 md:py-6"
       >
         {!hasMessages ? (
           // Empty state
