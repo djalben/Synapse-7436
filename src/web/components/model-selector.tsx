@@ -282,6 +282,7 @@ export const ModelSelector = ({
         onClick={() => setOpen((o) => !o)}
         className="
           inline-flex items-center gap-2 md:gap-3
+          min-h-[48px] md:min-h-0
           px-4 py-2.5 md:px-5 md:py-3
           rounded-xl md:rounded-2xl
           bg-black/40 backdrop-blur-xl border border-white/10

@@ -104,11 +104,11 @@ function Index() {
           <UserAvatar onSettingsClick={() => setActiveTab("settings")} />
         </div>
 
-        {/* Main Content: без глобального скролла, только скролл внутри областей контента */}
+        {/* Main Content: на мобильных — отступ сверху с учётом safe-area (выход из-под строки состояния) */}
         <main className="
           relative z-10 flex-1 min-h-0 overflow-hidden flex flex-col
           md:ml-[240px]
-          pt-16 md:pt-0
+          pt-[max(4rem,calc(env(safe-area-inset-top)+3.5rem))] md:pt-0
           pb-20 md:pb-0
         ">
           <div className={activeTab === "chat" ? "flex-1 min-h-0 overflow-hidden" : "flex-1 min-h-0 overflow-y-auto"}>

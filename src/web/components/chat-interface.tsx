@@ -529,10 +529,13 @@ export const ChatInterface = () => {
     <div
       className="flex flex-col w-full h-full min-h-0 overflow-hidden border-none"
     >
-      {/* Парящая кнопка выбора модели: симметрично аватару справа */}
+      {/* Парящая кнопка выбора модели: на мобильных — один уровень с кнопкой меню, с safe-area */}
       <div
         className={`
-          fixed z-[10000] top-16 left-4 md:top-4 md:left-[260px]
+          fixed z-[10000]
+          top-[max(1.5rem,env(safe-area-inset-top,0px))]
+          left-20
+          md:top-4 md:left-[260px]
           transition-opacity duration-700 ease-out
           ${isLoaded ? "opacity-100" : "opacity-0"}
         `}
@@ -548,7 +551,7 @@ export const ChatInterface = () => {
       <div
         ref={messagesContainerRef}
         onScroll={handleMessagesScroll}
-        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-4 md:px-8 pt-28 md:pt-24 py-4 md:py-6"
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-4 md:px-8 pt-[max(7rem,calc(env(safe-area-inset-top,0px)+6.5rem))] md:pt-24 py-4 md:py-6"
       >
         {!hasMessages ? (
           // Empty state
@@ -625,14 +628,15 @@ export const ChatInterface = () => {
         )}
       </div>
 
-      {/* Поле ввода: те же px, что и у сообщений — правый край на одной вертикали с пузырями пользователя */}
+      {/* Поле ввода: ближе к нижнему краю на мобильных, с safe-area */}
       <div
         className={`
           flex-shrink-0 w-full border-none
-          px-4 md:px-8 py-4 md:py-6
+          px-4 md:px-8
+          py-3 md:py-6
+          pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] md:pb-6
           bg-transparent backdrop-blur-lg
           transition-opacity duration-700 delay-300
-          pb-[env(safe-area-inset-bottom,0px)]
           ${isLoaded ? "opacity-100" : "opacity-0"}
         `}
       >
@@ -672,7 +676,7 @@ export const ChatInterface = () => {
             onSubmit={handleSendMessage}
             disabled={isLoading || atLimit || notEnoughCredits}
           />
-          <p className="text-center text-[#444] text-xs mt-3 md:mt-4">
+          <p className="text-center text-[#444] text-xs mt-2 md:mt-4">
             {atLimit 
               ? `${messageCount}/${limits.maxMessages} бесплатных сообщений использовано`
               : notEnoughCredits

@@ -128,8 +128,10 @@ export const MobileNav = ({ activeTab, onTabChange }: MobileNavProps) => {
       <SheetTrigger asChild>
         <button
           className="
-            md:hidden fixed top-4 left-4 z-50
-            w-11 h-11 rounded-xl
+            md:hidden fixed z-50
+            top-[max(1.5rem,env(safe-area-inset-top,0px))]
+            left-[max(1rem,env(safe-area-inset-left,0px))]
+            min-w-[48px] min-h-[48px] w-12 h-12 rounded-xl
             bg-black/80 backdrop-blur-xl
             shadow-lg
             flex items-center justify-center
@@ -265,14 +267,19 @@ export const MobileTopBar = ({ activeTab, children }: MobileTopBarProps) => {
     setShowPaywall(true);
   };
 
+  const isChat = activeTab === "chat";
   return (
-    <div className="
-      md:hidden fixed top-0 left-0 right-0 z-40 border-none
-      h-16
-      bg-transparent backdrop-blur-lg
-      flex items-center justify-between
-      px-4 pl-16
-    ">
+    <div
+      className={`
+        md:hidden fixed top-0 left-0 right-0 z-40 border-none
+        min-h-16 h-16
+        pt-[env(safe-area-inset-top,0px)]
+        bg-transparent backdrop-blur-lg
+        flex items-center justify-between
+        px-4
+        ${isChat ? "pl-60" : "pl-16"}
+      `}
+    >
       <h1 className="font-mono text-lg font-semibold text-white truncate">
         {getTabTitle()}
       </h1>
