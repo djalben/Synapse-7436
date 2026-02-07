@@ -529,12 +529,12 @@ export const ChatInterface = () => {
     <div
       className="flex flex-col w-full h-full min-h-0 overflow-hidden border-none"
     >
-      {/* Парящая кнопка выбора модели: на мобильных — один уровень с кнопкой меню, с safe-area */}
+      {/* Кнопка выбора модели: на мобильных — ниже хедера на 10–15px, не перекрывая шапку */}
       <div
         className={`
           fixed z-[10000]
-          top-[max(1.5rem,env(safe-area-inset-top,0px))]
-          left-20
+          top-[calc(env(safe-area-inset-top,0px)+4rem+12px)]
+          left-4
           md:top-4 md:left-[260px]
           transition-opacity duration-700 ease-out
           ${isLoaded ? "opacity-100" : "opacity-0"}
@@ -551,7 +551,7 @@ export const ChatInterface = () => {
       <div
         ref={messagesContainerRef}
         onScroll={handleMessagesScroll}
-        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-4 md:px-8 pt-[max(7rem,calc(env(safe-area-inset-top,0px)+6.5rem))] md:pt-24 py-4 md:py-6"
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-4 md:px-8 pt-[calc(env(safe-area-inset-top)+4rem+12px+3rem+8px)] md:pt-24 py-4 md:py-6"
       >
         {!hasMessages ? (
           // Empty state
@@ -628,13 +628,13 @@ export const ChatInterface = () => {
         )}
       </div>
 
-      {/* Поле ввода: ближе к нижнему краю на мобильных, с safe-area */}
+      {/* Поле ввода: опущено к низу экрана, симметричные боковые отступы с областью сообщений */}
       <div
         className={`
           flex-shrink-0 w-full border-none
           px-4 md:px-8
           py-3 md:py-6
-          pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] md:pb-6
+          pb-[calc(env(safe-area-inset-bottom,0px)+12px)] md:pb-6
           bg-transparent backdrop-blur-lg
           transition-opacity duration-700 delay-300
           ${isLoaded ? "opacity-100" : "opacity-0"}
