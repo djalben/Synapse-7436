@@ -628,13 +628,12 @@ export const ChatInterface = () => {
         )}
       </div>
 
-      {/* Поле ввода: опущено к низу экрана, симметричные боковые отступы с областью сообщений */}
+      {/* Поле ввода: вплотную к низу на мобильных (только safe-area), те же px что и сообщения */}
       <div
         className={`
           flex-shrink-0 w-full border-none
           px-4 md:px-8
-          py-3 md:py-6
-          pb-[calc(env(safe-area-inset-bottom,0px)+12px)] md:pb-6
+          pt-3 pb-[env(safe-area-inset-bottom)] md:py-6 md:pb-6
           bg-transparent backdrop-blur-lg
           transition-opacity duration-700 delay-300
           ${isLoaded ? "opacity-100" : "opacity-0"}
@@ -676,7 +675,7 @@ export const ChatInterface = () => {
             onSubmit={handleSendMessage}
             disabled={isLoading || atLimit || notEnoughCredits}
           />
-          <p className="text-center text-[#444] text-xs mt-2 md:mt-4">
+          <p className="text-center text-[#444] text-xs mt-1.5 md:mt-4">
             {atLimit 
               ? `${messageCount}/${limits.maxMessages} бесплатных сообщений использовано`
               : notEnoughCredits
