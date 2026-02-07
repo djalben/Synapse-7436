@@ -339,7 +339,9 @@ const ChatInputComponent = ({ value, onChange, onSubmit, disabled }: ChatInputPr
           {/* Attachment Button */}
           <button
             className="
+              min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
               p-2.5 md:p-2 rounded-lg
+              flex items-center justify-center
               text-[#666] hover:text-white/80
               hover:bg-white/[0.04]
               transition-all duration-200
@@ -390,13 +392,15 @@ const ChatInputComponent = ({ value, onChange, onSubmit, disabled }: ChatInputPr
               <Mic className="w-5 h-5" />
             </button>
 
-            {/* Send Button */}
+            {/* Send Button: минимум 44px зона нажатия на мобильных */}
             <button
               onClick={handleSubmit}
               disabled={!value.trim() || disabled}
               data-tour="send-button"
               className={`
+                min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
                 p-3 md:p-2.5 rounded-xl
+                flex items-center justify-center
                 transition-all duration-300
                 active:scale-95
                 ${
@@ -628,12 +632,12 @@ export const ChatInterface = () => {
         )}
       </div>
 
-      {/* Поле ввода: максимально низко на мобильных (зазор 4px), дисклеймер прижат к полю */}
+      {/* Поле ввода: технический предел внизу на мобильных — pb = safe-area, без лишней пустоты */}
       <div
         className={`
           flex-shrink-0 w-full border-none
           px-4 md:px-8
-          pt-3 pb-[calc(env(safe-area-inset-bottom)+4px)] md:py-6 md:pb-6
+          pt-3 pb-[env(safe-area-inset-bottom)] md:py-6 md:pb-6
           bg-transparent backdrop-blur-lg
           transition-opacity duration-700 delay-300
           ${isLoaded ? "opacity-100" : "opacity-0"}
