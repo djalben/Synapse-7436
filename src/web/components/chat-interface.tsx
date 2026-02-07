@@ -548,7 +548,7 @@ export const ChatInterface = () => {
       <div
         ref={messagesContainerRef}
         onScroll={handleMessagesScroll}
-        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-4 md:px-8 pt-20 md:pt-24 py-4 md:py-6"
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-4 md:px-8 pt-28 md:pt-24 py-4 md:py-6"
       >
         {!hasMessages ? (
           // Empty state

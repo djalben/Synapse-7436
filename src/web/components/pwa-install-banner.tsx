@@ -6,7 +6,7 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
-const PWA_DELAY_MS = 5 * 60 * 1000; // 5 минут
+const PWA_DELAY_MS = 3 * 60 * 1000; // 3 минуты после согласия с cookie
 const VISIT_KEY = "synapse-pwa-visits";
 
 interface PWAInstallBannerProps {
@@ -53,7 +53,7 @@ export const PWAInstallBanner = ({ suppressWhenCookieVisible = false }: PWAInsta
       if (!localStorage.getItem("cookieConsent")) return;
       const v = parseInt(localStorage.getItem(VISIT_KEY) ?? "0", 10);
       const elapsed = Date.now() - mountedAt.current;
-      // Строго через 5 минут или при втором визите
+      // Через 3 минуты или при втором визите (после Cookie — без наложения)
       if (elapsed >= PWA_DELAY_MS || v >= 2) setShowBanner(true);
     };
 
@@ -113,7 +113,7 @@ export const PWAInstallBanner = ({ suppressWhenCookieVisible = false }: PWAInsta
         {/* Text */}
         <div className="flex-1 min-w-0">
           <p className="text-white font-medium text-sm md:text-base">
-            Установите Synapse для быстрого доступа
+            Установите Synapse на рабочий стол для быстрого доступа
           </p>
           {isIOS ? (
             <p className="text-[#888] text-xs mt-0.5 truncate">

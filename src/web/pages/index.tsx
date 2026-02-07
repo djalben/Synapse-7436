@@ -115,8 +115,10 @@ function Index() {
             {renderContent()}
           </div>
           
-          {/* Footer */}
-          <Footer />
+          {/* Footer: скрыт на мобильных (Full Screen App Mode) */}
+          <div className="hidden md:block">
+            <Footer />
+          </div>
         </main>
 
         {/* Paywall Modal */}

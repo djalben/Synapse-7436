@@ -331,7 +331,7 @@ export const ModelSelector = ({
               className="
                 relative bg-black border-t border-white/10
                 rounded-t-2xl
-                max-h-[85vh] flex flex-col
+                max-h-[50vh] flex flex-col
                 animate-in slide-in-from-bottom duration-300 ease-out
                 pb-[env(safe-area-inset-bottom)]
               "

@@ -67,10 +67,9 @@ export const CookieConsentBanner = ({ onVisibleChange }: CookieConsentBannerProp
                 </div>
               </div>
               <p className="text-sm md:text-[14px] text-[#aaa] leading-relaxed">
-                We use cookies to provide the best AI experience and analyze usage. 
-                By using Synapse, you agree to our{" "}
+                Мы используем файлы cookie для улучшения работы Synapse. Продолжая, вы соглашаетесь с нашей{" "}
                 <span className="text-white/90 hover:text-indigo-400 cursor-pointer transition-colors">
-                  privacy policy
+                  политикой конфиденциальности
                 </span>.
               </p>
             </div>
@@ -90,7 +89,7 @@ export const CookieConsentBanner = ({ onVisibleChange }: CookieConsentBannerProp
                   transition-all duration-200
                 "
               >
-                Decline
+                Отклонить
               </button>
               <button
                 onClick={() => handleConsent("accepted")}
@@ -108,7 +107,7 @@ export const CookieConsentBanner = ({ onVisibleChange }: CookieConsentBannerProp
                   hover:scale-[1.02]
                 "
               >
-                Accept
+                Принять
               </button>
             </div>
           </div>
