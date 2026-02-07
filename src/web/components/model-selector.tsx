@@ -224,57 +224,59 @@ export const ModelSelector = ({
     setOpen(false);
   };
 
+  const listItems = models.map((model) => {
+    const isSelected = model.id === selectedModel;
+    const isLocked = model.isPremium && !canAccessModel(userPlan, model.requiredPlan);
+    return (
+      <button
+        key={model.id}
+        type="button"
+        onClick={() => handleSelect(model)}
+        className={`
+          w-full text-left px-4 py-3 md:px-4 md:py-3 flex items-start gap-3
+          transition-colors duration-200
+          hover:bg-white/[0.06] active:bg-white/[0.08]
+          ${isSelected ? "bg-indigo-500/15 border-l-2 border-indigo-400 md:border-l-0 md:bg-indigo-500/15" : ""}
+        `}
+      >
+        <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-white/[0.06] border border-white/10 flex items-center justify-center [&_svg]:w-5 [&_svg]:h-5">
+          {model.providerLogo}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-medium text-white/95">{model.name}</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-[#888]">{model.subtitle}</span>
+            {model.isPremium && (
+              <Lock className={`w-3.5 h-3.5 shrink-0 ${isLocked ? "text-amber-400" : "text-white/40"}`} />
+            )}
+          </div>
+          <p className="text-xs text-[#888] mt-0.5 leading-snug">{model.description}</p>
+          <div className="flex flex-col gap-1 mt-2">
+            <ProgressBar value={model.intelligence} label="Интеллект" accentClass="bg-indigo-500" />
+            <ProgressBar value={model.speed} label="Скорость" accentClass="bg-emerald-500" />
+          </div>
+        </div>
+      </button>
+    );
+  });
+
   const panelContent = (
     <div
       className="
-        backdrop-blur-xl bg-black/40
+        bg-[#0a0a0a]/95 backdrop-blur-xl
         border border-white/10 rounded-xl md:rounded-2xl
         shadow-2xl shadow-black/50
         overflow-hidden
       "
     >
-      <div className="max-h-[70vh] md:max-h-[60vh] overflow-y-auto overscroll-contain py-2 md:py-2">
-        {models.map((model) => {
-          const isSelected = model.id === selectedModel;
-          const isLocked = model.isPremium && !canAccessModel(userPlan, model.requiredPlan);
-          return (
-            <button
-              key={model.id}
-              type="button"
-              onClick={() => handleSelect(model)}
-              className={`
-                w-full text-left px-4 py-3 md:px-4 md:py-3 flex items-start gap-3
-                transition-colors duration-200
-                hover:bg-white/[0.06] active:bg-white/[0.08]
-                ${isSelected ? "bg-indigo-500/15 border-l-2 border-indigo-400 md:border-l-0 md:bg-indigo-500/15" : ""}
-              `}
-            >
-              <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-white/[0.06] border border-white/10 flex items-center justify-center [&_svg]:w-5 [&_svg]:h-5">
-                {model.providerLogo}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-medium text-white/95">{model.name}</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-[#888]">{model.subtitle}</span>
-                  {model.isPremium && (
-                    <Lock className={`w-3.5 h-3.5 shrink-0 ${isLocked ? "text-amber-400" : "text-white/40"}`} />
-                  )}
-                </div>
-                <p className="text-xs text-[#888] mt-0.5 leading-snug">{model.description}</p>
-                <div className="flex flex-col gap-1 mt-2">
-                  <ProgressBar value={model.intelligence} label="Интеллект" accentClass="bg-indigo-500" />
-                  <ProgressBar value={model.speed} label="Скорость" accentClass="bg-emerald-500" />
-                </div>
-              </div>
-            </button>
-          );
-        })}
+      <div className="max-h-[400px] overflow-y-auto overscroll-contain py-2 md:py-2">
+        {listItems}
       </div>
     </div>
   );
 
   return (
-    <div ref={containerRef} className="relative flex justify-center" data-tour="model-selector">
+    <div ref={containerRef} className="relative flex justify-start" data-tour="model-selector">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -303,38 +305,45 @@ export const ModelSelector = ({
         />
       </button>
 
-      {/* Desktop: dropdown below */}
       {open && (
         <>
+          {/* Desktop: выпадает влево-вниз под кнопкой, поверх всего */}
           <div
             className="
-              hidden md:block absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50
+              hidden md:block absolute top-full left-0 mt-2 z-[200]
               w-[min(100vw-2rem,400px)]
             "
           >
             {panelContent}
           </div>
-          {/* Mobile: bottom drawer */}
+          {/* Mobile: только нижнее меню (Bottom Sheet), без плавающего списка */}
           <div
-            className="
-              md:hidden fixed inset-x-0 bottom-0 z-50
-              animate-in slide-in-from-bottom duration-300 ease-out
-              p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]
-              max-h-[85vh] flex flex-col
-            "
+            className="md:hidden fixed inset-0 z-[200] flex flex-col justify-end"
+            aria-modal
+            role="dialog"
           >
-            <div className="flex-shrink-0 flex justify-center mb-2">
-              <div className="w-10 h-1 rounded-full bg-white/20" aria-hidden />
-            </div>
-            <div className="flex-1 min-h-0 overflow-y-auto rounded-2xl">
-              {panelContent}
+            <div
+              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+              aria-hidden
+              onClick={() => setOpen(false)}
+            />
+            <div
+              className="
+                relative bg-[#0a0a0a] border-t border-white/10
+                rounded-t-2xl
+                max-h-[85vh] flex flex-col
+                animate-in slide-in-from-bottom duration-300 ease-out
+                pb-[env(safe-area-inset-bottom)]
+              "
+            >
+              <div className="flex-shrink-0 flex justify-center py-3">
+                <div className="w-10 h-1 rounded-full bg-white/20" aria-hidden />
+              </div>
+              <div className="flex-1 min-h-0 overflow-y-auto max-h-[400px] overscroll-contain py-2 pb-4">
+                {listItems}
+              </div>
             </div>
           </div>
-          <div
-            className="md:hidden fixed inset-0 bg-black/50 z-40 animate-in fade-in duration-200"
-            aria-hidden
-            onClick={() => setOpen(false)}
-          />
         </>
       )}
     </div>

@@ -541,7 +541,7 @@ export const ChatInterface = () => {
           ${isLoaded ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"}
         `}
       >
-        <div className="flex-1 flex justify-center min-w-0">
+        <div className="flex items-center min-w-0">
           <ModelSelector
             selectedModel={selectedModel}
             onModelChange={setSelectedModel}
@@ -549,7 +549,7 @@ export const ChatInterface = () => {
           />
         </div>
 
-        <div className="hidden md:flex items-center gap-3 flex-shrink-0">
+        <div className="hidden md:flex items-center gap-3 flex-shrink-0 flex-1 justify-end">
           {/* Help Button */}
           <button
             onClick={() => startTour("chat")}
