@@ -1672,7 +1672,7 @@ const GeneratePanel = ({
     <div className="flex flex-col md:flex-row h-full min-h-screen">
       {/* Left Panel - Controls: scrollable + sticky bottom bar on mobile */}
       <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222] flex flex-col overflow-hidden">
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 min-h-0">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 min-h-0 pb-44 md:pb-4">
           <div className="space-y-3 md:space-y-4 pb-4">
           {/* Header */}
           <div className="flex items-start justify-between">
@@ -1789,8 +1789,16 @@ const GeneratePanel = ({
           </div>
         </div>
 
-        {/* Sticky bottom bar: limit warning + generate button + credits (на мобильных прижато к низу, синее свечение кнопки) */}
-        <div className="flex-shrink-0 p-4 md:p-6 pt-0 sticky bottom-0 left-0 right-0 z-10 bg-[#0a0a0a]/95 backdrop-blur-xl border-t border-[#222] md:border-t-0 md:bg-transparent md:backdrop-blur-none pb-[env(safe-area-inset-bottom)] md:pb-0 space-y-3">
+        {/* Нижняя панель: на мобильных fixed внизу экрана (z-100), на десктопе в потоке */}
+        <div
+          className="
+            flex-shrink-0 p-4 md:p-6 pt-0 space-y-3
+            fixed bottom-0 left-0 right-0 z-[100]
+            bg-[#0a0a0a]/98 backdrop-blur-xl border-t border-[#222]
+            pb-[env(safe-area-inset-bottom)]
+            md:static md:z-auto md:bg-transparent md:backdrop-blur-none md:border-t-0 md:pb-0
+          "
+        >
           {/* Limit warning */}
           {effectiveAtLimit && (
             <button
@@ -1818,7 +1826,7 @@ const GeneratePanel = ({
             </button>
           )}
 
-          {/* Generate Button */}
+          {/* Generate Button — всегда видна, акцентный синий, широкая */}
           <button
             onClick={handleGenerate}
             disabled={!prompt.trim() || isGenerating || effectiveAtLimit || !isImg2ImgReady}
@@ -1833,7 +1841,7 @@ const GeneratePanel = ({
               ${prompt.trim() && !isGenerating && !effectiveAtLimit && isImg2ImgReady
                 ? isNanaBanana 
                   ? "bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-600 text-white shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40"
-                  : "bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 shadow-[0_0_24px_rgba(99,102,241,0.35)]"
+                  : "bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 shadow-[0_0_24px_rgba(99,102,241,0.4)]"
                 : "bg-[#222] text-[#555] cursor-not-allowed"
               }
             `}
