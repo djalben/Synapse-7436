@@ -1671,8 +1671,8 @@ const GeneratePanel = ({
   return (
     <div className="flex flex-col md:flex-row h-full min-h-screen">
       {/* Left Panel - Controls: scrollable + sticky bottom bar */}
-      <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222] flex flex-col overflow-hidden h-full md:h-auto">
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 min-h-0 pb-44 md:pb-24">
+      <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222] flex flex-col min-h-0">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 min-h-0 max-h-[calc(100vh-200px)] md:max-h-none pb-44 md:pb-24">
           <div className="space-y-3 md:space-y-4 pb-4">
           {/* Header */}
           <div className="flex items-start justify-between">
@@ -1786,10 +1786,47 @@ const GeneratePanel = ({
               <ImageCountSlider value={imageCount} onChange={setImageCount} />
             </div>
           </div>
+
+          {/* Кнопка "Сгенерировать" — сразу после Количество, sticky внизу списка, z-50 */}
+          <div className="sticky bottom-0 z-[50] mt-5 pt-2 pb-2 -mx-4 px-4 md:-mx-6 md:px-6 bg-[#0a0a0a]/95 backdrop-blur-md md:bg-transparent md:backdrop-blur-none">
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={!prompt.trim() || isGenerating || effectiveAtLimit || !isImg2ImgReady}
+              data-tour="generate-button"
+              className={`
+                w-full py-4 px-6 rounded-xl font-medium text-base
+                transition-all duration-300 relative overflow-hidden
+                active:scale-[0.98]
+                group
+                ${prompt.trim() && !isGenerating && !effectiveAtLimit && isImg2ImgReady
+                  ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_24px_rgba(0,112,243,0.4)]"
+                  : "bg-[#222] text-[#555] cursor-not-allowed"
+                }
+              `}
+            >
+              {prompt.trim() && !isGenerating && !effectiveAtLimit && isImg2ImgReady && (
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+              )}
+              <span className="relative flex items-center justify-center gap-2">
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Генерация...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-5 h-5" />
+                    <span>Сгенерировать</span>
+                  </>
+                )}
+              </span>
+            </button>
+          </div>
           </div>
         </div>
 
-        {/* Нижняя панель: на мобильных fixed внизу экрана (z-100), на десктопе sticky в левой колонке */}
+        {/* Нижняя панель: предупреждение о лимите и счётчик (на мобильных fixed) */}
         <div
           className="
             flex-shrink-0 p-4 md:p-6 pt-0 space-y-3
@@ -1824,62 +1861,6 @@ const GeneratePanel = ({
               </span>
             </button>
           )}
-
-          {/* Generate Button — всегда видна, акцентный синий с эффектом стекла и свечением */}
-          <button
-            onClick={handleGenerate}
-            disabled={!prompt.trim() || isGenerating || effectiveAtLimit || !isImg2ImgReady}
-            data-tour="generate-button"
-            className={`
-              w-full py-4 px-6 rounded-xl
-              font-medium text-base
-              transition-all duration-300
-              relative overflow-hidden
-              group
-              active:scale-[0.98]
-              backdrop-blur-md
-              ${prompt.trim() && !isGenerating && !effectiveAtLimit && isImg2ImgReady
-                ? isNanaBanana 
-                  ? "bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-600 text-white shadow-lg shadow-amber-500/30 hover:shadow-amber-500/50"
-                  : "bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 shadow-[0_0_32px_rgba(99,102,241,0.5)] hover:shadow-[0_0_40px_rgba(99,102,241,0.6)]"
-                : "bg-[#222]/80 text-[#555] cursor-not-allowed backdrop-blur-sm"
-              }
-            `}
-          >
-            {/* Shimmer effect */}
-            {prompt.trim() && !isGenerating && !effectiveAtLimit && isImg2ImgReady && (
-              <div className={`absolute inset-0 bg-gradient-to-r from-transparent ${isNanaBanana ? "via-amber-300/10" : "via-white/10"} to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000`} />
-            )}
-            
-            <div className="relative flex items-center justify-center gap-2">
-              {isGenerating ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>{isNanaBanana ? "Создаём с Nana Banana..." : "Генерация..."}</span>
-                </>
-              ) : effectiveAtLimit ? (
-                <>
-                  <Lock className="w-5 h-5 text-[#555]" />
-                  <span>Пополнить для генерации</span>
-                </>
-              ) : !isImg2ImgReady ? (
-                <>
-                  <Upload className="w-5 h-5 text-[#555]" />
-                  <span>Загрузите изображение</span>
-                </>
-              ) : isNanaBanana ? (
-                <>
-                  <Sparkles className={`w-5 h-5 ${prompt.trim() ? "text-amber-200" : "text-[#555]"}`} />
-                  <span>🍌 Создать с Nana Banana</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className={`w-5 h-5 ${prompt.trim() ? "text-white/90" : "text-[#555]"}`} />
-                  <span>{mode === "image-to-image" ? "Трансформировать" : "Сгенерировать"}</span>
-                </>
-              )}
-            </div>
-          </button>
 
           {/* Credits indicator */}
           <div 
