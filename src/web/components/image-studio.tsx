@@ -1795,7 +1795,7 @@ const GeneratePanel = ({
               disabled={!prompt.trim() || isGenerating || effectiveAtLimit || !isImg2ImgReady}
               data-tour="generate-button"
               className={`
-                w-full py-4 px-6 rounded-xl font-medium text-base
+                w-full py-4 px-6 rounded-xl font-medium text-base mb-3
                 transition-all duration-300 relative overflow-hidden
                 active:scale-[0.98]
                 group
@@ -1860,32 +1860,42 @@ const GeneratePanel = ({
             </button>
           )}
 
-          {/* Credits indicator */}
-          <div 
-            className={`
-              flex items-center justify-center gap-2 py-3 px-4 rounded-lg border
-              ${effectiveAtLimit 
-                ? "bg-red-500/5 border-red-500/20" 
-                : "bg-white/[0.02] border-[#222]"
-              }
-            `}
-          >
-            <div className={`w-2 h-2 rounded-full ${effectiveAtLimit ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
-            <span className="text-xs text-[#666]">
-              {isFreeEngine ? (
-                <>
-                  <span className={`font-medium ${effectiveAtLimit ? "text-red-400" : "text-white/80"}`}>
-                    {freeImageCountToday}/{MAX_FREE_IMAGE_PER_DAY}
-                  </span> бесплатных генераций в сутки
-                </>
-              ) : (
-                <>
-                  <span className={`font-medium ${effectiveAtLimit ? "text-red-400" : "text-white/80"}`}>
-                    {usedImages}/{limits.maxImages}
-                  </span> бесплатных генераций использовано
-                </>
-              )}
-            </span>
+          {/* Credits indicator — отдельный контейнер с отступом */}
+          <div className="mt-3">
+            <div 
+              className={`
+                flex items-center justify-center gap-2 py-2 px-3 rounded-lg
+                ${effectiveAtLimit 
+                  ? "bg-red-500/5 border border-red-500/20" 
+                  : "bg-white/[0.02] border border-[#222]"
+                }
+              `}
+            >
+              <div className={`w-2 h-2 rounded-full ${effectiveAtLimit ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
+              <span className={`text-xs ${effectiveAtLimit ? "text-red-400" : "text-gray-400"}`}>
+                {isFreeEngine ? (
+                  effectiveAtLimit ? (
+                    "Бесплатные генерации закончились"
+                  ) : (
+                    <>
+                      <span className="font-medium text-white/80">
+                        {freeImageCountToday}/{MAX_FREE_IMAGE_PER_DAY}
+                      </span> бесплатных генераций в сутки
+                    </>
+                  )
+                ) : (
+                  effectiveAtLimit ? (
+                    "Бесплатные генерации закончились"
+                  ) : (
+                    <>
+                      <span className="font-medium text-white/80">
+                        {usedImages}/{limits.maxImages}
+                      </span> бесплатных генераций использовано
+                    </>
+                  )
+                )}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -1929,6 +1939,34 @@ const GeneratePanel = ({
             </span>
           </button>
         )}
+
+        {/* Счетчик лимитов — над кнопкой на мобильных */}
+        <div className="mb-3 flex items-center justify-center gap-2">
+          <div className={`w-2 h-2 rounded-full ${effectiveAtLimit ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
+          <span className={`text-xs ${effectiveAtLimit ? "text-red-400" : "text-gray-400"}`}>
+            {isFreeEngine ? (
+              effectiveAtLimit ? (
+                "Бесплатные генерации закончились"
+              ) : (
+                <>
+                  <span className="font-medium text-white/80">
+                    {freeImageCountToday}/{MAX_FREE_IMAGE_PER_DAY}
+                  </span> бесплатных генераций в сутки
+                </>
+              )
+            ) : (
+              effectiveAtLimit ? (
+                "Бесплатные генерации закончились"
+              ) : (
+                <>
+                  <span className="font-medium text-white/80">
+                    {usedImages}/{limits.maxImages}
+                  </span> бесплатных генераций использовано
+                </>
+              )
+            )}
+          </span>
+        </div>
 
         {/* Кнопка "Сгенерировать" */}
         <button
