@@ -885,7 +885,7 @@ export const MotionLab = () => {
       {/* Left Panel - Controls: scrollable, на мобильных с отступом снизу для фиксированной кнопки */}
       <div className="w-full lg:w-[42%] border-b lg:border-b-0 lg:border-r border-[#222] flex flex-col min-h-0">
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 min-h-0 pb-36 md:pb-6">
-        <div className="space-y-6">
+          <div className="space-y-6">
           {/* Header */}
           <div className="flex items-start justify-between">
             <div className="text-center lg:text-left">
@@ -1085,6 +1085,7 @@ export const MotionLab = () => {
               </span>
             </div>
           </div>
+        </div>
         </div>
       </div>
 
