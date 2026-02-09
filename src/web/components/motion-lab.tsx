@@ -801,6 +801,7 @@ export const MotionLab = () => {
   const [currentVideo, setCurrentVideo] = useState<GeneratedVideo | null>(null);
   const [recentVideos, setRecentVideos] = useState<GeneratedVideo[]>([]);
   const [selectedVideoModel, setSelectedVideoModel] = useState<VideoModel>("kling");
+  const [prompt, setPrompt] = useState("");
   
   const { checkVideoLimit, incrementVideos, canGenerateVideo, videoCount: usedVideos, limits, userPlan, setShowPaywall, setPaywallReason } = useUsage();
   const atLimit = !canGenerateVideo;
@@ -808,10 +809,9 @@ export const MotionLab = () => {
   const selectedModelData = VIDEO_MODELS.find(m => m.id === selectedVideoModel) || VIDEO_MODELS[0];
   const canAccessSelectedModel = canAccessModel(userPlan, selectedModelData.requiredPlan);
 
-  // Check if ready to generate
-  const isReady = uploadedImage && selectedPreset;
+  // Ready: по тексту (промпт) или по картинке (фото + пресет)
+  const isReady = (prompt.trim().length > 0) || (uploadedImage && selectedPreset);
   
-  // Check if selected model is Kling AI (free)
   const isKlingModel = selectedVideoModel === "kling";
 
   const handleVeoUpgradeClick = () => {
@@ -820,49 +820,65 @@ export const MotionLab = () => {
   };
 
   const handleGenerate = async () => {
-    if (!uploadedImage || !selectedPreset || isGenerating) return;
+    const hasPrompt = prompt.trim().length > 0;
+    const hasImageAndPreset = uploadedImage && selectedPreset;
+    if ((!hasPrompt && !hasImageAndPreset) || isGenerating) return;
     
-    // Check if user can access selected model
     if (!canAccessSelectedModel) {
       setPaywallReason("videos");
       setShowPaywall(true);
       return;
     }
     
-    // Check usage limit
     if (!checkVideoLimit()) return;
 
     setIsGenerating(true);
     setError(null);
 
     try {
-      const response = await fetch("/api/video/animate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          image: uploadedImage,
-          preset: selectedPreset,
-          duration,
-        }),
-      });
+      const hasImageAndPreset = uploadedImage && selectedPreset;
+      const textPrompt = prompt.trim();
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to animate portrait");
+      let data: { id?: string; url: string; prompt?: string; duration?: number; aspectRatio?: string; thumbnailUrl?: string };
+      if (textPrompt && !hasImageAndPreset) {
+        // Text-to-video: только промпт
+        const res = await fetch("/api/video", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: textPrompt,
+            duration,
+            aspectRatio: "9:16",
+            mode: "text-to-video",
+          }),
+        });
+        data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to generate video");
+      } else {
+        // Image-to-video: /animate
+        const res = await fetch("/api/video/animate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            image: uploadedImage || null,
+            preset: selectedPreset || null,
+            duration,
+            prompt: textPrompt || null,
+          }),
+        });
+        data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to animate portrait");
       }
 
       const newVideo: GeneratedVideo = {
         id: data.id || `${Date.now()}`,
         url: data.url,
-        prompt: ANIMATION_PRESETS.find(p => p.id === selectedPreset)?.name || "",
-        duration,
-        aspectRatio: "1:1",
+        prompt: data.prompt ?? ANIMATION_PRESETS.find(p => p.id === selectedPreset)?.name ?? "",
+        duration: data.duration ?? duration,
+        aspectRatio: (data.aspectRatio as "1:1" | "9:16") ?? "1:1",
         thumbnailUrl: data.thumbnailUrl,
         createdAt: new Date().toISOString(),
-        preset: selectedPreset,
+        preset: selectedPreset ?? undefined,
       };
 
       setCurrentVideo(newVideo);
@@ -911,6 +927,34 @@ export const MotionLab = () => {
             onUpgradeClick={handleVeoUpgradeClick}
           />
 
+          {/* Prompt Area — как во вкладке Изображения (Text-to-Video) */}
+          <div className="space-y-1.5" data-tour="video-prompt">
+            <label className="text-xs font-medium text-[#888]">Промпт</label>
+            <div className="relative">
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value.slice(0, 500))}
+                placeholder="Опишите сцену или действие для видео... (опционально, можно только по картинке)"
+                rows={3}
+                disabled={isGenerating}
+                className="
+                  w-full p-4 rounded-xl
+                  bg-[#0a0a0a]/80 backdrop-blur-xl
+                  border border-[#333] focus:border-indigo-500/50
+                  text-white placeholder-[#555]
+                  text-base leading-relaxed
+                  resize-none outline-none
+                  transition-all duration-300
+                  disabled:opacity-50
+                "
+                style={{ fontSize: '16px' }}
+              />
+              <div className="absolute bottom-3 right-3 text-xs text-[#555]">
+                {prompt.length}/500
+              </div>
+            </div>
+          </div>
+
           {/* Error message */}
           {error && (
             <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30">
@@ -926,61 +970,6 @@ export const MotionLab = () => {
                 onImageUpload={setUploadedImage}
                 disabled={isGenerating}
               />
-              
-              {/* Кнопка "Сгенерировать" — на веб сразу под загрузкой */}
-              <div className="hidden md:block">
-                {isKlingModel ? (
-                  <button
-                    onClick={handleGenerate}
-                    disabled={!isReady || isGenerating}
-                    className="
-                      w-full py-4 px-6 rounded-xl font-medium text-base
-                      transition-all duration-300 relative overflow-hidden
-                      active:scale-[0.98] group
-                      bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600
-                      text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40
-                      disabled:bg-[#222] disabled:text-[#555] disabled:cursor-not-allowed
-                    "
-                  >
-                    {isReady && !isGenerating && (
-                      <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
-                    )}
-                    <span className="relative flex items-center justify-center gap-2">
-                      {isGenerating ? (
-                        <>
-                          <Loader2 className="w-5 h-5 animate-spin" />
-                          <span>Создаём магию...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-5 h-5" />
-                          <span>Сгенерировать (Free)</span>
-                        </>
-                      )}
-                    </span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => {
-                      setPaywallReason("videos");
-                      setShowPaywall(true);
-                    }}
-                    className="
-                      w-full py-4 px-6 rounded-xl font-medium text-base
-                      transition-all duration-300 relative overflow-hidden
-                      active:scale-[0.98] group
-                      bg-gradient-to-r from-amber-500/20 to-orange-500/20
-                      border border-amber-500/40 text-amber-300
-                      hover:border-amber-500/60 hover:bg-amber-500/30
-                    "
-                  >
-                    <span className="relative flex items-center justify-center gap-2">
-                      <Crown className="w-5 h-5" />
-                      <span>Улучшить тариф</span>
-                    </span>
-                  </button>
-                )}
-              </div>
             </>
           ) : (
             /* Step 2: Photo uploaded - show preview + presets */
@@ -1023,67 +1012,63 @@ export const MotionLab = () => {
             </>
           )}
 
-          {/* Generate Button — на десктопе, когда фото загружено */}
-          {uploadedImage && (
-            <div className="hidden md:block">
-              {isKlingModel ? (
-                <button
-                  onClick={handleGenerate}
-                  disabled={!isReady || isGenerating}
-                  className="
-                    w-full py-4 px-6 rounded-xl font-medium text-base
-                    transition-all duration-300 relative overflow-hidden
-                    active:scale-[0.98] group
-                    bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600
-                    text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40
-                    disabled:bg-[#222] disabled:text-[#555] disabled:cursor-not-allowed
-                  "
-                >
-                  {isReady && !isGenerating && (
-                    <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
+          {/* Кнопка "Сгенерировать" — на десктопе sticky внизу левой панели (как в Изображениях) */}
+          <div className="hidden md:block sticky bottom-0 z-[50] mt-5 pt-2 pb-2 -mx-6 px-6 bg-black">
+            {isKlingModel ? (
+              <button
+                type="button"
+                onClick={handleGenerate}
+                disabled={!isReady || isGenerating}
+                className={`
+                  w-full py-4 px-6 rounded-xl font-medium text-base mb-3
+                  transition-all duration-300 relative overflow-hidden
+                  active:scale-[0.98] group
+                  ${isReady && !isGenerating
+                    ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_24px_rgba(0,112,243,0.4)]"
+                    : "bg-[#222] text-[#555] cursor-not-allowed"
+                  }
+                `}
+              >
+                {isReady && !isGenerating && (
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                )}
+                <span className="relative flex items-center justify-center gap-2">
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Создаём магию...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5" />
+                      <span>{uploadedImage && selectedPreset ? "✨ Сгенерировать (Free)" : "Сгенерировать (Free)"}</span>
+                    </>
                   )}
-                  <span className="relative flex items-center justify-center gap-2">
-                    {isGenerating ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        <span>Создаём магию...</span>
-                      </>
-                    ) : !selectedPreset ? (
-                      <>
-                        <Sparkles className="w-5 h-5" />
-                        <span>Выберите анимацию</span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-5 h-5" />
-                        <span>✨ Сгенерировать (Free)</span>
-                      </>
-                    )}
-                  </span>
-                </button>
-              ) : (
-                <button
-                  onClick={() => {
-                    setPaywallReason("videos");
-                    setShowPaywall(true);
-                  }}
-                  className="
-                    w-full py-4 px-6 rounded-xl font-medium text-base
-                    transition-all duration-300 relative overflow-hidden
-                    active:scale-[0.98] group
-                    bg-gradient-to-r from-amber-500/20 to-orange-500/20
-                    border border-amber-500/40 text-amber-300
-                    hover:border-amber-500/60 hover:bg-amber-500/30
-                  "
-                >
-                  <span className="relative flex items-center justify-center gap-2">
-                    <Crown className="w-5 h-5" />
-                    <span>Улучшить тариф</span>
-                  </span>
-                </button>
-              )}
-            </div>
-          )}
+                </span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setPaywallReason("videos");
+                  setShowPaywall(true);
+                }}
+                className="
+                  w-full py-4 px-6 rounded-xl font-medium text-base mb-3
+                  transition-all duration-300 relative overflow-hidden
+                  active:scale-[0.98] group
+                  bg-gradient-to-r from-amber-500/20 to-orange-500/20
+                  border border-amber-500/40 text-amber-300
+                  hover:border-amber-500/60 hover:bg-amber-500/30
+                "
+              >
+                <span className="relative flex items-center justify-center gap-2">
+                  <Crown className="w-5 h-5" />
+                  <span>Улучшить тариф</span>
+                </span>
+              </button>
+            )}
+          </div>
 
           {/* Tip — компактный блок внизу */}
           {!uploadedImage && (
@@ -1132,7 +1117,7 @@ export const MotionLab = () => {
               transition-all duration-300 relative overflow-hidden
               active:scale-[0.98] group
               ${isReady && !isGenerating
-                ? "bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40"
+                ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_24px_rgba(0,112,243,0.4)]"
                 : "bg-[#222] text-[#555] cursor-not-allowed"
               }
             `}

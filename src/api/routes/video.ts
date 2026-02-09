@@ -150,7 +150,7 @@ videoRoutes.post("/animate", async (c) => {
       console.log("[Video API] Portrait animation request received")
     }
 
-    const { image, preset, duration } = await c.req.json()
+    const { image, preset, duration, prompt: userPrompt } = await c.req.json()
 
     // Validate required fields
     if (!image || typeof image !== "string") {
@@ -164,9 +164,11 @@ videoRoutes.post("/animate", async (c) => {
     const validDurations = [5, 10]
     const finalDuration = validDurations.includes(duration) ? duration : 5
 
-    // Get the prompt for this preset
     const animationPrompt = PRESET_PROMPTS[preset]
-    const fullPrompt = `Animate this portrait: ${animationPrompt}`
+    const fullPrompt =
+      typeof userPrompt === "string" && userPrompt.trim()
+        ? userPrompt.trim()
+        : `Animate this portrait: ${animationPrompt}`
 
     // Try Replicate for video generation
     let videoUrl = await tryReplicateVideo(fullPrompt, finalDuration, "9:16", image)
