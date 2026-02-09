@@ -21,9 +21,10 @@ import {
   Crown,
 } from "lucide-react";
 import { useUsage } from "./usage-context";
+import { type UserPlan, canAccessModel } from "./model-selector";
 
 // Video model type
-type VideoModel = "standard" | "veo";
+type VideoModel = "kling" | "standard" | "veo";
 
 // Animation preset type
 type AnimationPreset = "smile-blink" | "wave-hello" | "look-around" | "old-film";
@@ -89,25 +90,37 @@ const ANIMATION_PRESETS: {
 ];
 
 // Video model data
-const VIDEO_MODELS: {
+interface VideoModelData {
   id: VideoModel;
   name: string;
   subtitle: string;
-  isPremium: boolean;
+  description: string;
+  requiredPlan: UserPlan;
   badge?: string;
-}[] = [
+}
+
+const VIDEO_MODELS: VideoModelData[] = [
+  {
+    id: "kling",
+    name: "Kling AI",
+    subtitle: "Быстрое превью",
+    description: "Быстрое превью (2 сек). Идеально для пробы",
+    requiredPlan: "free",
+  },
   {
     id: "standard",
-    name: "Стандартное видео",
-    subtitle: "Runway / Luma",
-    isPremium: false,
+    name: "Luma / Runway",
+    subtitle: "Стандартное видео",
+    description: "Стандартное видео (5 сек). Высокое качество",
+    requiredPlan: "standard",
   },
   {
     id: "veo",
     name: "Google Veo",
-    subtitle: "Фотореалистичный Pro",
-    isPremium: true,
-    badge: "Ultra тариф",
+    subtitle: "Фотореализм Pro",
+    description: "Фотореализм Pro (10 сек). Кинематографический уровень",
+    requiredPlan: "ultra",
+    badge: "ULTRA",
   },
 ];
 
@@ -115,21 +128,22 @@ const VIDEO_MODELS: {
 interface VideoModelSelectorProps {
   selected: VideoModel;
   onChange: (model: VideoModel) => void;
+  userPlan: UserPlan;
   disabled?: boolean;
   onUpgradeClick?: () => void;
 }
 
-const VideoModelSelector = ({ selected, onChange, disabled, onUpgradeClick }: VideoModelSelectorProps) => {
+const VideoModelSelector = ({ selected, onChange, userPlan, disabled, onUpgradeClick }: VideoModelSelectorProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const selectedModel = VIDEO_MODELS.find(m => m.id === selected) || VIDEO_MODELS[0];
 
-  const handleSelect = (model: typeof VIDEO_MODELS[0]) => {
-    if (model.isPremium) {
-      // For premium models, show upgrade prompt
+  const handleSelect = (model: VideoModelData) => {
+    if (!canAccessModel(userPlan, model.requiredPlan)) {
       onUpgradeClick?.();
-    } else {
-      onChange(model.id);
+      setIsOpen(false);
+      return;
     }
+    onChange(model.id);
     setIsOpen(false);
   };
 
@@ -161,25 +175,30 @@ const VideoModelSelector = ({ selected, onChange, disabled, onUpgradeClick }: Vi
             {/* Model icon */}
             <div className={`
               w-10 h-10 rounded-lg flex items-center justify-center
-              ${selectedModel.isPremium 
+              ${selectedModel.requiredPlan === "ultra"
                 ? "bg-gradient-to-br from-amber-500/30 to-yellow-500/20" 
-                : "bg-white/[0.05]"
+                : selectedModel.requiredPlan === "standard"
+                  ? "bg-gradient-to-br from-indigo-500/20 to-blue-500/10"
+                  : "bg-white/[0.05]"
               }
             `}>
-              {selectedModel.isPremium ? (
-                <Star className="w-5 h-5 text-amber-400" fill="currentColor" />
+              {selectedModel.requiredPlan === "ultra" ? (
+                <Crown className="w-5 h-5 text-amber-400" fill="currentColor" />
               ) : (
                 <Film className="w-5 h-5 text-[#666]" />
               )}
             </div>
             
-            <div>
+            <div className="flex-1">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-white">{selectedModel.name}</span>
                 {selectedModel.badge && (
                   <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-amber-500/20 text-amber-300 border border-amber-500/30">
                     {selectedModel.badge}
                   </span>
+                )}
+                {selectedModel.requiredPlan === "free" && (
+                  <span className="text-[10px] text-emerald-400 font-medium">Free</span>
                 )}
               </div>
               <span className="text-xs text-[#666]">{selectedModel.subtitle}</span>
@@ -209,57 +228,73 @@ const VideoModelSelector = ({ selected, onChange, disabled, onUpgradeClick }: Vi
             ">
               {VIDEO_MODELS.map((model) => {
                 const isSelected = model.id === selected;
+                const isLocked = !canAccessModel(userPlan, model.requiredPlan);
                 
                 return (
                   <button
                     key={model.id}
                     onClick={() => handleSelect(model)}
                     className={`
-                      w-full p-4 flex items-center gap-3
+                      w-full p-4 flex items-start gap-3
                       transition-all duration-200
                       ${isSelected 
                         ? "bg-indigo-500/10" 
                         : "hover:bg-white/[0.03]"
                       }
-                      ${model.isPremium ? "cursor-pointer" : ""}
                     `}
                   >
                     {/* Model icon */}
                     <div className={`
-                      w-10 h-10 rounded-lg flex items-center justify-center
-                      ${model.isPremium 
+                      w-10 h-10 rounded-lg flex items-center justify-center shrink-0
+                      ${model.requiredPlan === "ultra"
                         ? "bg-gradient-to-br from-amber-500/30 to-yellow-500/20" 
-                        : "bg-white/[0.05]"
+                        : model.requiredPlan === "standard"
+                          ? "bg-gradient-to-br from-indigo-500/20 to-blue-500/10"
+                          : "bg-white/[0.05]"
                       }
                     `}>
-                      {model.isPremium ? (
-                        <Star className="w-5 h-5 text-amber-400" fill="currentColor" />
+                      {model.requiredPlan === "ultra" ? (
+                        <Crown className="w-5 h-5 text-amber-400" fill="currentColor" />
                       ) : (
                         <Film className="w-5 h-5 text-[#666]" />
                       )}
                     </div>
                     
-                    <div className="flex-1 text-left">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-sm font-medium ${model.isPremium ? "text-amber-200" : "text-white"}`}>
-                          {model.isPremium && "⭐ "}{model.name}
+                    <div className="flex-1 text-left min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-sm font-medium ${model.requiredPlan === "ultra" ? "text-amber-200" : "text-white"}`}>
+                          {model.name}
                         </span>
                         {model.badge && (
                           <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-amber-500/20 text-amber-300 border border-amber-500/30">
                             {model.badge}
                           </span>
                         )}
+                        {model.requiredPlan === "free" && (
+                          <span className="text-[10px] text-emerald-400 font-medium">Free</span>
+                        )}
+                        {isLocked && (
+                          <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        )}
                       </div>
-                      <span className="text-xs text-[#666]">{model.subtitle}</span>
+                      <span className="text-xs text-[#666] block mt-0.5">{model.subtitle}</span>
+                      <p className="text-xs text-[#555] mt-1.5 leading-relaxed">{model.description}</p>
+                      {model.requiredPlan !== "free" && (
+                        <span className="text-[10px] text-[#666] mt-1 block">
+                          Тариф: {model.requiredPlan === "ultra" ? "Ultra" : "Studio"}
+                        </span>
+                      )}
                     </div>
 
                     {/* Selected indicator or lock */}
                     {isSelected ? (
-                      <div className="w-2 h-2 rounded-full bg-indigo-500" />
-                    ) : model.isPremium ? (
-                      <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-amber-500/10 border border-amber-500/20">
+                      <div className="w-2 h-2 rounded-full bg-indigo-500 shrink-0 mt-2" />
+                    ) : isLocked ? (
+                      <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 shrink-0">
                         <Crown className="w-3 h-3 text-amber-400" />
-                        <span className="text-[10px] text-amber-400 font-medium">Улучшить</span>
+                        <span className="text-[10px] text-amber-400 font-medium">
+                          {model.requiredPlan === "ultra" ? "Ultra" : "Studio"}
+                        </span>
                       </div>
                     ) : null}
                   </button>
@@ -272,10 +307,7 @@ const VideoModelSelector = ({ selected, onChange, disabled, onUpgradeClick }: Vi
 
       {/* Helper text */}
       <p className="text-xs text-[#555] px-1">
-        {selected === "veo" 
-          ? "Veo обеспечивает непревзойдённый реализм для профессионального использования"
-          : "Высококачественная генерация видео со стабильными результатами"
-        }
+        {selectedModel.description}
       </p>
     </div>
   );
@@ -768,10 +800,13 @@ export const MotionLab = () => {
   const [error, setError] = useState<string | null>(null);
   const [currentVideo, setCurrentVideo] = useState<GeneratedVideo | null>(null);
   const [recentVideos, setRecentVideos] = useState<GeneratedVideo[]>([]);
-  const [selectedVideoModel, setSelectedVideoModel] = useState<VideoModel>("standard");
+  const [selectedVideoModel, setSelectedVideoModel] = useState<VideoModel>("kling");
   
-  const { checkVideoLimit, incrementVideos, canGenerateVideo, videoCount: usedVideos, limits, setShowPaywall, setPaywallReason } = useUsage();
+  const { checkVideoLimit, incrementVideos, canGenerateVideo, videoCount: usedVideos, limits, userPlan, setShowPaywall, setPaywallReason } = useUsage();
   const atLimit = !canGenerateVideo;
+  
+  const selectedModelData = VIDEO_MODELS.find(m => m.id === selectedVideoModel) || VIDEO_MODELS[0];
+  const canAccessSelectedModel = canAccessModel(userPlan, selectedModelData.requiredPlan);
 
   // Check if ready to generate
   const isReady = uploadedImage && selectedPreset;
@@ -783,6 +818,13 @@ export const MotionLab = () => {
 
   const handleGenerate = async () => {
     if (!uploadedImage || !selectedPreset || isGenerating) return;
+    
+    // Check if user can access selected model
+    if (!canAccessSelectedModel) {
+      setPaywallReason("videos");
+      setShowPaywall(true);
+      return;
+    }
     
     // Check usage limit
     if (!checkVideoLimit()) return;
@@ -840,8 +882,9 @@ export const MotionLab = () => {
 
   return (
     <div className="flex flex-col lg:flex-row h-full min-h-screen">
-      {/* Left Panel - Controls */}
-      <div className="w-full lg:w-[42%] border-b lg:border-b-0 lg:border-r border-[#222] p-4 md:p-6 overflow-y-auto">
+      {/* Left Panel - Controls: scrollable, на мобильных с отступом снизу для фиксированной кнопки */}
+      <div className="w-full lg:w-[42%] border-b lg:border-b-0 lg:border-r border-[#222] flex flex-col min-h-0">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 min-h-0 pb-36 md:pb-6">
         <div className="space-y-6">
           {/* Header */}
           <div className="flex items-start justify-between">
@@ -860,6 +903,7 @@ export const MotionLab = () => {
           <VideoModelSelector
             selected={selectedVideoModel}
             onChange={setSelectedVideoModel}
+            userPlan={userPlan}
             disabled={isGenerating}
             onUpgradeClick={handleVeoUpgradeClick}
           />
@@ -946,56 +990,63 @@ export const MotionLab = () => {
             </button>
           )}
 
-          {/* Generate Button */}
-          <button
-            onClick={handleGenerate}
-            disabled={!isReady || isGenerating || atLimit}
-            className={`
-              w-full py-4 rounded-xl
-              font-medium text-base
-              transition-all duration-300
-              relative overflow-hidden
-              group
-              active:scale-[0.98]
-              ${isReady && !isGenerating && !atLimit
-                ? "bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40"
-                : "bg-[#222] text-[#555] cursor-not-allowed"
-              }
-            `}
-          >
-            {/* Animated shimmer effect */}
-            {isReady && !isGenerating && !atLimit && (
-              <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
-            )}
-            <span className="relative flex items-center justify-center gap-2">
-              {isGenerating ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Создаём магию...</span>
-                </>
-              ) : atLimit ? (
-                <>
-                  <Lock className="w-5 h-5" />
-                  <span>Улучшите для анимации</span>
-                </>
-              ) : !uploadedImage ? (
-                <>
-                  <Upload className="w-5 h-5" />
-                  <span>Сначала загрузите фото</span>
-                </>
-              ) : !selectedPreset ? (
-                <>
-                  <Sparkles className="w-5 h-5" />
-                  <span>Выберите анимацию</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-5 h-5" />
-                  <span>✨ Оживить</span>
-                </>
+          {/* Generate Button — на десктопе */}
+          <div className="hidden md:block">
+            <button
+              onClick={handleGenerate}
+              disabled={!isReady || isGenerating || atLimit || !canAccessSelectedModel}
+              className={`
+                w-full py-4 rounded-xl
+                font-medium text-base
+                transition-all duration-300
+                relative overflow-hidden
+                group
+                active:scale-[0.98]
+                ${isReady && !isGenerating && !atLimit && canAccessSelectedModel
+                  ? "bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40"
+                  : "bg-[#222] text-[#555] cursor-not-allowed"
+                }
+              `}
+            >
+              {/* Animated shimmer effect */}
+              {isReady && !isGenerating && !atLimit && canAccessSelectedModel && (
+                <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
               )}
-            </span>
-          </button>
+              <span className="relative flex items-center justify-center gap-2">
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Создаём магию...</span>
+                  </>
+                ) : !canAccessSelectedModel ? (
+                  <>
+                    <Lock className="w-5 h-5" />
+                    <span>{selectedModelData.requiredPlan === "ultra" ? "Нужен тариф Ultra" : "Доступно в тарифе Studio"}</span>
+                  </>
+                ) : atLimit ? (
+                  <>
+                    <Lock className="w-5 h-5" />
+                    <span>Улучшите для анимации</span>
+                  </>
+                ) : !uploadedImage ? (
+                  <>
+                    <Upload className="w-5 h-5" />
+                    <span>Сначала загрузите фото</span>
+                  </>
+                ) : !selectedPreset ? (
+                  <>
+                    <Sparkles className="w-5 h-5" />
+                    <span>Выберите анимацию</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-5 h-5" />
+                    <span>✨ Оживить</span>
+                  </>
+                )}
+              </span>
+            </button>
+          </div>
 
           {/* Tip */}
           {!uploadedImage && (
@@ -1011,32 +1062,132 @@ export const MotionLab = () => {
             </div>
           )}
 
-          {/* Credits indicator */}
-          <div 
-            className={`
-              flex items-center justify-center gap-2 py-3 px-4 rounded-lg border
-              ${atLimit 
-                ? "bg-red-500/5 border-red-500/20" 
-                : "bg-white/[0.02] border-[#222]"
-              }
-            `}
-          >
-            <div className={`w-2 h-2 rounded-full ${atLimit ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
-            <span className="text-xs text-[#666]">
-              {atLimit ? (
-                <span className="text-amber-400 font-medium">Для генерации видео нужен тариф Studio</span>
-              ) : (
-                <>
-                  <span className="font-medium text-white/80">{usedVideos}/{limits.maxVideos}</span> бесплатных анимаций использовано
-                </>
-              )}
-            </span>
+          {/* Credits indicator — на десктопе */}
+          <div className="hidden md:block">
+            <div 
+              className={`
+                flex items-center justify-center gap-2 py-3 px-4 rounded-lg border
+                ${atLimit 
+                  ? "bg-red-500/5 border-red-500/20" 
+                  : "bg-white/[0.02] border-[#222]"
+                }
+              `}
+            >
+              <div className={`w-2 h-2 rounded-full ${atLimit ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
+              <span className="text-xs text-[#666]">
+                {atLimit ? (
+                  <span className="text-amber-400 font-medium">Для генерации видео нужен тариф Studio</span>
+                ) : (
+                  <>
+                    <span className="font-medium text-white/80">{usedVideos}/{limits.maxVideos}</span> бесплатных анимаций использовано
+                  </>
+                )}
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Right Panel - Preview & History */}
-      <div className="flex-1 p-4 md:p-6 overflow-y-auto">
+      {/* Фиксированная кнопка "Оживить" на мобильных — как в чате и изображениях */}
+      <div
+        className={`
+          md:hidden
+          w-full border-none
+          px-4
+          pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)]
+          bg-black/95 backdrop-blur-xl
+          border-t border-white/10
+          shadow-[0_-4px_24px_rgba(0,0,0,0.4)]
+          fixed bottom-0 left-0 right-0 z-50
+        `}
+      >
+        {/* Limit warning banner (если есть лимит или нет доступа к модели) */}
+        {(!canAccessSelectedModel || atLimit) && (
+          <button
+            onClick={() => {
+              setPaywallReason("videos")
+              setShowPaywall(true)
+            }}
+            className="
+              w-full mb-3 p-3 rounded-xl
+              bg-gradient-to-r from-red-500/10 via-amber-500/10 to-red-500/10
+              border border-red-500/30
+              flex flex-col items-center justify-center gap-2
+              group transition-all duration-300
+              hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/10
+              active:scale-[0.98]
+            "
+          >
+            <Lock className="w-5 h-5 text-amber-400" />
+            <span className="text-amber-400 font-medium text-sm text-center">
+              {!canAccessSelectedModel 
+                ? (selectedModelData.requiredPlan === "ultra" ? "Нужен тариф Ultra" : "Доступно в тарифе Studio")
+                : "Генерация видео требует тариф Studio"
+              }
+            </span>
+            <span className="text-amber-400/60 text-xs group-hover:text-amber-400 transition-colors">
+              Улучшить →
+            </span>
+          </button>
+        )}
+
+        {/* Кнопка "Оживить" */}
+        <button
+          onClick={handleGenerate}
+          disabled={!isReady || isGenerating || atLimit || !canAccessSelectedModel}
+          className={`
+            w-full py-4 px-6 rounded-xl font-medium text-base
+            transition-all duration-300 relative overflow-hidden
+            active:scale-[0.98]
+            group
+            ${isReady && !isGenerating && !atLimit && canAccessSelectedModel
+              ? "bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40"
+              : "bg-[#222] text-[#555] cursor-not-allowed"
+            }
+          `}
+        >
+          {/* Animated shimmer effect */}
+          {isReady && !isGenerating && !atLimit && canAccessSelectedModel && (
+            <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
+          )}
+          <span className="relative flex items-center justify-center gap-2">
+            {isGenerating ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Создаём магию...</span>
+              </>
+            ) : !canAccessSelectedModel ? (
+              <>
+                <Lock className="w-5 h-5" />
+                <span>{selectedModelData.requiredPlan === "ultra" ? "Нужен тариф Ultra" : "Доступно в тарифе Studio"}</span>
+              </>
+            ) : atLimit ? (
+              <>
+                <Lock className="w-5 h-5" />
+                <span>Улучшите для анимации</span>
+              </>
+            ) : !uploadedImage ? (
+              <>
+                <Upload className="w-5 h-5" />
+                <span>Сначала загрузите фото</span>
+              </>
+            ) : !selectedPreset ? (
+              <>
+                <Sparkles className="w-5 h-5" />
+                <span>Выберите анимацию</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-5 h-5" />
+                <span>✨ Оживить</span>
+              </>
+            )}
+          </span>
+        </button>
+      </div>
+
+      {/* Right Panel - Preview & History — фиксированная высота, скроллится только контент */}
+      <div className="flex-1 p-4 md:p-6 overflow-y-auto min-h-0">
         <div className="space-y-6 md:space-y-8">
           {/* Main Video Player */}
           <div>
