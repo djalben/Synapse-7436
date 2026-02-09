@@ -810,6 +810,9 @@ export const MotionLab = () => {
 
   // Check if ready to generate
   const isReady = uploadedImage && selectedPreset;
+  
+  // Check if selected model is Kling AI (free)
+  const isKlingModel = selectedVideoModel === "kling";
 
   const handleVeoUpgradeClick = () => {
     setPaywallReason("videos");
@@ -918,10 +921,67 @@ export const MotionLab = () => {
           {/* Conditional: Upload or Preview + Presets */}
           {!uploadedImage ? (
             /* Step 1: Upload photo */
-            <UploadDropzone 
-              onImageUpload={setUploadedImage}
-              disabled={isGenerating}
-            />
+            <>
+              <UploadDropzone 
+                onImageUpload={setUploadedImage}
+                disabled={isGenerating}
+              />
+              
+              {/* Кнопка "Сгенерировать" — на веб сразу под загрузкой */}
+              <div className="hidden md:block">
+                {isKlingModel ? (
+                  <button
+                    onClick={handleGenerate}
+                    disabled={!isReady || isGenerating}
+                    className="
+                      w-full py-4 px-6 rounded-xl font-medium text-base
+                      transition-all duration-300 relative overflow-hidden
+                      active:scale-[0.98] group
+                      bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600
+                      text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40
+                      disabled:bg-[#222] disabled:text-[#555] disabled:cursor-not-allowed
+                    "
+                  >
+                    {isReady && !isGenerating && (
+                      <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
+                    )}
+                    <span className="relative flex items-center justify-center gap-2">
+                      {isGenerating ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          <span>Создаём магию...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-5 h-5" />
+                          <span>Сгенерировать (Free)</span>
+                        </>
+                      )}
+                    </span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setPaywallReason("videos");
+                      setShowPaywall(true);
+                    }}
+                    className="
+                      w-full py-4 px-6 rounded-xl font-medium text-base
+                      transition-all duration-300 relative overflow-hidden
+                      active:scale-[0.98] group
+                      bg-gradient-to-r from-amber-500/20 to-orange-500/20
+                      border border-amber-500/40 text-amber-300
+                      hover:border-amber-500/60 hover:bg-amber-500/30
+                    "
+                  >
+                    <span className="relative flex items-center justify-center gap-2">
+                      <Crown className="w-5 h-5" />
+                      <span>Улучшить тариф</span>
+                    </span>
+                  </button>
+                )}
+              </div>
+            </>
           ) : (
             /* Step 2: Photo uploaded - show preview + presets */
             <>
@@ -963,128 +1023,88 @@ export const MotionLab = () => {
             </>
           )}
 
-          {/* Limit warning */}
-          {atLimit && (
-            <button
-              onClick={() => {
-                setPaywallReason("videos")
-                setShowPaywall(true)
-              }}
-              className="
-                w-full p-4 rounded-xl
-                bg-gradient-to-r from-red-500/10 via-amber-500/10 to-red-500/10
-                border border-red-500/30
-                flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3
-                group transition-all duration-300
-                hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/10
-                active:scale-[0.98]
-              "
-            >
-              <Lock className="w-5 h-5 text-amber-400" />
-              <span className="text-amber-400 font-medium text-sm text-center">
-                Генерация видео требует тариф Studio
-              </span>
-              <span className="text-amber-400/60 text-xs group-hover:text-amber-400 transition-colors">
-                Улучшить →
-              </span>
-            </button>
-          )}
-
-          {/* Generate Button — на десктопе */}
-          <div className="hidden md:block">
-            <button
-              onClick={handleGenerate}
-              disabled={!isReady || isGenerating || atLimit || !canAccessSelectedModel}
-              className={`
-                w-full py-4 rounded-xl
-                font-medium text-base
-                transition-all duration-300
-                relative overflow-hidden
-                group
-                active:scale-[0.98]
-                ${isReady && !isGenerating && !atLimit && canAccessSelectedModel
-                  ? "bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40"
-                  : "bg-[#222] text-[#555] cursor-not-allowed"
-                }
-              `}
-            >
-              {/* Animated shimmer effect */}
-              {isReady && !isGenerating && !atLimit && canAccessSelectedModel && (
-                <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
+          {/* Generate Button — на десктопе, когда фото загружено */}
+          {uploadedImage && (
+            <div className="hidden md:block">
+              {isKlingModel ? (
+                <button
+                  onClick={handleGenerate}
+                  disabled={!isReady || isGenerating}
+                  className="
+                    w-full py-4 px-6 rounded-xl font-medium text-base
+                    transition-all duration-300 relative overflow-hidden
+                    active:scale-[0.98] group
+                    bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600
+                    text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40
+                    disabled:bg-[#222] disabled:text-[#555] disabled:cursor-not-allowed
+                  "
+                >
+                  {isReady && !isGenerating && (
+                    <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
+                  )}
+                  <span className="relative flex items-center justify-center gap-2">
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>Создаём магию...</span>
+                      </>
+                    ) : !selectedPreset ? (
+                      <>
+                        <Sparkles className="w-5 h-5" />
+                        <span>Выберите анимацию</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-5 h-5" />
+                        <span>✨ Сгенерировать (Free)</span>
+                      </>
+                    )}
+                  </span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setPaywallReason("videos");
+                    setShowPaywall(true);
+                  }}
+                  className="
+                    w-full py-4 px-6 rounded-xl font-medium text-base
+                    transition-all duration-300 relative overflow-hidden
+                    active:scale-[0.98] group
+                    bg-gradient-to-r from-amber-500/20 to-orange-500/20
+                    border border-amber-500/40 text-amber-300
+                    hover:border-amber-500/60 hover:bg-amber-500/30
+                  "
+                >
+                  <span className="relative flex items-center justify-center gap-2">
+                    <Crown className="w-5 h-5" />
+                    <span>Улучшить тариф</span>
+                  </span>
+                </button>
               )}
-              <span className="relative flex items-center justify-center gap-2">
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>Создаём магию...</span>
-                  </>
-                ) : !canAccessSelectedModel ? (
-                  <>
-                    <Lock className="w-5 h-5" />
-                    <span>{selectedModelData.requiredPlan === "ultra" ? "Нужен тариф Ultra" : "Доступно в тарифе Studio"}</span>
-                  </>
-                ) : atLimit ? (
-                  <>
-                    <Lock className="w-5 h-5" />
-                    <span>Улучшите для анимации</span>
-                  </>
-                ) : !uploadedImage ? (
-                  <>
-                    <Upload className="w-5 h-5" />
-                    <span>Сначала загрузите фото</span>
-                  </>
-                ) : !selectedPreset ? (
-                  <>
-                    <Sparkles className="w-5 h-5" />
-                    <span>Выберите анимацию</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-5 h-5" />
-                    <span>✨ Оживить</span>
-                  </>
-                )}
-              </span>
-            </button>
-          </div>
-
-          {/* Tip */}
-          {!uploadedImage && (
-            <div className="flex items-start gap-3 p-4 rounded-xl bg-indigo-500/5 border border-indigo-500/10">
-              <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
-                <Sparkles className="w-4 h-4 text-indigo-400" />
-              </div>
-              <div>
-                <p className="text-sm text-[#888] leading-relaxed">
-                  <span className="text-indigo-300 font-medium">Совет:</span> Лучше всего работают фронтальные портретные фото! Чёткие лица с хорошим освещением дают самые волшебные результаты.
-                </p>
-              </div>
             </div>
           )}
 
-          {/* Credits indicator — на десктопе */}
-          <div className="hidden md:block">
-            <div 
-              className={`
-                flex items-center justify-center gap-2 py-3 px-4 rounded-lg border
-                ${atLimit 
-                  ? "bg-red-500/5 border-red-500/20" 
-                  : "bg-white/[0.02] border-[#222]"
-                }
-              `}
-            >
-              <div className={`w-2 h-2 rounded-full ${atLimit ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
-              <span className="text-xs text-[#666]">
-                {atLimit ? (
-                  <span className="text-amber-400 font-medium">Для генерации видео нужен тариф Studio</span>
-                ) : (
-                  <>
-                    <span className="font-medium text-white/80">{usedVideos}/{limits.maxVideos}</span> бесплатных анимаций использовано
-                  </>
-                )}
-              </span>
+          {/* Tip — компактный блок внизу */}
+          {!uploadedImage && (
+            <div className="p-3 rounded-lg bg-indigo-500/5 border border-indigo-500/10">
+              <p className="text-xs text-[#666] leading-relaxed">
+                <span className="text-indigo-300 font-medium">Совет:</span> Лучше всего работают фронтальные портретные фото с хорошим освещением.
+              </p>
             </div>
-          </div>
+          )}
+
+          {/* Credits indicator — на десктопе, только для Kling AI */}
+          {isKlingModel && (
+            <div className="hidden md:block">
+              <div className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg border bg-white/[0.02] border-[#222]">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs text-[#666]">
+                  <span className="font-medium text-white/80">{usedVideos}/{limits.maxVideos}</span> бесплатных анимаций использовано
+                </span>
+              </div>
+            </div>
+          )}
         </div>
         </div>
       </div>
@@ -1102,93 +1122,73 @@ export const MotionLab = () => {
           fixed bottom-0 left-0 right-0 z-50
         `}
       >
-        {/* Limit warning banner (если есть лимит или нет доступа к модели) */}
-        {(!canAccessSelectedModel || atLimit) && (
+        {/* Кнопка генерации на мобильных */}
+        {isKlingModel ? (
+          <button
+            onClick={handleGenerate}
+            disabled={!isReady || isGenerating}
+            className={`
+              w-full py-4 px-6 rounded-xl font-medium text-base
+              transition-all duration-300 relative overflow-hidden
+              active:scale-[0.98] group
+              ${isReady && !isGenerating
+                ? "bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40"
+                : "bg-[#222] text-[#555] cursor-not-allowed"
+              }
+            `}
+          >
+            {isReady && !isGenerating && (
+              <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
+            )}
+            <span className="relative flex items-center justify-center gap-2">
+              {isGenerating ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Создаём магию...</span>
+                </>
+              ) : !uploadedImage ? (
+                <>
+                  <Upload className="w-5 h-5" />
+                  <span>Сначала загрузите фото</span>
+                </>
+              ) : !selectedPreset ? (
+                <>
+                  <Sparkles className="w-5 h-5" />
+                  <span>Выберите анимацию</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-5 h-5" />
+                  <span>✨ Сгенерировать (Free)</span>
+                </>
+              )}
+            </span>
+          </button>
+        ) : (
           <button
             onClick={() => {
-              setPaywallReason("videos")
-              setShowPaywall(true)
+              setPaywallReason("videos");
+              setShowPaywall(true);
             }}
             className="
-              w-full mb-3 p-3 rounded-xl
-              bg-gradient-to-r from-red-500/10 via-amber-500/10 to-red-500/10
-              border border-red-500/30
-              flex flex-col items-center justify-center gap-2
-              group transition-all duration-300
-              hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/10
-              active:scale-[0.98]
+              w-full py-4 px-6 rounded-xl font-medium text-base
+              transition-all duration-300 relative overflow-hidden
+              active:scale-[0.98] group
+              bg-gradient-to-r from-amber-500/20 to-orange-500/20
+              border border-amber-500/40 text-amber-300
+              hover:border-amber-500/60 hover:bg-amber-500/30
             "
           >
-            <Lock className="w-5 h-5 text-amber-400" />
-            <span className="text-amber-400 font-medium text-sm text-center">
-              {!canAccessSelectedModel 
-                ? (selectedModelData.requiredPlan === "ultra" ? "Нужен тариф Ultra" : "Доступно в тарифе Studio")
-                : "Генерация видео требует тариф Studio"
-              }
-            </span>
-            <span className="text-amber-400/60 text-xs group-hover:text-amber-400 transition-colors">
-              Улучшить →
+            <span className="relative flex items-center justify-center gap-2">
+              <Crown className="w-5 h-5" />
+              <span>Улучшить тариф</span>
             </span>
           </button>
         )}
-
-        {/* Кнопка "Оживить" */}
-        <button
-          onClick={handleGenerate}
-          disabled={!isReady || isGenerating || atLimit || !canAccessSelectedModel}
-          className={`
-            w-full py-4 px-6 rounded-xl font-medium text-base
-            transition-all duration-300 relative overflow-hidden
-            active:scale-[0.98]
-            group
-            ${isReady && !isGenerating && !atLimit && canAccessSelectedModel
-              ? "bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40"
-              : "bg-[#222] text-[#555] cursor-not-allowed"
-            }
-          `}
-        >
-          {/* Animated shimmer effect */}
-          {isReady && !isGenerating && !atLimit && canAccessSelectedModel && (
-            <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
-          )}
-          <span className="relative flex items-center justify-center gap-2">
-            {isGenerating ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Создаём магию...</span>
-              </>
-            ) : !canAccessSelectedModel ? (
-              <>
-                <Lock className="w-5 h-5" />
-                <span>{selectedModelData.requiredPlan === "ultra" ? "Нужен тариф Ultra" : "Доступно в тарифе Studio"}</span>
-              </>
-            ) : atLimit ? (
-              <>
-                <Lock className="w-5 h-5" />
-                <span>Улучшите для анимации</span>
-              </>
-            ) : !uploadedImage ? (
-              <>
-                <Upload className="w-5 h-5" />
-                <span>Сначала загрузите фото</span>
-              </>
-            ) : !selectedPreset ? (
-              <>
-                <Sparkles className="w-5 h-5" />
-                <span>Выберите анимацию</span>
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-5 h-5" />
-                <span>✨ Оживить</span>
-              </>
-            )}
-          </span>
-        </button>
       </div>
 
-      {/* Right Panel - Preview & History — фиксированная высота, скроллится только контент */}
-      <div className="flex-1 p-4 md:p-6 overflow-y-auto min-h-0">
+      {/* Right Panel - Preview & History — фиксированная, скроллится только контент */}
+      <div className="flex-1 p-4 md:p-6 overflow-y-auto min-h-0 h-full lg:h-auto lg:max-h-screen">
         <div className="space-y-6 md:space-y-8">
           {/* Main Video Player */}
           <div>
