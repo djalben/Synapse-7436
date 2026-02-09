@@ -442,6 +442,7 @@ export const ChatInterface = () => {
     checkCredits,
     canAccessModel,
     effectiveMessageCountToday,
+    userPlan = "free",
   } = useUsage()
   
   // Keep ref in sync with state
