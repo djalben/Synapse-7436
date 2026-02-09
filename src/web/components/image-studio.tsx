@@ -1672,7 +1672,7 @@ const GeneratePanel = ({
     <div className="flex flex-col md:flex-row h-full min-h-screen">
       {/* Left Panel - Controls: scrollable + sticky bottom bar */}
       <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222] flex flex-col min-h-0">
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 min-h-0 max-h-[calc(100vh-200px)] md:max-h-none pb-44 md:pb-24">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 min-h-0 max-h-[calc(100vh-200px)] md:max-h-none pb-36 md:pb-24">
           <div className="space-y-3 md:space-y-4 pb-4">
           {/* Header */}
           <div className="flex items-start justify-between">
@@ -1787,8 +1787,8 @@ const GeneratePanel = ({
             </div>
           </div>
 
-          {/* Кнопка "Сгенерировать" — сразу после Количество, sticky внизу списка, z-50 */}
-          <div className="sticky bottom-0 z-[50] mt-5 pt-2 pb-2 -mx-4 px-4 md:-mx-6 md:px-6 bg-[#0a0a0a]/95 backdrop-blur-md md:bg-transparent md:backdrop-blur-none">
+          {/* Кнопка "Сгенерировать" — на десктопе sticky внизу списка */}
+          <div className="hidden md:block sticky bottom-0 z-[50] mt-5 pt-2 pb-2 -mx-6 px-6">
             <button
               type="button"
               onClick={handleGenerate}
@@ -1826,13 +1826,11 @@ const GeneratePanel = ({
           </div>
         </div>
 
-        {/* Нижняя панель: предупреждение о лимите и счётчик (на мобильных fixed) */}
+        {/* Нижняя панель: предупреждение о лимите и счётчик (на десктопе) */}
         <div
           className="
-            flex-shrink-0 p-4 md:p-6 pt-0 space-y-3
-            fixed bottom-[calc(env(safe-area-inset-bottom)+10px)] left-0 right-0 z-[100]
-            bg-[#0a0a0a]/98 backdrop-blur-md border-t border-[#222]
-            md:sticky md:bottom-0 md:z-10 md:bg-transparent md:backdrop-blur-none md:border-t-0 md:pb-0
+            hidden md:flex flex-shrink-0 p-6 pt-0 space-y-3
+            sticky bottom-0 z-10
           "
         >
           {/* Limit warning */}
@@ -1890,6 +1888,82 @@ const GeneratePanel = ({
             </span>
           </div>
         </div>
+      </div>
+
+      {/* Фиксированная кнопка "Сгенерировать" на мобильных — как в чате (Telegram/WhatsApp стиль) */}
+      <div
+        className={`
+          md:hidden
+          w-full border-none
+          px-4
+          pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)]
+          bg-black/95 backdrop-blur-xl
+          border-t border-white/10
+          shadow-[0_-4px_24px_rgba(0,0,0,0.4)]
+          fixed bottom-0 left-0 right-0 z-50
+        `}
+      >
+        {/* Limit warning banner (если есть лимит) */}
+        {effectiveAtLimit && (
+          <button
+            onClick={() => {
+              setPaywallReason("images")
+              setShowPaywall(true)
+            }}
+            className="
+              w-full mb-3 p-3 rounded-xl
+              bg-gradient-to-r from-red-500/10 via-amber-500/10 to-red-500/10
+              border border-red-500/30
+              flex flex-col items-center justify-center gap-2
+              group transition-all duration-300
+              hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/10
+              active:scale-[0.98]
+            "
+          >
+            <Lock className="w-5 h-5 text-amber-400" />
+            <span className="text-amber-400 font-medium text-sm text-center">
+              {isFreeEngine ? "Лимит 3 генерации в сутки исчерпан" : "Бесплатные генерации исчерпаны"}
+            </span>
+            <span className="text-amber-400/60 text-xs group-hover:text-amber-400 transition-colors">
+              Пополнить →
+            </span>
+          </button>
+        )}
+
+        {/* Кнопка "Сгенерировать" */}
+        <button
+          type="button"
+          onClick={handleGenerate}
+          disabled={!prompt.trim() || isGenerating || effectiveAtLimit || !isImg2ImgReady}
+          data-tour="generate-button-mobile"
+          className={`
+            w-full py-4 px-6 rounded-xl font-medium text-base
+            transition-all duration-300 relative overflow-hidden
+            active:scale-[0.98]
+            group
+            ${prompt.trim() && !isGenerating && !effectiveAtLimit && isImg2ImgReady
+              ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_24px_rgba(0,112,243,0.4)]"
+              : "bg-[#222] text-[#555] cursor-not-allowed"
+            }
+          `}
+        >
+          {prompt.trim() && !isGenerating && !effectiveAtLimit && isImg2ImgReady && (
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+          )}
+          <span className="relative flex items-center justify-center gap-2">
+            {isGenerating ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Генерация...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-5 h-5" />
+                <span>Сгенерировать</span>
+              </>
+            )}
+          </span>
+        </button>
       </div>
 
       {/* Right Panel - Gallery */}
