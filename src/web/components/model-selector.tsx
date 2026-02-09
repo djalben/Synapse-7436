@@ -112,21 +112,21 @@ export const models: Model[] = [
     id: "gpt-4o",
     backendId: "openai/gpt-4o",
     name: "GPT-4o",
-    subtitle: "Премиум",
+    subtitle: "Standard",
     description: "Универсальный флагман. Творчество и анализ.",
     intelligence: 9,
     speed: 8,
     creditCost: 1,
     dotColor: "bg-blue-500",
     providerLogo: <OpenAILogo />,
-    requiredPlan: "lite",
+    requiredPlan: "standard",
     isPremium: true,
   },
   {
     id: "claude-3.5-sonnet",
     backendId: "anthropic/claude-3.5-sonnet",
     name: "Claude 3.5 Sonnet",
-    subtitle: "Премиум",
+    subtitle: "Standard",
     description: "Мастер текстов и кодинга. Очень человечный.",
     intelligence: 9,
     speed: 8,
@@ -140,7 +140,7 @@ export const models: Model[] = [
     id: "gpt-5-o1",
     backendId: "openai/o1",
     name: "GPT-5 (o1)",
-    subtitle: "Премиум",
+    subtitle: "Ultra",
     description: "Максимальный интеллект. Решает невозможные задачи.",
     intelligence: 10,
     speed: 4,
@@ -214,7 +214,7 @@ export const ModelSelector = ({
   }, [open]);
 
   const handleSelect = (model: Model) => {
-    const isLocked = model.isPremium && !canAccessModel(userPlan, model.requiredPlan);
+    const isLocked = !canAccessModel(userPlan, model.requiredPlan);
     if (isLocked) {
       setPaywallReason("messages");
       setShowPaywall(true);
@@ -226,7 +226,7 @@ export const ModelSelector = ({
 
   const listItems = models.map((model) => {
     const isSelected = model.id === selectedModel;
-    const isLocked = model.isPremium && !canAccessModel(userPlan, model.requiredPlan);
+    const isLocked = !canAccessModel(userPlan, model.requiredPlan);
     return (
       <button
         key={model.id}
@@ -245,9 +245,13 @@ export const ModelSelector = ({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-medium text-white/95">{model.name}</span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-[#888]">{model.subtitle}</span>
-            {model.isPremium && (
-              <Lock className={`w-3.5 h-3.5 shrink-0 ${isLocked ? "text-amber-400" : "text-white/40"}`} />
+            {model.requiredPlan === "free" ? (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-medium">Бесплатно</span>
+            ) : (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-[#888]">{model.subtitle}</span>
+            )}
+            {isLocked && (
+              <Lock className="w-3.5 h-3.5 shrink-0 text-amber-400" aria-hidden />
             )}
           </div>
           <p className="text-xs text-[#888] mt-0.5 leading-snug">{model.description}</p>

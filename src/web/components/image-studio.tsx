@@ -20,6 +20,7 @@ import {
   Star,
 } from "lucide-react";
 import { useUsage, MAX_FREE_IMAGE_PER_DAY } from "./usage-context";
+import { type UserPlan, canAccessModel } from "./model-selector";
 
 // ===== TYPES & INTERFACES =====
 
@@ -76,23 +77,23 @@ interface EnhancedResult {
 
 // ===== CONSTANTS =====
 
-// Image engine (model) for generation — free, premium, exclusive
+// Image engine (model) for generation — requiredPlan как в чате
 type ImageEngineId = "kandinsky-3.1" | "flux-schnell" | "dall-e-3" | "midjourney-v7" | "nana-banana";
 
 interface ImageEngineOption {
   id: ImageEngineId;
   label: string;
   creditCost: number;
-  isPremium: boolean;
+  requiredPlan: UserPlan;
   isExclusive?: boolean; // Nana Banana — Star/Pro
 }
 
 const imageEngineOptions: ImageEngineOption[] = [
-  { id: "kandinsky-3.1", label: "Kandinsky 3.1", creditCost: 0, isPremium: false },
-  { id: "flux-schnell", label: "Flux.1 [schnell]", creditCost: 0, isPremium: false },
-  { id: "dall-e-3", label: "DALL-E 3", creditCost: 1, isPremium: true },
-  { id: "midjourney-v7", label: "Midjourney v7", creditCost: 1, isPremium: true },
-  { id: "nana-banana", label: "Nana Banana", creditCost: 1, isPremium: false, isExclusive: true },
+  { id: "kandinsky-3.1", label: "Kandinsky 3.1", creditCost: 0, requiredPlan: "free" },
+  { id: "flux-schnell", label: "Flux.1 [schnell]", creditCost: 0, requiredPlan: "free" },
+  { id: "dall-e-3", label: "DALL-E 3", creditCost: 1, requiredPlan: "standard" },
+  { id: "midjourney-v7", label: "Midjourney v7", creditCost: 1, requiredPlan: "ultra" },
+  { id: "nana-banana", label: "Nana Banana", creditCost: 1, requiredPlan: "standard", isExclusive: true },
 ];
 
 const styleOptions: StyleOption[] = [
@@ -549,15 +550,13 @@ interface ImageEngineSelectorProps {
 }
 
 const ImageEngineSelector = ({ selected, onChange, userPlan, onPremiumClick }: ImageEngineSelectorProps) => {
-  const isFreePlan = userPlan === "free";
-
   return (
     <div className="space-y-1.5">
       <label className="text-xs font-medium text-[#888]">Модель</label>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
         {imageEngineOptions.map((engine) => {
           const isSelected = selected === engine.id;
-          const isLocked = engine.isPremium && isFreePlan;
+          const isLocked = !canAccessModel(userPlan, engine.requiredPlan);
 
           return (
             <button
@@ -584,20 +583,20 @@ const ImageEngineSelector = ({ selected, onChange, userPlan, onPremiumClick }: I
                 }
               `}
             >
-              {engine.isExclusive && (
+              {engine.isExclusive && !isLocked && (
                 <Star className={`w-3.5 h-3.5 absolute top-1.5 right-1.5 ${isSelected ? "text-amber-400" : "text-amber-500/70"}`} aria-hidden />
+              )}
+              {isLocked && (
+                <Lock className="w-3.5 h-3.5 absolute top-1.5 right-1.5 text-amber-400" aria-hidden />
               )}
               <span className={`text-xs font-medium truncate w-full text-center ${engine.isExclusive && isSelected ? "text-amber-200" : isSelected ? "text-indigo-200" : "text-white/90"}`}>
                 {engine.label}
               </span>
-              {engine.creditCost === 0 && !engine.isExclusive && (
-                <span className="text-[9px] text-emerald-400 font-medium">Free</span>
+              {engine.requiredPlan === "free" && (
+                <span className="text-[9px] text-emerald-400 font-medium">Бесплатно</span>
               )}
-              {engine.isExclusive && (
+              {engine.isExclusive && !isLocked && (
                 <span className="text-[9px] text-amber-400 font-medium">Pro</span>
-              )}
-              {isLocked && (
-                <Lock className="w-3 h-3 text-amber-400 absolute bottom-1.5 right-1.5" aria-hidden />
               )}
             </button>
           );
