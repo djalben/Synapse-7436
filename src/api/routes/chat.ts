@@ -5,6 +5,12 @@ import { env } from "cloudflare:workers"
 
 export const chatRoutes = new Hono()
 
+// Interface for incoming chat request
+interface ChatRequest {
+  messages: UIMessage[]
+  model?: string
+}
+
 // Model mapping from frontend IDs to OpenRouter model IDs
 const MODEL_MAP: Record<string, string> = {
   "deepseek-r1": "deepseek/deepseek-r1",
@@ -40,7 +46,7 @@ chatRoutes.post("/", async (c) => {
       return c.json({ error: "Chat service is not available. Please try again later." }, 503)
     }
 
-    const { messages, model } = await c.req.json()
+    const { messages, model } = (await c.req.json()) as ChatRequest
 
     // Validate messages
     if (!messages || !Array.isArray(messages)) {
