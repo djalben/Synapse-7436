@@ -18,7 +18,6 @@ import {
   Trash2,
   Palette,
   Star,
-  Crown,
 } from "lucide-react";
 import { useUsage, MAX_FREE_IMAGE_PER_DAY } from "./usage-context";
 
@@ -77,14 +76,15 @@ interface EnhancedResult {
 
 // ===== CONSTANTS =====
 
-// Image engine (model) for generation — free vs premium
-type ImageEngineId = "kandinsky-3.1" | "flux-schnell" | "dall-e-3" | "midjourney-v7";
+// Image engine (model) for generation — free, premium, exclusive
+type ImageEngineId = "kandinsky-3.1" | "flux-schnell" | "dall-e-3" | "midjourney-v7" | "nana-banana";
 
 interface ImageEngineOption {
   id: ImageEngineId;
   label: string;
   creditCost: number;
   isPremium: boolean;
+  isExclusive?: boolean; // Nana Banana — Star/Pro
 }
 
 const imageEngineOptions: ImageEngineOption[] = [
@@ -92,6 +92,7 @@ const imageEngineOptions: ImageEngineOption[] = [
   { id: "flux-schnell", label: "Flux.1 [schnell]", creditCost: 0, isPremium: false },
   { id: "dall-e-3", label: "DALL-E 3", creditCost: 1, isPremium: true },
   { id: "midjourney-v7", label: "Midjourney v7", creditCost: 1, isPremium: true },
+  { id: "nana-banana", label: "Nana Banana", creditCost: 1, isPremium: false, isExclusive: true },
 ];
 
 const styleOptions: StyleOption[] = [
@@ -538,7 +539,7 @@ const EnhancementToolSelector = ({ selected, onChange }: EnhancementToolSelector
   );
 };
 
-// ===== IMAGE ENGINE SELECTOR =====
+// ===== IMAGE ENGINE SELECTOR (единая сетка моделей над промптом) =====
 
 interface ImageEngineSelectorProps {
   selected: ImageEngineId;
@@ -551,9 +552,9 @@ const ImageEngineSelector = ({ selected, onChange, userPlan, onPremiumClick }: I
   const isFreePlan = userPlan === "free";
 
   return (
-    <div className="space-y-2">
-      <label className="text-sm font-medium text-[#888] flex items-center gap-2">Движок (Engine)</label>
-      <div className="grid grid-cols-2 gap-2">
+    <div className="space-y-1.5">
+      <label className="text-xs font-medium text-[#888]">Модель</label>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
         {imageEngineOptions.map((engine) => {
           const isSelected = selected === engine.id;
           const isLocked = engine.isPremium && isFreePlan;
@@ -570,28 +571,34 @@ const ImageEngineSelector = ({ selected, onChange, userPlan, onPremiumClick }: I
                 onChange(engine.id);
               }}
               className={`
-                relative p-3 rounded-xl text-left
-                transition-all duration-300
-                backdrop-blur-xl
-                ${isSelected
-                  ? "bg-indigo-500/20 border border-indigo-500/40"
-                  : isLocked
-                    ? "bg-white/[0.02] border border-[#333] hover:border-amber-500/30"
-                    : "bg-white/[0.04] border border-[#333] hover:border-[#444]"
+                relative flex flex-col items-center justify-center gap-1 py-2.5 px-2 rounded-xl
+                transition-all duration-300 backdrop-blur-xl
+                min-h-[52px]
+                ${engine.isExclusive && isSelected
+                  ? "bg-amber-500/20 border border-amber-500/40"
+                  : isSelected
+                    ? "bg-indigo-500/20 border border-indigo-500/40"
+                    : isLocked
+                      ? "bg-white/[0.02] border border-[#333] hover:border-amber-500/30"
+                      : "bg-white/[0.04] border border-[#333] hover:border-[#444] hover:bg-white/[0.06]"
                 }
               `}
             >
-              <div className="flex items-center justify-between gap-2">
-                <span className={`text-sm font-medium truncate ${isSelected ? "text-indigo-200" : "text-white/90"}`}>
-                  {engine.label}
-                </span>
-                {engine.creditCost === 0 && (
-                  <span className="text-[10px] text-emerald-400 font-medium shrink-0">Free</span>
-                )}
-                {isLocked && (
-                  <Lock className="w-4 h-4 text-amber-400 shrink-0" aria-hidden />
-                )}
-              </div>
+              {engine.isExclusive && (
+                <Star className={`w-3.5 h-3.5 absolute top-1.5 right-1.5 ${isSelected ? "text-amber-400" : "text-amber-500/70"}`} aria-hidden />
+              )}
+              <span className={`text-xs font-medium truncate w-full text-center ${engine.isExclusive && isSelected ? "text-amber-200" : isSelected ? "text-indigo-200" : "text-white/90"}`}>
+                {engine.label}
+              </span>
+              {engine.creditCost === 0 && !engine.isExclusive && (
+                <span className="text-[9px] text-emerald-400 font-medium">Free</span>
+              )}
+              {engine.isExclusive && (
+                <span className="text-[9px] text-amber-400 font-medium">Pro</span>
+              )}
+              {isLocked && (
+                <Lock className="w-3 h-3 text-amber-400 absolute bottom-1.5 right-1.5" aria-hidden />
+              )}
             </button>
           );
         })}
@@ -668,155 +675,6 @@ const StyleSelector = ({ selected, onChange }: StyleSelectorProps) => {
           </button>
         );
       })}
-    </div>
-  );
-};
-
-// ===== SPECIALIZED ENGINE SELECTOR (NIJI V6) =====
-
-interface SpecializedEngineSelectorProps {
-  isActive: boolean;
-  onToggle: () => void;
-  disabled?: boolean;
-}
-
-const SpecializedEngineSelector = ({ isActive, onToggle, disabled }: SpecializedEngineSelectorProps) => {
-  return (
-    <div className="space-y-3">
-      {/* Section divider */}
-      <div className="flex items-center gap-3">
-        <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#333] to-transparent" />
-        <span className="text-xs text-[#555] uppercase tracking-widest font-medium">Специальные движки</span>
-        <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#333] to-transparent" />
-      </div>
-
-      {/* Nana Banana Premium Button */}
-      <button
-        onClick={onToggle}
-        disabled={disabled}
-        className={`
-          relative w-full p-4 rounded-xl
-          transition-all duration-500
-          group
-          overflow-hidden
-          disabled:opacity-50 disabled:cursor-not-allowed
-          ${isActive
-            ? "bg-gradient-to-br from-amber-500/20 via-yellow-500/15 to-orange-500/10 border-2 border-amber-500/50 shadow-lg shadow-amber-500/20"
-            : "bg-white/[0.02] border-2 border-[#333] hover:border-amber-500/30 hover:bg-amber-500/5"
-          }
-        `}
-      >
-        {/* Shimmer effect for active state */}
-        {isActive && (
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-amber-300/10 to-transparent translate-x-[-100%] animate-shimmer" />
-        )}
-        
-        {/* Animated glow for active */}
-        {isActive && (
-          <div className="absolute inset-0 bg-amber-500/10 blur-xl opacity-60 animate-pulse" />
-        )}
-
-        <div className="relative flex items-center gap-4">
-          {/* Icon with special styling */}
-          <div 
-            className={`
-              w-12 h-12 rounded-xl flex items-center justify-center
-              transition-all duration-300
-              ${isActive 
-                ? "bg-gradient-to-br from-amber-500/40 to-yellow-500/30 shadow-lg shadow-amber-500/30" 
-                : "bg-white/[0.05] group-hover:bg-amber-500/10"
-              }
-            `}
-          >
-            <Sparkles 
-              className={`
-                w-6 h-6 transition-all duration-300
-                ${isActive 
-                  ? "text-amber-300 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]" 
-                  : "text-[#666] group-hover:text-amber-400"
-                }
-              `} 
-            />
-          </div>
-
-          {/* Text content */}
-          <div className="flex-1 text-left">
-            <div className="flex items-center gap-2">
-              <span 
-                className={`
-                  text-base font-semibold transition-colors
-                  ${isActive ? "text-amber-200" : "text-white/90 group-hover:text-amber-200"}
-                `}
-              >
-                ✨ Nana Banana
-              </span>
-              <span 
-                className={`
-                  px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide
-                  ${isActive 
-                    ? "bg-amber-500/30 text-amber-200 border border-amber-500/40" 
-                    : "bg-[#333] text-[#888] group-hover:bg-amber-500/20 group-hover:text-amber-300"
-                  }
-                `}
-              >
-                Pro/Exclusive
-              </span>
-            </div>
-            <p 
-              className={`
-                text-xs mt-1 transition-colors
-                ${isActive ? "text-amber-300/70" : "text-[#555] group-hover:text-amber-300/50"}
-              `}
-            >
-              Топовый движок для аниме и иллюстраций 🍌
-            </p>
-          </div>
-
-          {/* Status indicator */}
-          <div className={`
-            flex items-center gap-1.5 px-3 py-1.5 rounded-full
-            transition-all duration-300
-            ${isActive 
-              ? "bg-emerald-500/20 border border-emerald-500/40" 
-              : "bg-white/[0.03] border border-[#333]"
-            }
-          `}>
-            <div className={`
-              w-2 h-2 rounded-full transition-all duration-300
-              ${isActive ? "bg-emerald-400 animate-pulse" : "bg-[#555]"}
-            `} />
-            <span className={`
-              text-xs font-medium
-              ${isActive ? "text-emerald-400" : "text-[#666]"}
-            `}>
-              {isActive ? "Активно" : "Выкл"}
-            </span>
-          </div>
-        </div>
-
-        {/* Premium crown icon in corner */}
-        <div className={`
-          absolute -top-1 -right-1 w-7 h-7 rounded-full 
-          flex items-center justify-center
-          transition-all duration-300
-          ${isActive 
-            ? "bg-gradient-to-br from-amber-500 to-yellow-600 shadow-lg shadow-amber-500/50" 
-            : "bg-[#222] border border-[#444] group-hover:bg-amber-500/20 group-hover:border-amber-500/30"
-          }
-        `}>
-          <Crown className={`w-3.5 h-3.5 ${isActive ? "text-white" : "text-[#666] group-hover:text-amber-400"}`} />
-        </div>
-      </button>
-
-      {/* Info text when active */}
-      {isActive && (
-        <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/10">
-          <Sparkles className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
-          <p className="text-xs text-amber-300/70 leading-relaxed">
-            <span className="text-amber-300 font-medium">Nana Banana Активен</span> — Стандартные стили пропускаются. Ваш промпт будет обработан премиум движком для аниме.
-          </p>
-        </div>
-      )}
     </div>
   );
 };
@@ -1734,11 +1592,11 @@ const GeneratePanel = ({
   const [error, setError] = useState<string | null>(null);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
-  const [nijiModeActive, setNijiModeActive] = useState(false);
 
+  const isNanaBanana = selectedEngine === "nana-banana";
   const isFreeEngine = selectedEngine === "kandinsky-3.1" || selectedEngine === "flux-schnell";
   const atFreeDailyLimit = isFreeEngine && freeImageCountToday >= MAX_FREE_IMAGE_PER_DAY;
-  const effectiveAtLimit = nijiModeActive ? atLimit : (isFreeEngine ? atFreeDailyLimit : atLimit);
+  const effectiveAtLimit = isNanaBanana ? atLimit : (isFreeEngine ? atFreeDailyLimit : atLimit);
 
   // Check if image-to-image mode is ready
   const isImg2ImgReady = mode === "text-to-image" || (mode === "image-to-image" && referenceImage);
@@ -1751,7 +1609,7 @@ const GeneratePanel = ({
       return;
     }
     
-    if (nijiModeActive) {
+    if (isNanaBanana) {
       if (!checkImageLimit()) return;
     } else if (isFreeEngine) {
       if (!checkFreeImageDailyLimit()) return;
@@ -1772,10 +1630,10 @@ const GeneratePanel = ({
           prompt: prompt.trim(),
           aspectRatio,
           numImages: imageCount,
-          style: nijiModeActive ? "niji-v6" : selectedStyle,
+          style: isNanaBanana ? "niji-v6" : selectedStyle,
           mode,
           referenceImage: mode === "image-to-image" ? referenceImage : null,
-          specializedEngine: nijiModeActive ? "niji-v6" : null,
+          specializedEngine: isNanaBanana ? "niji-v6" : null,
           engine: selectedEngine,
         }),
       });
@@ -1787,7 +1645,7 @@ const GeneratePanel = ({
       }
 
       setGeneratedImages((prev) => [...data.images, ...prev]);
-      if (nijiModeActive) {
+      if (isNanaBanana) {
         incrementImages();
       } else if (isFreeEngine) {
         incrementFreeImageDaily();
@@ -1816,7 +1674,7 @@ const GeneratePanel = ({
       {/* Left Panel - Controls: scrollable + sticky bottom bar on mobile */}
       <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222] flex flex-col overflow-hidden">
         <div className="flex-1 overflow-y-auto p-4 md:p-6 min-h-0">
-          <div className="space-y-5 md:space-y-6 pb-4">
+          <div className="space-y-3 md:space-y-4 pb-4">
           {/* Header */}
           <div className="flex items-start justify-between">
             <div>
@@ -1837,26 +1695,13 @@ const GeneratePanel = ({
           )}
 
           {/* Mode Toggle */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-[#888]">Режим генерации</label>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-[#888]">Режим</label>
             <ModeToggle mode={mode} onChange={setMode} />
           </div>
 
-          {/* Engine (Model) Selector */}
-          <div className={nijiModeActive ? "opacity-50 pointer-events-none" : ""}>
-            <ImageEngineSelector
-              selected={selectedEngine}
-              onChange={setSelectedEngine}
-              userPlan={userPlan}
-              onPremiumClick={() => {
-                setPaywallReason("images");
-                setShowPaywall(true);
-              }}
-            />
-          </div>
-
-          {/* Reference Image Upload - Always visible but required indicator changes */}
-          <div className="space-y-2">
+          {/* Reference Image Upload */}
+          <div className="space-y-1.5">
             <label className="text-sm font-medium text-[#888]">
               Референс
               {mode === "image-to-image" && (
@@ -1881,15 +1726,26 @@ const GeneratePanel = ({
             )}
           </div>
 
+          {/* Model grid — над полем ввода промпта */}
+          <ImageEngineSelector
+            selected={selectedEngine}
+            onChange={setSelectedEngine}
+            userPlan={userPlan}
+            onPremiumClick={() => {
+              setPaywallReason("images");
+              setShowPaywall(true);
+            }}
+          />
+
           {/* Prompt Area */}
-          <div className="space-y-2" data-tour="image-prompt">
-            <label className="text-sm font-medium text-[#888]">Промпт</label>
+          <div className="space-y-1.5" data-tour="image-prompt">
+            <label className="text-xs font-medium text-[#888]">Промпт</label>
             <div className="relative">
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder={getPromptPlaceholder()}
-                rows={4}
+                rows={3}
                 disabled={isGenerating}
                 className="
                   w-full p-4 rounded-xl
@@ -1909,33 +1765,24 @@ const GeneratePanel = ({
             </div>
           </div>
 
-          {/* Style Selector */}
-          <div className={`space-y-3 transition-all duration-300 ${nijiModeActive ? "opacity-40 pointer-events-none" : ""}`} data-tour="style-selector">
-            <label className="text-sm font-medium text-[#888] flex items-center gap-2">
+          {/* Style Selector — не применяется при выборе Nana Banana */}
+          <div className={`space-y-1.5 ${isNanaBanana ? "opacity-60" : ""}`} data-tour="style-selector">
+            <label className="text-xs font-medium text-[#888] flex items-center gap-2">
               Стиль
-              {nijiModeActive && (
-                <span className="text-xs text-amber-400/70">(Переопределён Nana Banana)</span>
-              )}
+              {isNanaBanana && <span className="text-[10px] text-amber-400/80">(не применяется)</span>}
             </label>
             <StyleSelector selected={selectedStyle} onChange={setSelectedStyle} />
           </div>
 
-          {/* Specialized Engines - Nana Banana */}
-          <SpecializedEngineSelector 
-            isActive={nijiModeActive}
-            onToggle={() => setNijiModeActive(!nijiModeActive)}
-            disabled={isGenerating}
-          />
-
           {/* Aspect Ratio */}
-          <div className="space-y-3" data-tour="aspect-ratio">
-            <label className="text-sm font-medium text-[#888]">Соотношение сторон</label>
+          <div className="space-y-1.5" data-tour="aspect-ratio">
+            <label className="text-xs font-medium text-[#888]">Соотношение сторон</label>
             <AspectRatioSelector selected={aspectRatio} onChange={setAspectRatio} />
           </div>
 
           {/* Number of Images */}
-          <div className="space-y-3">
-            <label className="text-sm font-medium text-[#888]">Количество</label>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-[#888]">Количество</label>
             <div className="p-4 rounded-xl bg-white/[0.02] border border-[#333]">
               <ImageCountSlider value={imageCount} onChange={setImageCount} />
             </div>
@@ -1985,7 +1832,7 @@ const GeneratePanel = ({
               group
               active:scale-[0.98]
               ${prompt.trim() && !isGenerating && !effectiveAtLimit && isImg2ImgReady
-                ? nijiModeActive 
+                ? isNanaBanana 
                   ? "bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-600 text-white shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40"
                   : "bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 shadow-[0_0_24px_rgba(99,102,241,0.35)]"
                 : "bg-[#222] text-[#555] cursor-not-allowed"
@@ -1994,14 +1841,14 @@ const GeneratePanel = ({
           >
             {/* Shimmer effect */}
             {prompt.trim() && !isGenerating && !effectiveAtLimit && isImg2ImgReady && (
-              <div className={`absolute inset-0 bg-gradient-to-r from-transparent ${nijiModeActive ? "via-amber-300/10" : "via-white/10"} to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000`} />
+              <div className={`absolute inset-0 bg-gradient-to-r from-transparent ${isNanaBanana ? "via-amber-300/10" : "via-white/10"} to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000`} />
             )}
             
             <div className="relative flex items-center justify-center gap-2">
               {isGenerating ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>{nijiModeActive ? "Создаём с Nana Banana..." : "Генерация..."}</span>
+                  <span>{isNanaBanana ? "Создаём с Nana Banana..." : "Генерация..."}</span>
                 </>
               ) : effectiveAtLimit ? (
                 <>
@@ -2013,7 +1860,7 @@ const GeneratePanel = ({
                   <Upload className="w-5 h-5 text-[#555]" />
                   <span>Загрузите изображение</span>
                 </>
-              ) : nijiModeActive ? (
+              ) : isNanaBanana ? (
                 <>
                   <Sparkles className={`w-5 h-5 ${prompt.trim() ? "text-amber-200" : "text-[#555]"}`} />
                   <span>🍌 Создать с Nana Banana</span>
