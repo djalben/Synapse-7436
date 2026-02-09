@@ -117,12 +117,12 @@ function Index() {
           pt-[max(4rem,calc(env(safe-area-inset-top)+3.5rem))] md:pt-0
           pb-20 md:pb-0
         ">
-          <div className={activeTab === "chat" ? "flex-1 min-h-0 overflow-hidden" : "flex-1 min-h-0 overflow-y-auto"}>
+          <div className={activeTab === "chat" || activeTab === "image" ? "flex-1 min-h-0 overflow-hidden" : "flex-1 min-h-0 overflow-y-auto"}>
             {renderContent()}
           </div>
           
-          {/* Footer: скрыт на мобильных (Full Screen App Mode) */}
-          <div className="hidden md:block">
+          {/* Footer: скрыт на мобильных и на вкладке Изображения (без глобального скролла) */}
+          <div className={activeTab === "image" ? "hidden" : "hidden md:block"}>
             <Footer />
           </div>
         </main>

@@ -20,7 +20,7 @@ import {
   Star,
   Crown,
 } from "lucide-react";
-import { useUsage } from "./usage-context";
+import { useUsage, MAX_FREE_IMAGE_PER_DAY } from "./usage-context";
 
 // ===== TYPES & INTERFACES =====
 
@@ -76,6 +76,23 @@ interface EnhancedResult {
 }
 
 // ===== CONSTANTS =====
+
+// Image engine (model) for generation — free vs premium
+type ImageEngineId = "kandinsky-3.1" | "flux-schnell" | "dall-e-3" | "midjourney-v7";
+
+interface ImageEngineOption {
+  id: ImageEngineId;
+  label: string;
+  creditCost: number;
+  isPremium: boolean;
+}
+
+const imageEngineOptions: ImageEngineOption[] = [
+  { id: "kandinsky-3.1", label: "Kandinsky 3.1", creditCost: 0, isPremium: false },
+  { id: "flux-schnell", label: "Flux.1 [schnell]", creditCost: 0, isPremium: false },
+  { id: "dall-e-3", label: "DALL-E 3", creditCost: 1, isPremium: true },
+  { id: "midjourney-v7", label: "Midjourney v7", creditCost: 1, isPremium: true },
+];
 
 const styleOptions: StyleOption[] = [
   { id: "photorealistic", label: "Фотореализм", icon: Camera, description: "Неотличимо от реальности." },
@@ -521,6 +538,68 @@ const EnhancementToolSelector = ({ selected, onChange }: EnhancementToolSelector
   );
 };
 
+// ===== IMAGE ENGINE SELECTOR =====
+
+interface ImageEngineSelectorProps {
+  selected: ImageEngineId;
+  onChange: (value: ImageEngineId) => void;
+  userPlan: "free" | "lite" | "standard" | "ultra";
+  onPremiumClick: () => void;
+}
+
+const ImageEngineSelector = ({ selected, onChange, userPlan, onPremiumClick }: ImageEngineSelectorProps) => {
+  const isFreePlan = userPlan === "free";
+
+  return (
+    <div className="space-y-2">
+      <label className="text-sm font-medium text-[#888] flex items-center gap-2">Движок (Engine)</label>
+      <div className="grid grid-cols-2 gap-2">
+        {imageEngineOptions.map((engine) => {
+          const isSelected = selected === engine.id;
+          const isLocked = engine.isPremium && isFreePlan;
+
+          return (
+            <button
+              key={engine.id}
+              type="button"
+              onClick={() => {
+                if (isLocked) {
+                  onPremiumClick();
+                  return;
+                }
+                onChange(engine.id);
+              }}
+              className={`
+                relative p-3 rounded-xl text-left
+                transition-all duration-300
+                backdrop-blur-xl
+                ${isSelected
+                  ? "bg-indigo-500/20 border border-indigo-500/40"
+                  : isLocked
+                    ? "bg-white/[0.02] border border-[#333] hover:border-amber-500/30"
+                    : "bg-white/[0.04] border border-[#333] hover:border-[#444]"
+                }
+              `}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className={`text-sm font-medium truncate ${isSelected ? "text-indigo-200" : "text-white/90"}`}>
+                  {engine.label}
+                </span>
+                {engine.creditCost === 0 && (
+                  <span className="text-[10px] text-emerald-400 font-medium shrink-0">Free</span>
+                )}
+                {isLocked && (
+                  <Lock className="w-4 h-4 text-amber-400 shrink-0" aria-hidden />
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 // ===== STYLE SELECTOR =====
 
 interface StyleSelectorProps {
@@ -543,9 +622,10 @@ const StyleSelector = ({ selected, onChange }: StyleSelectorProps) => {
               relative p-4 rounded-xl text-left
               transition-all duration-300
               group
+              backdrop-blur-xl
               ${isSelected
                 ? "bg-gradient-to-br from-indigo-500/20 via-blue-500/15 to-purple-500/10 border border-indigo-500/40"
-                : "bg-white/[0.02] border border-[#333] hover:border-[#444] hover:bg-white/[0.04]"
+                : "bg-white/[0.04] border border-[#333] hover:border-[#444] hover:bg-white/[0.06]"
               }
             `}
           >
@@ -679,7 +759,7 @@ const SpecializedEngineSelector = ({ isActive, onToggle, disabled }: Specialized
                   }
                 `}
               >
-                Pro
+                Pro/Exclusive
               </span>
             </div>
             <p 
@@ -1622,6 +1702,10 @@ interface GeneratePanelProps {
   atLimit: boolean;
   checkImageLimit: () => boolean;
   incrementImages: () => void;
+  userPlan: "free" | "lite" | "standard" | "ultra";
+  freeImageCountToday: number;
+  checkFreeImageDailyLimit: () => boolean;
+  incrementFreeImageDaily: () => void;
   setShowPaywall: (show: boolean) => void;
   setPaywallReason: (reason: string) => void;
 }
@@ -1632,12 +1716,17 @@ const GeneratePanel = ({
   atLimit,
   checkImageLimit,
   incrementImages,
+  userPlan,
+  freeImageCountToday,
+  checkFreeImageDailyLimit,
+  incrementFreeImageDaily,
   setShowPaywall,
   setPaywallReason,
 }: GeneratePanelProps) => {
   const [prompt, setPrompt] = useState("");
   const [mode, setMode] = useState<GenerationMode>("text-to-image");
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
+  const [selectedEngine, setSelectedEngine] = useState<ImageEngineId>("flux-schnell");
   const [selectedStyle, setSelectedStyle] = useState("photorealistic");
   const [aspectRatio, setAspectRatio] = useState("1:1");
   const [imageCount, setImageCount] = useState(1);
@@ -1647,20 +1736,28 @@ const GeneratePanel = ({
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
   const [nijiModeActive, setNijiModeActive] = useState(false);
 
+  const isFreeEngine = selectedEngine === "kandinsky-3.1" || selectedEngine === "flux-schnell";
+  const atFreeDailyLimit = isFreeEngine && freeImageCountToday >= MAX_FREE_IMAGE_PER_DAY;
+  const effectiveAtLimit = nijiModeActive ? atLimit : (isFreeEngine ? atFreeDailyLimit : atLimit);
+
   // Check if image-to-image mode is ready
   const isImg2ImgReady = mode === "text-to-image" || (mode === "image-to-image" && referenceImage);
 
   const handleGenerate = async () => {
     if (!prompt.trim() || isGenerating) return;
     
-    // Check if we have reference image in img2img mode
     if (mode === "image-to-image" && !referenceImage) {
       setError("Пожалуйста, загрузите референсное изображение для режима Image-to-Image");
       return;
     }
     
-    // Check usage limit before generating
-    if (!checkImageLimit()) return;
+    if (nijiModeActive) {
+      if (!checkImageLimit()) return;
+    } else if (isFreeEngine) {
+      if (!checkFreeImageDailyLimit()) return;
+    } else {
+      if (!checkImageLimit()) return;
+    }
 
     setIsGenerating(true);
     setError(null);
@@ -1679,6 +1776,7 @@ const GeneratePanel = ({
           mode,
           referenceImage: mode === "image-to-image" ? referenceImage : null,
           specializedEngine: nijiModeActive ? "niji-v6" : null,
+          engine: selectedEngine,
         }),
       });
 
@@ -1688,13 +1786,14 @@ const GeneratePanel = ({
         throw new Error(data.error || "Failed to generate images");
       }
 
-      // Add new images to the top of the gallery
       setGeneratedImages((prev) => [...data.images, ...prev]);
-      
-      // Increment usage count after successful generation
-      incrementImages();
-      
-      // Clear prompt after successful generation
+      if (nijiModeActive) {
+        incrementImages();
+      } else if (isFreeEngine) {
+        incrementFreeImageDaily();
+      } else {
+        incrementImages();
+      }
       setPrompt("");
     } catch (err) {
       console.error("Generation error:", err);
@@ -1714,9 +1813,10 @@ const GeneratePanel = ({
 
   return (
     <div className="flex flex-col md:flex-row h-full min-h-screen">
-      {/* Left Panel - Controls */}
-      <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222] p-4 md:p-6 overflow-y-auto">
-        <div className="space-y-5 md:space-y-6">
+      {/* Left Panel - Controls: scrollable + sticky bottom bar on mobile */}
+      <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222] flex flex-col overflow-hidden">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 min-h-0">
+          <div className="space-y-5 md:space-y-6 pb-4">
           {/* Header */}
           <div className="flex items-start justify-between">
             <div>
@@ -1740,6 +1840,19 @@ const GeneratePanel = ({
           <div className="space-y-2">
             <label className="text-sm font-medium text-[#888]">Режим генерации</label>
             <ModeToggle mode={mode} onChange={setMode} />
+          </div>
+
+          {/* Engine (Model) Selector */}
+          <div className={nijiModeActive ? "opacity-50 pointer-events-none" : ""}>
+            <ImageEngineSelector
+              selected={selectedEngine}
+              onChange={setSelectedEngine}
+              userPlan={userPlan}
+              onPremiumClick={() => {
+                setPaywallReason("images");
+                setShowPaywall(true);
+              }}
+            />
           </div>
 
           {/* Reference Image Upload - Always visible but required indicator changes */}
@@ -1827,9 +1940,13 @@ const GeneratePanel = ({
               <ImageCountSlider value={imageCount} onChange={setImageCount} />
             </div>
           </div>
+          </div>
+        </div>
 
+        {/* Sticky bottom bar: limit warning + generate button + credits (на мобильных прижато к низу, синее свечение кнопки) */}
+        <div className="flex-shrink-0 p-4 md:p-6 pt-0 sticky bottom-0 left-0 right-0 z-10 bg-[#0a0a0a]/95 backdrop-blur-xl border-t border-[#222] md:border-t-0 md:bg-transparent md:backdrop-blur-none pb-[env(safe-area-inset-bottom)] md:pb-0 space-y-3">
           {/* Limit warning */}
-          {atLimit && (
+          {effectiveAtLimit && (
             <button
               onClick={() => {
                 setPaywallReason("images")
@@ -1847,7 +1964,7 @@ const GeneratePanel = ({
             >
               <Lock className="w-5 h-5 text-amber-400" />
               <span className="text-amber-400 font-medium text-sm text-center">
-                Бесплатные генерации исчерпаны
+                {isFreeEngine ? "Лимит 3 генерации в сутки исчерпан" : "Бесплатные генерации исчерпаны"}
               </span>
               <span className="text-amber-400/60 text-xs group-hover:text-amber-400 transition-colors">
                 Пополнить →
@@ -1858,7 +1975,7 @@ const GeneratePanel = ({
           {/* Generate Button */}
           <button
             onClick={handleGenerate}
-            disabled={!prompt.trim() || isGenerating || atLimit || !isImg2ImgReady}
+            disabled={!prompt.trim() || isGenerating || effectiveAtLimit || !isImg2ImgReady}
             data-tour="generate-button"
             className={`
               w-full py-4 rounded-xl
@@ -1867,16 +1984,16 @@ const GeneratePanel = ({
               relative overflow-hidden
               group
               active:scale-[0.98]
-              ${prompt.trim() && !isGenerating && !atLimit && isImg2ImgReady
+              ${prompt.trim() && !isGenerating && !effectiveAtLimit && isImg2ImgReady
                 ? nijiModeActive 
                   ? "bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-600 text-white shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40"
-                  : "bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40"
+                  : "bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 shadow-[0_0_24px_rgba(99,102,241,0.35)]"
                 : "bg-[#222] text-[#555] cursor-not-allowed"
               }
             `}
           >
             {/* Shimmer effect */}
-            {prompt.trim() && !isGenerating && !atLimit && isImg2ImgReady && (
+            {prompt.trim() && !isGenerating && !effectiveAtLimit && isImg2ImgReady && (
               <div className={`absolute inset-0 bg-gradient-to-r from-transparent ${nijiModeActive ? "via-amber-300/10" : "via-white/10"} to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000`} />
             )}
             
@@ -1886,7 +2003,7 @@ const GeneratePanel = ({
                   <Loader2 className="w-5 h-5 animate-spin" />
                   <span>{nijiModeActive ? "Создаём с Nana Banana..." : "Генерация..."}</span>
                 </>
-              ) : atLimit ? (
+              ) : effectiveAtLimit ? (
                 <>
                   <Lock className="w-5 h-5 text-[#555]" />
                   <span>Пополнить для генерации</span>
@@ -1914,24 +2031,34 @@ const GeneratePanel = ({
           <div 
             className={`
               flex items-center justify-center gap-2 py-3 px-4 rounded-lg border
-              ${atLimit 
+              ${effectiveAtLimit 
                 ? "bg-red-500/5 border-red-500/20" 
                 : "bg-white/[0.02] border-[#222]"
               }
             `}
           >
-            <div className={`w-2 h-2 rounded-full ${atLimit ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
+            <div className={`w-2 h-2 rounded-full ${effectiveAtLimit ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
             <span className="text-xs text-[#666]">
-              <span className={`font-medium ${atLimit ? "text-red-400" : "text-white/80"}`}>
-                {usedImages}/{limits.maxImages}
-              </span> бесплатных генераций использовано
+              {isFreeEngine ? (
+                <>
+                  <span className={`font-medium ${effectiveAtLimit ? "text-red-400" : "text-white/80"}`}>
+                    {freeImageCountToday}/{MAX_FREE_IMAGE_PER_DAY}
+                  </span> бесплатных генераций в сутки
+                </>
+              ) : (
+                <>
+                  <span className={`font-medium ${effectiveAtLimit ? "text-red-400" : "text-white/80"}`}>
+                    {usedImages}/{limits.maxImages}
+                  </span> бесплатных генераций использовано
+                </>
+              )}
             </span>
           </div>
         </div>
       </div>
 
       {/* Right Panel - Gallery */}
-      <div className="flex-1 p-4 md:p-6 overflow-y-auto" data-tour="gallery">
+      <div className="flex-1 p-4 md:p-6 overflow-y-auto min-h-0" data-tour="gallery">
         {/* Gallery Header */}
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <div>
@@ -1985,7 +2112,20 @@ const GeneratePanel = ({
 
 export const ImageStudio = () => {
   const [studioMode, setStudioMode] = useState<StudioMode>("generate");
-  const { checkImageLimit, incrementImages, canGenerateImage, imageCount, limits, setShowPaywall, setPaywallReason } = useUsage();
+  const {
+    checkImageLimit,
+    incrementImages,
+    canGenerateImage,
+    imageCount,
+    limits,
+  userPlan,
+  freeImageCountToday,
+  effectiveFreeImageCountToday,
+  checkFreeImageDailyLimit,
+  incrementFreeImageDaily,
+  setShowPaywall,
+  setPaywallReason,
+} = useUsage();
   const atLimit = !canGenerateImage;
 
   return (
@@ -2003,6 +2143,10 @@ export const ImageStudio = () => {
           atLimit={atLimit}
           checkImageLimit={checkImageLimit}
           incrementImages={incrementImages}
+          userPlan={userPlan}
+          freeImageCountToday={effectiveFreeImageCountToday}
+          checkFreeImageDailyLimit={checkFreeImageDailyLimit}
+          incrementFreeImageDaily={incrementFreeImageDaily}
           setShowPaywall={setShowPaywall}
           setPaywallReason={setPaywallReason}
         />

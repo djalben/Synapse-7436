@@ -1,7 +1,6 @@
 import { useState } from "react";
 import {
   MessageSquare,
-  Image,
   Video,
   Music,
   User,
@@ -20,7 +19,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { id: "chat", label: "Чат", icon: MessageSquare },
-  { id: "image", label: "Изображения", icon: Image },
+  { id: "image", label: "Изображения", icon: Sparkles },
   { id: "motion", label: "Видео", icon: Video },
   { id: "audio", label: "Аудио", icon: Music },
   { id: "avatar", label: "Аватары", icon: User },

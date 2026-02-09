@@ -31,7 +31,7 @@ imageRoutes.post("/", async (c) => {
       return c.json({ error: "Image generation service is not available. Please try again later." }, 503)
     }
 
-    const { prompt, aspectRatio, numImages, style, mode, referenceImage, specializedEngine } = await c.req.json()
+    const { prompt, aspectRatio, numImages, style, mode, referenceImage, specializedEngine, engine } = await c.req.json()
 
     // Validate prompt
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
@@ -168,8 +168,9 @@ imageRoutes.post("/", async (c) => {
         // Extract image URL from the response
         // Format: data[0].url or data[0].b64_json
         if (data.data && data.data.length > 0) {
-          // Flux.1 [schnell] — основная бесплатная модель (0 кредитов)
-          const creditCost = 0
+          // Бесплатные движки: Kandinsky 3.1, Flux.1 [schnell] — 0 кредитов
+          const isFreeEngine = engine === "kandinsky-3.1" || engine === "flux-schnell" || !engine
+          const creditCost = isFreeEngine ? 0 : 1
           for (const image of data.data) {
             const imageUrl = image.url || (image.b64_json ? `data:image/png;base64,${image.b64_json}` : null)
             if (imageUrl) {

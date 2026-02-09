@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import { type UserPlan, canAccessModel as checkModelAccess } from "./model-selector";
 
 interface UsageLimits {
@@ -17,6 +17,10 @@ interface UsageState {
   canSendMessage: boolean;
   canGenerateImage: boolean;
   canGenerateVideo: boolean;
+  freeImageCountToday: number;
+  effectiveFreeImageCountToday: number; // сброс при смене дня
+  checkFreeImageDailyLimit: () => boolean;
+  incrementFreeImageDaily: () => void;
   incrementMessages: () => void;
   incrementImages: () => void;
   incrementVideos: () => void;
@@ -39,6 +43,9 @@ const FREE_LIMITS: UsageLimits = {
   maxVideos: 0, // Video requires Studio plan
 };
 
+// Free image generations per day (for free models only)
+export const MAX_FREE_IMAGE_PER_DAY = 3;
+
 // Initial free credits (Welcome Bonus)
 const INITIAL_FREE_CREDITS = 15;
 const WELCOME_BONUS = 15;
@@ -51,6 +58,8 @@ interface StoredUsage {
   videoCount: number;
   creditBalance: number;
   userPlan: UserPlan;
+  freeImageCountToday?: number;
+  freeImageCountDate?: string;
 }
 
 const UsageContext = createContext<UsageState | null>(null);
@@ -76,18 +85,34 @@ export const UsageProvider = ({ children }: UsageProviderProps) => {
   const [showPaywall, setShowPaywall] = useState(false);
   const [paywallReason, setPaywallReason] = useState<"messages" | "images" | "videos" | "credits" | null>(null);
 
+  const [freeImageCountToday, setFreeImageCountToday] = useState(0);
+  const [freeImageCountDate, setFreeImageCountDate] = useState(() =>
+    new Date().toISOString().slice(0, 10)
+  );
+  const freeImageCountDateRef = useRef(freeImageCountDate);
+  freeImageCountDateRef.current = freeImageCountDate;
+
   // Load from localStorage on mount
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
+      const today = new Date().toISOString().slice(0, 10);
       if (stored) {
         const parsed: StoredUsage = JSON.parse(stored);
         setMessageCount(parsed.messageCount || 0);
         setImageCount(parsed.imageCount || 0);
         setVideoCount(parsed.videoCount || 0);
-        // Only set credit balance if it exists, otherwise use initial
         setCreditBalance(parsed.creditBalance ?? INITIAL_FREE_CREDITS);
         setUserPlan(parsed.userPlan || "free");
+        if (parsed.freeImageCountDate === today && typeof parsed.freeImageCountToday === "number") {
+          setFreeImageCountToday(parsed.freeImageCountToday);
+          setFreeImageCountDate(today);
+        } else {
+          setFreeImageCountToday(0);
+          setFreeImageCountDate(today);
+        }
+      } else {
+        setFreeImageCountDate(today);
       }
     } catch (error) {
       console.error("Failed to load usage from localStorage:", error);
@@ -102,13 +127,15 @@ export const UsageProvider = ({ children }: UsageProviderProps) => {
         imageCount, 
         videoCount, 
         creditBalance,
-        userPlan 
+        userPlan,
+        freeImageCountToday,
+        freeImageCountDate,
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch (error) {
       console.error("Failed to save usage to localStorage:", error);
     }
-  }, [messageCount, imageCount, videoCount, creditBalance, userPlan]);
+  }, [messageCount, imageCount, videoCount, creditBalance, userPlan, freeImageCountToday, freeImageCountDate]);
 
   const canSendMessage = messageCount < FREE_LIMITS.maxMessages;
   const canGenerateImage = imageCount < FREE_LIMITS.maxImages;
@@ -156,6 +183,30 @@ export const UsageProvider = ({ children }: UsageProviderProps) => {
     return true;
   };
 
+  const checkFreeImageDailyLimit = () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const effectiveCount = freeImageCountDate === today ? freeImageCountToday : 0;
+    if (effectiveCount >= MAX_FREE_IMAGE_PER_DAY) {
+      setPaywallReason("images");
+      setShowPaywall(true);
+      return false;
+    }
+    if (freeImageCountDate !== today) {
+      setFreeImageCountToday(0);
+      setFreeImageCountDate(today);
+    }
+    return true;
+  };
+
+  const incrementFreeImageDaily = () => {
+    const today = new Date().toISOString().slice(0, 10);
+    setFreeImageCountDate(today);
+    setFreeImageCountToday((prev) => {
+      if (freeImageCountDateRef.current !== today) return 1;
+      return prev + 1;
+    });
+  };
+
   const checkVideoLimit = () => {
     if (videoCount >= FREE_LIMITS.maxVideos) {
       setPaywallReason("videos");
@@ -189,6 +240,11 @@ export const UsageProvider = ({ children }: UsageProviderProps) => {
         canSendMessage,
         canGenerateImage,
         canGenerateVideo,
+        freeImageCountToday,
+        effectiveFreeImageCountToday:
+          freeImageCountDate === new Date().toISOString().slice(0, 10) ? freeImageCountToday : 0,
+        checkFreeImageDailyLimit,
+        incrementFreeImageDaily,
         incrementMessages,
         incrementImages,
         incrementVideos,
