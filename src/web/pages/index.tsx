@@ -121,8 +121,8 @@ function Index() {
             {renderContent()}
           </div>
           
-          {/* Footer: скрыт на мобильных и на вкладках Изображения/Видео (без глобального скролла) */}
-          <div className={activeTab === "image" || activeTab === "motion" ? "hidden" : "hidden md:block"}>
+          {/* Footer: скрыт во всех рабочих разделах для чистоты интерфейса */}
+          <div className="hidden">
             <Footer />
           </div>
         </main>

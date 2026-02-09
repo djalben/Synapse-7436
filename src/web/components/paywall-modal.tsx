@@ -321,8 +321,12 @@ export const PaywallModal = () => {
   if (!showPaywall) return null;
 
   const reasonText = paywallReason === "messages"
-    ? `Вы использовали все ${limits.maxMessages} бесплатных сообщений.`
-    : `Вы использовали все ${limits.maxImages} бесплатных генераций.`;
+    ? `Вы использовали все ${limits.maxMessages} бесплатных сообщений в сутки.`
+    : paywallReason === "videos"
+      ? `Вы использовали лимит бесплатных видео в сутки (${limits.maxVideos}).`
+      : paywallReason === "images"
+        ? `Вы использовали все ${limits.maxImages} бесплатных генераций в сутки.`
+        : `Недостаточно кредитов.`;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 md:p-4">

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
 import { ModelSelector, models, getModelCreditCost } from "./model-selector"
+import { FREE_CHAT_MODEL_IDS } from "./usage-context"
 import { Paperclip, Mic, ArrowUp, Sparkles, Zap, Lightbulb, Code, Bot, User, Copy, Check, Lock, Coins } from "lucide-react"
 import { useUsage } from "./usage-context"
 import { useTour } from "./onboarding-tour"
@@ -392,25 +393,25 @@ const ChatInputComponent = ({ value, onChange, onSubmit, disabled }: ChatInputPr
               <Mic className="w-5 h-5" />
             </button>
 
-            {/* Send Button: минимум 44px зона нажатия на мобильных */}
+            {/* Send Button: синий градиент как в Изображениях/Видео */}
             <button
               onClick={handleSubmit}
               disabled={!value.trim() || disabled}
               data-tour="send-button"
               className={`
-                min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0
-                p-3 md:p-2.5 rounded-xl
-                flex items-center justify-center
-                transition-all duration-300
-                active:scale-95
+                min-w-[44px] min-h-[44px] md:min-h-[44px] md:px-4
+                py-3 md:py-2.5 rounded-xl font-medium
+                flex items-center justify-center gap-1.5
+                transition-all duration-300 active:scale-[0.98]
                 ${
                   value.trim() && !disabled
-                    ? "bg-white text-black hover:bg-white/90 shadow-lg shadow-white/10"
-                    : "bg-white/10 text-[#555] cursor-not-allowed"
+                    ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_24px_rgba(0,112,243,0.4)]"
+                    : "bg-[#222] text-[#555] cursor-not-allowed"
                 }
               `}
             >
-              <ArrowUp className="w-5 h-5" strokeWidth={2.5} />
+              <ArrowUp className="w-5 h-5 md:w-4 md:h-4" strokeWidth={2.5} />
+              <span className="hidden sm:inline">Отправить</span>
             </button>
           </div>
         </div>
@@ -430,17 +431,17 @@ export const ChatInterface = () => {
   const selectedModelRef = useRef(selectedModel)
   const { startTour } = useTour()
   const { 
-    checkMessageLimit, 
+    checkMessageDailyLimit, 
+    incrementMessageDaily,
     incrementMessages, 
-    canSendMessage, 
-    messageCount, 
     limits, 
     setShowPaywall, 
     setPaywallReason,
     creditBalance,
     deductCredits,
     checkCredits,
-    userPlan
+    canAccessModel,
+    effectiveMessageCountToday,
   } = useUsage()
   
   // Keep ref in sync with state
@@ -457,16 +458,18 @@ export const ChatInterface = () => {
       body: () => ({ model: selectedModelRef.current })
     }),
     onFinish: () => {
-      // Deduct credits after successful response
-      const cost = getModelCreditCost(selectedModelRef.current)
-      deductCredits(cost)
+      const modelId = selectedModelRef.current
+      if (FREE_CHAT_MODEL_IDS.includes(modelId as typeof FREE_CHAT_MODEL_IDS[number])) {
+        incrementMessageDaily()
+      } else {
+        const cost = getModelCreditCost(modelId)
+        deductCredits(cost)
+        toast.success(`-${cost} кредитов`, {
+          description: `Осталось ${creditBalance - cost} кредитов`,
+          duration: 2000,
+        })
+      }
       incrementMessages()
-      
-      // Show credit deduction toast
-      toast.success(`-${cost} кредитов`, {
-        description: `Осталось ${creditBalance - cost} кредитов`,
-        duration: 2000,
-      })
     }
   })
 
@@ -506,16 +509,21 @@ export const ChatInterface = () => {
     userAtBottomRef.current = atBottom
   }
 
+  const isFreeChatModel = FREE_CHAT_MODEL_IDS.includes(selectedModel as typeof FREE_CHAT_MODEL_IDS[number])
+  const selectedModelData = models.find((m) => m.id === selectedModel)
+  const hasAccessToSelected = selectedModelData ? canAccessModel(selectedModelData.requiredPlan) : true
+  const atDailyLimit = isFreeChatModel && effectiveMessageCountToday >= limits.maxMessages
+  const notEnoughCredits = !isFreeChatModel && creditBalance < currentCreditCost
+  const sendDisabled = isLoading || atDailyLimit || (!hasAccessToSelected && !isFreeChatModel) || notEnoughCredits
+
   const handleSendMessage = () => {
     if (!inputValue.trim() || isLoading) return
-    
-    // Check message limit first
-    if (!checkMessageLimit()) return
-    
-    // Check if user has enough credits
-    const cost = getModelCreditCost(selectedModel)
-    if (!checkCredits(cost)) return
-    
+    if (isFreeChatModel) {
+      if (!checkMessageDailyLimit(selectedModel)) return
+    } else {
+      if (!hasAccessToSelected) return
+      if (!checkCredits(currentCreditCost)) return
+    }
     userAtBottomRef.current = true
     sendMessage({ text: inputValue })
     setInputValue("")
@@ -526,8 +534,8 @@ export const ChatInterface = () => {
   }
 
   const hasMessages = messages.length > 0
-  const atLimit = !canSendMessage
-  const notEnoughCredits = creditBalance < currentCreditCost
+  const atLimit = atDailyLimit
+  const showLimitBanner = atDailyLimit || notEnoughCredits
 
   return (
     <div
@@ -649,8 +657,8 @@ export const ChatInterface = () => {
         `}
       >
         <div className="max-w-4xl mx-auto">
-          {/* Limit warning banner */}
-          {(atLimit || notEnoughCredits) && (
+          {/* Limit warning banner — только при исчерпании лимита или нехватке кредитов */}
+          {showLimitBanner && (
             <button
               onClick={() => {
                 setPaywallReason(notEnoughCredits ? "credits" : "messages")
@@ -682,11 +690,11 @@ export const ChatInterface = () => {
             value={inputValue}
             onChange={setInputValue}
             onSubmit={handleSendMessage}
-            disabled={isLoading || atLimit || notEnoughCredits}
+            disabled={sendDisabled}
           />
           <p className="text-center text-[#444] text-xs mt-1.5 md:mt-4">
-            {atLimit 
-              ? `${messageCount}/${limits.maxMessages} бесплатных сообщений использовано`
+            {isFreeChatModel
+              ? `Осталось: ${Math.max(0, limits.maxMessages - effectiveMessageCountToday)}/${limits.maxMessages} запросов`
               : notEnoughCredits
                 ? `Нужно ${currentCreditCost} кредитов • Баланс: ${creditBalance.toFixed(1)}`
                 : "Synapse может ошибаться. Проверяйте важную информацию."

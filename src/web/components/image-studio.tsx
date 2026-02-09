@@ -1875,23 +1875,15 @@ const GeneratePanel = ({
               <span className={`text-xs ${effectiveAtLimit ? "text-red-400" : "text-gray-400"}`}>
                 {isFreeEngine ? (
                   effectiveAtLimit ? (
-                    "Бесплатные генерации закончились"
+                    "0/3 генераций сегодня"
                   ) : (
-                    <>
-                      <span className="font-medium text-white/80">
-                        {freeImageCountToday}/{MAX_FREE_IMAGE_PER_DAY}
-                      </span> бесплатных генераций в сутки
-                    </>
+                    <>Осталось: {MAX_FREE_IMAGE_PER_DAY - freeImageCountToday}/{MAX_FREE_IMAGE_PER_DAY} генераций</>
                   )
                 ) : (
                   effectiveAtLimit ? (
                     "Бесплатные генерации закончились"
                   ) : (
-                    <>
-                      <span className="font-medium text-white/80">
-                        {usedImages}/{limits.maxImages}
-                      </span> бесплатных генераций использовано
-                    </>
+                    <>Осталось: {Math.max(0, limits.maxImages - usedImages)}/{limits.maxImages}</>
                   )
                 )}
               </span>
@@ -1945,25 +1937,9 @@ const GeneratePanel = ({
           <div className={`w-2 h-2 rounded-full ${effectiveAtLimit ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
           <span className={`text-xs ${effectiveAtLimit ? "text-red-400" : "text-gray-400"}`}>
             {isFreeEngine ? (
-              effectiveAtLimit ? (
-                "Бесплатные генерации закончились"
-              ) : (
-                <>
-                  <span className="font-medium text-white/80">
-                    {freeImageCountToday}/{MAX_FREE_IMAGE_PER_DAY}
-                  </span> бесплатных генераций в сутки
-                </>
-              )
+              effectiveAtLimit ? "0/3 генераций сегодня" : <>Осталось: {MAX_FREE_IMAGE_PER_DAY - freeImageCountToday}/{MAX_FREE_IMAGE_PER_DAY} генераций</>
             ) : (
-              effectiveAtLimit ? (
-                "Бесплатные генерации закончились"
-              ) : (
-                <>
-                  <span className="font-medium text-white/80">
-                    {usedImages}/{limits.maxImages}
-                  </span> бесплатных генераций использовано
-                </>
-              )
+              effectiveAtLimit ? "Бесплатные генерации закончились" : <>Осталось: {Math.max(0, limits.maxImages - usedImages)}/{limits.maxImages}</>
             )}
           </span>
         </div>
