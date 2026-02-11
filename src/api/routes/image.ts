@@ -137,8 +137,8 @@ imageRoutes.post("/", async (c) => {
           headers: {
             "Authorization": `Bearer ${c.env.OPENROUTER_API_KEY}`,
             "Content-Type": "application/json",
-            "HTTP-Referer": c.env.VITE_BASE_URL || "https://synapse.app",
-            "X-Title": "Synapse Image Studio",
+            "HTTP-Referer": "https://synapse-7436.vercel.app",
+            "X-Title": "Synapse AI",
           },
           body: JSON.stringify({
             model: "google/gemini-2.0-flash-exp:free",
@@ -215,8 +215,8 @@ imageRoutes.post("/", async (c) => {
           headers: {
             "Authorization": `Bearer ${c.env.OPENROUTER_API_KEY}`,
             "Content-Type": "application/json",
-            "HTTP-Referer": c.env.VITE_BASE_URL || "https://synapse.app",
-            "X-Title": "Synapse Image Studio",
+            "HTTP-Referer": "https://synapse-7436.vercel.app",
+            "X-Title": "Synapse AI",
           },
           body: JSON.stringify({
             model: modelId,
