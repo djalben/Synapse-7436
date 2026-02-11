@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from "hono/cors"
+import { prettyJSON } from "hono/pretty-json"
+import { trimTrailingSlash } from "hono/trailing-slash"
 import { chatRoutes } from './routes/chat.js'
 import { imageRoutes } from './routes/image.js'
 import { videoRoutes } from './routes/video.js'
@@ -8,9 +10,11 @@ import { audioRoutes } from './routes/audio.js'
 import { avatarRoutes } from './routes/avatar.js'
 import { webhookRoutes } from './routes/webhook.js'
 
-// basePath('/api') — все роуты доступны как /api/...
+// basePath('/api') — все роуты доступны как /api/... (фронт должен слать /api/image без слеша в конце)
 const app = new Hono().basePath('/api')
 
+app.use('*', trimTrailingSlash())
+app.use('*', prettyJSON())
 app.use('*', cors({
   origin: "*",
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -39,7 +43,7 @@ app.get('/debug', (c) => {
   });
 });
 
-// Роуты: /api/chat, /api/image, ...
+// Роуты: /api/chat, /api/image, ... (без лишних слешей)
 app.route('/chat', chatRoutes);
 app.route('/image', imageRoutes);
 app.route('/video', videoRoutes);
