@@ -1664,11 +1664,18 @@ const GeneratePanel = ({
       if (!response.ok) {
         // Пытаемся прочитать текст ответа для отладки
         const text = await response.text();
-        console.error("Server error response:", {
+        console.error("[Image Studio] Server error response:", {
           status: response.status,
           statusText: response.statusText,
           url: response.url,
-          body: text.substring(0, 500), // Первые 500 символов для отладки
+          headers: Object.fromEntries(response.headers.entries()),
+          body: text.substring(0, 1000), // Первые 1000 символов для отладки
+          requestBody: {
+            engine: selectedEngine,
+            specializedEngine: isNanaBanana ? "niji-v6" : null,
+            mode,
+            promptLength: prompt.trim().length,
+          },
         });
         
         // Пытаемся распарсить как JSON, если не получилось - используем текст
@@ -1676,10 +1683,12 @@ const GeneratePanel = ({
         try {
           const errorData = JSON.parse(text);
           errorMessage = errorData.error || errorMessage;
+          console.error("[Image Studio] Parsed error data:", errorData);
         } catch {
           // Если это HTML страница ошибки, показываем понятное сообщение
           if (text.includes("<!DOCTYPE") || text.includes("<html")) {
             errorMessage = `Server returned HTML instead of JSON (status ${response.status}). Please check API configuration.`;
+            console.error("[Image Studio] Server returned HTML error page");
           } else {
             errorMessage = text.substring(0, 200) || errorMessage;
           }

@@ -3,6 +3,7 @@ import { Hono } from "hono"
 // Environment variables type for Hono context
 type Env = {
   OPENROUTER_API_KEY?: string
+  REPLICATE_API_TOKEN?: string
   VITE_BASE_URL?: string
 }
 
@@ -26,6 +27,15 @@ const STYLE_PROMPTS: Record<string, string> = {
 // Nana Banana (niji-v6) anime enhancement
 const NANA_BANANA_PROMPT = ", anime masterpiece, niji style, vibrant colors, high quality anime art, detailed anime illustration, professional anime artwork, beautiful anime aesthetic"
 
+// Model mapping from frontend engine IDs to OpenRouter/Replicate model IDs
+const MODEL_MAP: Record<string, string> = {
+  "kandinsky-3.1": "black-forest-labs/flux-1-schnell", // Fallback to Flux for Kandinsky
+  "flux-schnell": "black-forest-labs/flux-1-schnell",
+  "dall-e-3": "openai/dall-e-3",
+  "midjourney-v7": "black-forest-labs/flux-1-schnell", // Fallback to Flux for Midjourney
+  "nana-banana": "black-forest-labs/flux-1-schnell", // Using Flux with Nana Banana prompt enhancement
+}
+
 imageRoutes.post("/", async (c) => {
   try {
     // Логирование для отладки маршрутизации
@@ -37,8 +47,18 @@ imageRoutes.post("/", async (c) => {
     });
     
     // Check for required API key
-    if (!c.env.OPENROUTER_API_KEY) {
-      console.warn("OPENROUTER_API_KEY not configured")
+    const openRouterKey = c.env.OPENROUTER_API_KEY
+    const replicateToken = c.env.REPLICATE_API_TOKEN
+    
+    console.log("[Image API] Environment check:", {
+      hasOpenRouterKey: !!openRouterKey,
+      openRouterKeyPreview: openRouterKey ? `${openRouterKey.substring(0, 4)}...` : "missing",
+      hasReplicateToken: !!replicateToken,
+      replicateTokenPreview: replicateToken ? `${replicateToken.substring(0, 4)}...` : "missing",
+    });
+    
+    if (!openRouterKey) {
+      console.warn("[Image API] OPENROUTER_API_KEY not configured")
       return c.json({ error: "Image generation service is not available. Please try again later." }, 503)
     }
 
@@ -53,6 +73,18 @@ imageRoutes.post("/", async (c) => {
       engine?: string
     }
     const { prompt, aspectRatio, numImages, style, mode, referenceImage, specializedEngine, engine } = body
+    
+    console.log("[Image API] Request body:", {
+      engine: engine || "not specified",
+      specializedEngine: specializedEngine || "not specified",
+      mode: mode || "text-to-image",
+      hasPrompt: !!prompt,
+      promptLength: prompt?.length || 0,
+      aspectRatio: aspectRatio || "not specified",
+      numImages: numImages || 1,
+      style: style || "not specified",
+      hasReferenceImage: !!referenceImage,
+    });
 
     // Validate prompt
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
@@ -162,7 +194,15 @@ imageRoutes.post("/", async (c) => {
           }
         }
       } else {
-        // Text-to-image: Use flux-1-schnell model
+        // Text-to-image: Select model based on engine parameter
+        const modelId = engine && MODEL_MAP[engine] ? MODEL_MAP[engine] : "black-forest-labs/flux-1-schnell"
+        
+        console.log("[Image API] Using model:", {
+          requestedEngine: engine || "default",
+          selectedModel: modelId,
+          prompt: enhancedPrompt.substring(0, 100) + "...",
+        });
+        
         const response = await fetch("https://openrouter.ai/api/v1/images/generations", {
           method: "POST",
           headers: {
@@ -172,7 +212,7 @@ imageRoutes.post("/", async (c) => {
             "X-Title": "Synapse Image Studio",
           },
           body: JSON.stringify({
-            model: "black-forest-labs/flux-1-schnell",
+            model: modelId,
             prompt: enhancedPrompt,
             n: 1,
             size: `${size.width}x${size.height}`,
@@ -187,7 +227,25 @@ imageRoutes.post("/", async (c) => {
           
           // Логируем детали ошибки для отладки
           const errorText = await response.text().catch(() => "Unknown error")
-          console.error("[Image API] Text-to-image error:", status, errorText.substring(0, 200))
+          console.error("[Image API] Text-to-image error:", {
+            status,
+            statusText: response.statusText,
+            model: modelId,
+            engine: engine || "not specified",
+            errorPreview: errorText.substring(0, 500),
+          })
+          
+          // Try to parse error as JSON for more details
+          let errorMessage = "Failed to generate image. Please try again."
+          try {
+            const errorJson = JSON.parse(errorText)
+            errorMessage = errorJson.error?.message || errorJson.error || errorMessage
+          } catch {
+            // If not JSON, use the text or default message
+            if (errorText && !errorText.includes("<!DOCTYPE")) {
+              errorMessage = errorText.substring(0, 200)
+            }
+          }
           
           if (status === 429) {
             return c.json({ error: "High demand right now. Please wait a moment and try again." }, 429)
@@ -195,8 +253,11 @@ imageRoutes.post("/", async (c) => {
           if (status === 402 || status === 403) {
             return c.json({ error: "High load on GPU servers, please try again later." }, 500)
           }
+          if (status === 401) {
+            return c.json({ error: "Image generation service is not available. Please check API configuration." }, 503)
+          }
           
-          return c.json({ error: "Failed to generate image. Please try again." }, 500)
+          return c.json({ error: errorMessage }, status >= 500 ? 500 : status)
         }
 
         const data = await response.json() as {
@@ -240,8 +301,13 @@ imageRoutes.post("/", async (c) => {
       totalCreditCost: generatedImages.length,
     })
   } catch (error) {
-    // Log errors
-    console.error("Image generation error:", error)
+    // Log errors with full context
+    console.error("[Image API] Unexpected error:", {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      engine: engine || "not specified",
+      mode: mode || "text-to-image",
+    })
     
     // Убеждаемся, что всегда возвращаем JSON, даже при ошибке
     const errorMessage = error instanceof Error ? error.message : "Unknown error"
@@ -251,6 +317,11 @@ imageRoutes.post("/", async (c) => {
       return c.json({ error: "Image generation service is not available. Please check API configuration." }, 503)
     }
     
-    return c.json({ error: "Generation is taking longer than expected. Please try again." }, 500)
+    // Проверяем сетевые ошибки
+    if (errorMessage.includes("fetch") || errorMessage.includes("network") || errorMessage.includes("ECONNREFUSED")) {
+      return c.json({ error: "Network error. Please check your internet connection and try again." }, 503)
+    }
+    
+    return c.json({ error: `Generation error: ${errorMessage}` }, 500)
   }
 })
