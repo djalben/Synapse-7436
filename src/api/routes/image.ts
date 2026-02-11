@@ -106,6 +106,8 @@ imageRoutes.post("/", async (c) => {
 
         if (!response.ok) {
           if (generatedImages.length > 0) break
+          const errorText = await response.text().catch(() => "Unknown error")
+          console.error("[Image API] Image-to-image error:", response.status, errorText)
           return c.json({ error: "Image transformation is experiencing high demand. Please try again later." }, 500)
         }
 
@@ -152,6 +154,10 @@ imageRoutes.post("/", async (c) => {
           const status = response.status
           
           if (generatedImages.length > 0) break
+          
+          // Логируем детали ошибки для отладки
+          const errorText = await response.text().catch(() => "Unknown error")
+          console.error("[Image API] Text-to-image error:", status, errorText.substring(0, 200))
           
           if (status === 429) {
             return c.json({ error: "High demand right now. Please wait a moment and try again." }, 429)
@@ -203,6 +209,15 @@ imageRoutes.post("/", async (c) => {
     if (import.meta.env.DEV) {
       console.error("Image generation error:", error)
     }
+    
+    // Убеждаемся, что всегда возвращаем JSON, даже при ошибке
+    const errorMessage = error instanceof Error ? error.message : "Unknown error"
+    
+    // Проверяем, не является ли ошибка связанной с API ключом
+    if (errorMessage.includes("API") || errorMessage.includes("key") || errorMessage.includes("401") || errorMessage.includes("403")) {
+      return c.json({ error: "Image generation service is not available. Please check API configuration." }, 503)
+    }
+    
     return c.json({ error: "Generation is taking longer than expected. Please try again." }, 500)
   }
 })

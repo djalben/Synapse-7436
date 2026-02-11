@@ -1638,11 +1638,36 @@ const GeneratePanel = ({
         }),
       });
 
-      const data = await response.json();
-
+      // Проверяем статус ответа перед парсингом JSON
       if (!response.ok) {
-        throw new Error(data.error || "Failed to generate images");
+        // Пытаемся прочитать текст ответа для отладки
+        const text = await response.text();
+        console.error("Server error response:", {
+          status: response.status,
+          statusText: response.statusText,
+          url: response.url,
+          body: text.substring(0, 500), // Первые 500 символов для отладки
+        });
+        
+        // Пытаемся распарсить как JSON, если не получилось - используем текст
+        let errorMessage = "Failed to generate images";
+        try {
+          const errorData = JSON.parse(text);
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // Если это HTML страница ошибки, показываем понятное сообщение
+          if (text.includes("<!DOCTYPE") || text.includes("<html")) {
+            errorMessage = `Server returned HTML instead of JSON (status ${response.status}). Please check API configuration.`;
+          } else {
+            errorMessage = text.substring(0, 200) || errorMessage;
+          }
+        }
+        
+        throw new Error(errorMessage);
       }
+
+      // Только если response.ok === true, парсим JSON
+      const data = await response.json();
 
       setGeneratedImages((prev) => [...data.images, ...prev]);
       if (isNanaBanana) {

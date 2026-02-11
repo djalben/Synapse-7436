@@ -467,37 +467,34 @@ export const ChatInterface = () => {
     }),
     onFinish: (message) => {
       const modelId = selectedModelRef.current
-      
-      // ВРЕМЕННО: Установлена стоимость 1 кредит для всех моделей для тестирования
-      const cost = 1.0 // getModelCreditCost(modelId)
-      
-      // Всегда списываем кредиты при каждом сообщении
-      const success = deductCredits(cost)
-      
-      // Увеличиваем счетчик дневных сообщений для бесплатных моделей
       const isFreeModel = FREE_CHAT_MODEL_IDS.includes(modelId as typeof FREE_CHAT_MODEL_IDS[number])
-      if (isFreeModel) {
-        incrementMessageDaily()
-      }
       
-      // Показываем уведомление о списании
-      if (success) {
-        const newBalance = Math.max(0, creditBalanceRef.current - cost)
-        const remainingFree = isFreeModel 
-          ? `${effectiveMessageCountToday + 1}/${limits.maxMessages} бесплатных попыток`
-          : null
+      if (isFreeModel) {
+        // Бесплатная модель - только увеличиваем счетчик дневных сообщений, кредиты НЕ списываем
+        incrementMessageDaily()
+        const remainingFree = `${effectiveMessageCountToday + 1}/${limits.maxMessages} бесплатных попыток`
         
-        toast.success(`Списано ${cost} кредит${cost === 1 ? '' : cost < 5 ? 'а' : 'ов'}`, {
-          description: remainingFree 
-            ? `Баланс: ${newBalance.toFixed(1)} кредитов. ${remainingFree}`
-            : `Баланс: ${newBalance.toFixed(1)} кредитов`,
-          duration: 3000,
+        toast.success("Использована бесплатная попытка", {
+          description: `Осталось: ${Math.max(0, limits.maxMessages - effectiveMessageCountToday - 1)}/${limits.maxMessages} запросов`,
+          duration: 2000,
         })
       } else {
-        toast.error("Недостаточно кредитов", {
-          description: `Требуется ${cost} кредит${cost === 1 ? '' : cost < 5 ? 'а' : 'ов'}, доступно ${creditBalanceRef.current.toFixed(1)}`,
-          duration: 3000,
-        })
+        // Платная модель - списываем кредиты
+        const cost = getModelCreditCost(modelId)
+        const success = deductCredits(cost)
+        
+        if (success) {
+          const newBalance = Math.max(0, creditBalanceRef.current - cost)
+          toast.success(`Списано ${cost} кредит${cost === 1 ? '' : cost < 5 ? 'а' : 'ов'}`, {
+            description: `Баланс: ${newBalance.toFixed(1)} кредитов`,
+            duration: 3000,
+          })
+        } else {
+          toast.error("Недостаточно кредитов", {
+            description: `Требуется ${cost} кредит${cost === 1 ? '' : cost < 5 ? 'а' : 'ов'}, доступно ${creditBalanceRef.current.toFixed(1)}`,
+            duration: 3000,
+          })
+        }
       }
       
       incrementMessages()
@@ -506,6 +503,7 @@ export const ChatInterface = () => {
       const userMessages = messages.filter(m => m.role === "user")
       const lastUserMessage = userMessages[userMessages.length - 1]
       if (lastUserMessage && message.content) {
+        const cost = isFreeModel ? 0 : getModelCreditCost(modelId)
         addToHistory({
           type: "chat",
           prompt: typeof lastUserMessage.content === "string" ? lastUserMessage.content : "",
