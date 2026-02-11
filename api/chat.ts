@@ -14,7 +14,7 @@ const MODEL_MAP: Record<string, string> = {
 
 export default async function handler(req: Request) {
   try {
-    const { messages, model } = await req.json();
+    const { messages, model } = await req.json<{ messages: any[], model?: string }>();
     
     // Выбираем правильный ID или берем DeepSeek по умолчанию
     const fullModelId = MODEL_MAP[model] || "deepseek/deepseek-r1";

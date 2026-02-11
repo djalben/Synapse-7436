@@ -54,7 +54,8 @@ chatRoutes.post("/", async (c) => {
       return c.json({ error: "Chat service is not available. Please try again later." }, 503)
     }
 
-    const { messages, model } = (await c.req.json()) as ChatRequest
+    const body = await c.req.json<{ messages: UIMessage[], model?: string }>()
+    const { messages, model } = body
 
     // Validate messages
     if (!messages || !Array.isArray(messages)) {
