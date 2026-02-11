@@ -8,8 +8,9 @@ import { audioRoutes } from './routes/audio'
 import { avatarRoutes } from './routes/avatar'
 import { webhookRoutes } from './routes/webhook'
 
+// Создаем приложение без basePath для Cloudflare Workers
+// В Cloudflare Workers basePath может создавать проблемы с маршрутизацией
 const app = new Hono()
-  .basePath('/api');
 
 app.use('*', cors({
   origin: "*",
@@ -17,32 +18,53 @@ app.use('*', cors({
   allowHeaders: ['Content-Type', 'Authorization'],
 }))
 
-app.get('/ping', (c) => c.json({ message: `Pong! ${Date.now()}` }));
+// Debug endpoint - доступен по /api/ping
+app.get('/api/ping', (c) => c.json({ message: `Pong! ${Date.now()}` }));
 
-// Debug endpoint to check routing
-app.get('/debug', (c) => {
+// Debug endpoint для проверки маршрутизации
+app.get('/api/debug', (c) => {
   return c.json({ 
     path: c.req.path,
     method: c.req.method,
     url: c.req.url,
-    routes: ['/chat', '/image', '/video', '/enhance', '/audio', '/avatar', '/webhook']
+    rawPath: c.req.raw.path,
+    registeredRoutes: [
+      '/api/ping',
+      '/api/debug', 
+      '/api/chat', 
+      '/api/image', 
+      '/api/video', 
+      '/api/enhance', 
+      '/api/audio', 
+      '/api/avatar', 
+      '/api/webhook'
+    ]
   });
 });
 
-app.route('/chat', chatRoutes);
-app.route('/image', imageRoutes);
-app.route('/video', videoRoutes);
-app.route('/enhance', enhanceRoutes);
-app.route('/audio', audioRoutes);
-app.route('/avatar', avatarRoutes);
-app.route('/webhook', webhookRoutes);
+// Подключаем роуты с полным путем /api/*
+app.route('/api/chat', chatRoutes);
+app.route('/api/image', imageRoutes);
+app.route('/api/video', videoRoutes);
+app.route('/api/enhance', enhanceRoutes);
+app.route('/api/audio', audioRoutes);
+app.route('/api/avatar', avatarRoutes);
+app.route('/api/webhook', webhookRoutes);
 
 // Fallback для несуществующих роутов
 app.notFound((c) => {
+  console.error("[API] Route not found:", {
+    path: c.req.path,
+    method: c.req.method,
+    url: c.req.url,
+    rawPath: c.req.raw.path,
+  });
+  
   return c.json({ 
     error: `Route not found: ${c.req.path}`,
     method: c.req.method,
-    availableRoutes: ['/api/ping', '/api/chat', '/api/image', '/api/video', '/api/enhance', '/api/audio', '/api/avatar', '/api/webhook']
+    url: c.req.url,
+    availableRoutes: ['/api/ping', '/api/debug', '/api/chat', '/api/image', '/api/video', '/api/enhance', '/api/audio', '/api/avatar', '/api/webhook']
   }, 404);
 });
 

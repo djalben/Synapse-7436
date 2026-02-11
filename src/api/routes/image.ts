@@ -23,6 +23,14 @@ const NANA_BANANA_PROMPT = ", anime masterpiece, niji style, vibrant colors, hig
 
 imageRoutes.post("/", async (c) => {
   try {
+    // Логирование для отладки маршрутизации
+    console.log("[Image API] Request received:", {
+      path: c.req.path,
+      method: c.req.method,
+      url: c.req.url,
+      hasBody: !!c.req.body,
+    });
+    
     // Check for required API key
     if (!env.OPENROUTER_API_KEY) {
       if (import.meta.env.DEV) {

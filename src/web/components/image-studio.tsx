@@ -1621,7 +1621,22 @@ const GeneratePanel = ({
     setError(null);
 
     try {
-      const response = await fetch("/api/image", {
+      // Диагностика: сначала проверяем доступность API
+      const debugResponse = await fetch("/api/debug").catch(() => null);
+      if (debugResponse) {
+        const debugData = await debugResponse.json().catch(() => null);
+        console.log("[Image Studio] API Debug Info:", debugData);
+      }
+      
+      const apiUrl = "/api/image";
+      console.log("[Image Studio] Sending request to:", apiUrl, {
+        method: "POST",
+        prompt: prompt.trim().substring(0, 50) + "...",
+        aspectRatio,
+        numImages: imageCount,
+      });
+      
+      const response = await fetch(apiUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1636,6 +1651,13 @@ const GeneratePanel = ({
           specializedEngine: isNanaBanana ? "niji-v6" : null,
           engine: selectedEngine,
         }),
+      });
+      
+      console.log("[Image Studio] Response received:", {
+        status: response.status,
+        statusText: response.statusText,
+        url: response.url,
+        ok: response.ok,
       });
 
       // Проверяем статус ответа перед парсингом JSON
