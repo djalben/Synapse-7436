@@ -514,51 +514,52 @@ export const AvatarStudio = () => {
               <RecordCameraButton />
             </div>
           </div>
-
-          {/* Кнопка генерации — на десктопе sticky внизу левой панели */}
-          <div className="hidden md:block sticky bottom-0 z-[50] mt-5 pt-2 pb-2 -mx-6 px-6">
-            <button
-              type="button"
-              onClick={() => {
-                if (atDailyLimit || !hasEnoughCredits) {
-                  setPaywallReason("credits");
-                  setShowPaywall(true);
-                  return;
-                }
-                handleGenerate();
-              }}
-              disabled={!canGenerate || !hasEnoughCredits || atDailyLimit}
-              className={`
-                w-full py-4 px-6 rounded-xl font-medium text-base mb-2
-                transition-all duration-300 relative overflow-hidden
-                active:scale-[0.98] group
-                ${canGenerate && hasEnoughCredits && !atDailyLimit
-                  ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_24px_rgba(0,112,243,0.4)]"
-                  : "bg-[#222] text-[#555] cursor-not-allowed"
-                }
-              `}
-            >
-              {canGenerate && hasEnoughCredits && !atDailyLimit && (
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-              )}
-              <span className="relative flex items-center justify-center gap-2">
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>Обработка...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-5 h-5" />
-                    <span>Анимировать персонажа</span>
-                  </>
-                )}
-              </span>
-            </button>
-            <p className="text-center text-[#666] text-xs mb-3">
-              <span className="text-indigo-400 font-medium">{AVATAR_COST}</span> кредитов за генерацию · Осталось: <span className="text-white/90">{Math.max(0, MAX_AVATARS_PER_DAY - avatarCountToday)}/{MAX_AVATARS_PER_DAY}</span> генераций сегодня
-            </p>
           </div>
+        </div>
+
+        {/* Кнопка генерации — на десктопе sticky внизу левой панели */}
+        <div className="hidden md:block sticky bottom-0 z-[50] mt-5 pt-2 pb-2 -mx-6 px-6">
+          <button
+            type="button"
+            onClick={() => {
+              if (atDailyLimit || !hasEnoughCredits) {
+                setPaywallReason("credits");
+                setShowPaywall(true);
+                return;
+              }
+              handleGenerate();
+            }}
+            disabled={!canGenerate || !hasEnoughCredits || atDailyLimit}
+            className={`
+              w-full py-4 px-6 rounded-xl font-medium text-base mb-2
+              transition-all duration-300 relative overflow-hidden
+              active:scale-[0.98] group
+              ${canGenerate && hasEnoughCredits && !atDailyLimit
+                ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_24px_rgba(0,112,243,0.4)]"
+                : "bg-[#222] text-[#555] cursor-not-allowed"
+              }
+            `}
+          >
+            {canGenerate && hasEnoughCredits && !atDailyLimit && (
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+            )}
+            <span className="relative flex items-center justify-center gap-2">
+              {isGenerating ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Обработка...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-5 h-5" />
+                  <span>Анимировать персонажа</span>
+                </>
+              )}
+            </span>
+          </button>
+          <p className="text-center text-[#666] text-xs mb-3">
+            <span className="text-indigo-400 font-medium">{AVATAR_COST}</span> кредитов за генерацию · Осталось: <span className="text-white/90">{Math.max(0, MAX_AVATARS_PER_DAY - avatarCountToday)}/{MAX_AVATARS_PER_DAY}</span> генераций сегодня
+          </p>
         </div>
       </div>
 
