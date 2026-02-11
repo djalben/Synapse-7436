@@ -60,6 +60,22 @@ imageRoutes.post("/", async (c) => {
   // Log request start time for timeout tracking
   const requestStartTime = Date.now()
   
+  // Isolate c.env access once (Edge Runtime can throw on destructuring or missing bindings)
+  let openRouterKey: string | undefined
+  let replicateToken: string | undefined
+  try {
+    const env = c.env as Env | undefined
+    if (env == null) {
+      console.error("[Image API] c.env is undefined — bindings may not be injected")
+      return c.json({ error: "Image generation service is not available. Please try again later." }, 503)
+    }
+    openRouterKey = env.OPENROUTER_API_KEY
+    replicateToken = env.REPLICATE_API_TOKEN
+  } catch (envErr) {
+    console.error("[Image API] Failed to read c.env:", envErr)
+    return c.json({ error: "Image generation service is not available. Please try again later." }, 503)
+  }
+  
   try {
     // Логирование для отладки маршрутизации
     const url = new URL(c.req.url)
@@ -69,10 +85,6 @@ imageRoutes.post("/", async (c) => {
       url: c.req.url,
       startTime: new Date(requestStartTime).toISOString(),
     });
-    
-    // Check for required API key
-    const openRouterKey = c.env.OPENROUTER_API_KEY
-    const replicateToken = c.env.REPLICATE_API_TOKEN
     
     console.log("[Image API] Environment check:", {
       hasOpenRouterKey: !!openRouterKey,
@@ -151,11 +163,11 @@ imageRoutes.post("/", async (c) => {
       // For image-to-image mode, use a multimodal model
       // For text-to-image, use flux-1-schnell
       if (mode === "image-to-image" && referenceImage) {
-        // Use Google's multimodal model for image-to-image
+        // Use Google's multimodal model for image-to-image (blocking — can exceed 10s on Vercel)
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${c.env.OPENROUTER_API_KEY}`,
+            "Authorization": `Bearer ${openRouterKey}`,
             "Content-Type": "application/json",
             "HTTP-Referer": "https://synapse-7436.vercel.app",
             "X-Title": "Synapse AI",
@@ -276,11 +288,11 @@ imageRoutes.post("/", async (c) => {
           }
         }
         
-        // Use OpenRouter for other models or as fallback
+        // Use OpenRouter for other models or as fallback (blocking — can exceed 10s on Vercel)
         const response = await fetch("https://openrouter.ai/api/v1/images/generations", {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${c.env.OPENROUTER_API_KEY}`,
+            "Authorization": `Bearer ${openRouterKey}`,
             "Content-Type": "application/json",
             "HTTP-Referer": "https://synapse-7436.vercel.app",
             "X-Title": "Synapse AI",
@@ -377,13 +389,21 @@ imageRoutes.post("/", async (c) => {
       totalCreditCost: generatedImages.length,
     })
   } catch (error) {
-    // Log errors with full context including elapsed time
+    // Full error details for Vercel logs (stack trace and serializable props)
     const elapsedTime = Date.now() - requestStartTime
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const err = error as Error & { code?: string; cause?: unknown }
+    const errorMessage = err?.message ?? String(error)
+    const errorStack = err?.stack ?? "no stack"
     
-    console.error("[Image API] Unexpected error:", {
+    try {
+      const serialized = JSON.stringify(err, Object.getOwnPropertyNames(err), 2)
+      console.error("[Image API] Full Error Details:", serialized)
+    } catch {
+      console.error("[Image API] Full Error Details (fallback):", { message: errorMessage, name: err?.name })
+    }
+    console.error("[Image API] Stack trace:", errorStack)
+    console.error("[Image API] Unexpected error context:", {
       error: errorMessage,
-      stack: error instanceof Error ? error.stack : undefined,
       engine: engine ?? "not specified",
       mode: mode ?? "text-to-image",
       elapsedTimeMs: elapsedTime,
@@ -391,18 +411,18 @@ imageRoutes.post("/", async (c) => {
     })
     
     // Check for timeout errors
-    if (elapsedTime > 9000) { // Vercel Edge timeout is ~10 seconds
+    if (elapsedTime > 9000) {
       return c.json({ error: "Request timed out. Image generation is taking longer than expected. Please try again." }, 503)
     }
     
-    // Проверяем, не является ли ошибка связанной с API ключом
+    // API/key/401/403 → generic message (do not expose config to client)
     if (errorMessage.includes("API") || errorMessage.includes("key") || errorMessage.includes("401") || errorMessage.includes("403")) {
       return c.json({ error: "Image generation service is not available. Please check API configuration." }, 503)
     }
     
-    // Проверяем сетевые ошибки
-    if (errorMessage.includes("fetch") || errorMessage.includes("network") || errorMessage.includes("ECONNREFUSED") || errorMessage.includes("timeout")) {
-      return c.json({ error: "Network error. Please check your internet connection and try again." }, 503)
+    // Network/timeout
+    if (errorMessage.includes("fetch") || errorMessage.includes("network") || errorMessage.includes("ECONNREFUSED") || errorMessage.includes("timeout") || errorMessage.includes("aborted")) {
+      return c.json({ error: "Network error or request timeout. Please try again." }, 503)
     }
     
     // Return actual error message for debugging
