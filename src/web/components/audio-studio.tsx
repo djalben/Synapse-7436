@@ -455,30 +455,31 @@ export const AudioStudio = () => {
   const [currentAudio, setCurrentAudio] = useState<GeneratedAudio | null>(null);
   const [generations, setGenerations] = useState<GeneratedAudio[]>([]);
   
-  const { setShowPaywall, setPaywallReason } = useUsage();
+  const CREDIT_COST_MUSIC = 10;
+  const CREDIT_COST_VOICE = 3;
+  const creditCost = mode === "music" ? CREDIT_COST_MUSIC : CREDIT_COST_VOICE;
+  const { setShowPaywall, setPaywallReason, creditBalance, checkCredits, deductCredits } = useUsage();
 
   const handleGenerate = async () => {
-    // Show paywall for premium feature
-    setPaywallReason("messages");
-    setShowPaywall(true);
-    return;
-
-    // Actual generation logic would go here
+    if (!checkCredits(creditCost)) return;
     setIsGenerating(true);
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
-    const newAudio: GeneratedAudio = {
-      id: Date.now().toString(),
-      type: mode,
-      prompt: mode === "music" ? musicPrompt : undefined,
-      text: mode === "voice" ? voiceText : undefined,
-      duration: duration,
-      createdAt: new Date(),
-    };
-    
-    setCurrentAudio(newAudio);
-    setGenerations(prev => [newAudio, ...prev]);
-    setIsGenerating(false);
+    deductCredits(creditCost);
+    try {
+      // TODO: replace with real API call
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      const newAudio: GeneratedAudio = {
+        id: Date.now().toString(),
+        type: mode,
+        prompt: mode === "music" ? musicPrompt : undefined,
+        text: mode === "voice" ? voiceText : undefined,
+        duration: duration,
+        createdAt: new Date(),
+      };
+      setCurrentAudio(newAudio);
+      setGenerations(prev => [newAudio, ...prev]);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleCloneCreated = (voice: Voice) => {
@@ -489,9 +490,11 @@ export const AudioStudio = () => {
   const allVoices = [...presetVoices, ...clonedVoices];
 
   return (
-    <div className="h-full flex flex-col lg:flex-row gap-6 p-6">
-      {/* Left Panel - Controls */}
-      <div className="lg:w-[40%] space-y-6">
+    <div className="flex flex-col lg:flex-row h-full min-h-0 overflow-hidden">
+      {/* Left Panel - Controls: scrollable + sticky button */}
+      <div className="w-full lg:w-[40%] border-b lg:border-b-0 lg:border-r border-[#222] flex flex-col min-h-0">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 min-h-0 pb-36 md:pb-6">
+          <div className="space-y-6">
         {/* Header */}
         <div className="flex items-start justify-between">
           <div>
@@ -539,10 +542,10 @@ export const AudioStudio = () => {
 
         {/* Music Generator Controls */}
         {mode === "music" && (
-          <div className="space-y-5">
+          <div className="space-y-6">
             {/* Prompt */}
-            <div>
-              <label className="block text-sm text-[#888] mb-2">Опишите вашу песню</label>
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-[#888]">Опишите вашу песню</label>
               <textarea
                 value={musicPrompt}
                 onChange={(e) => setMusicPrompt(e.target.value)}
@@ -556,8 +559,8 @@ export const AudioStudio = () => {
             </div>
 
             {/* Music Type Toggle */}
-            <div>
-              <label className="block text-sm text-[#888] mb-2">Тип</label>
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-[#888]">Тип</label>
               <div className="flex gap-2">
                 <button
                   onClick={() => setMusicType("lyrics")}
@@ -589,8 +592,8 @@ export const AudioStudio = () => {
             </div>
 
             {/* Genre Quick Select */}
-            <div>
-              <label className="block text-sm text-[#888] mb-2">Жанр (опционально)</label>
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-[#888]">Жанр (опционально)</label>
               <div className="flex flex-wrap gap-2">
                 {genres.map((genre) => (
                   <button
@@ -612,8 +615,8 @@ export const AudioStudio = () => {
             </div>
 
             {/* Duration */}
-            <div>
-              <label className="block text-sm text-[#888] mb-2">Длительность</label>
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-[#888]">Длительность</label>
               <div className="flex gap-2">
                 {(["30s", "60s", "2min"] as Duration[]).map((d) => (
                   <button
@@ -638,7 +641,7 @@ export const AudioStudio = () => {
 
         {/* Voice Lab Controls */}
         {mode === "voice" && (
-          <div className="space-y-5 animate-in fade-in duration-300">
+          <div className="space-y-6 animate-in fade-in duration-300">
             {/* Voice Lab Header */}
             <div className="p-4 rounded-xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/20">
               <div className="flex items-center gap-3">
@@ -653,8 +656,8 @@ export const AudioStudio = () => {
             </div>
 
             {/* Text Input */}
-            <div>
-              <label className="block text-sm text-[#888] mb-2">Введите текст для озвучивания</label>
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-[#888]">Введите текст для озвучивания</label>
               <textarea
                 value={voiceText}
                 onChange={(e) => setVoiceText(e.target.value)}
@@ -668,8 +671,8 @@ export const AudioStudio = () => {
             </div>
 
             {/* Voice Selector */}
-            <div>
-              <label className="block text-sm text-[#888] mb-2">Выберите голос</label>
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-[#888]">Выберите голос</label>
               <div className="relative">
                 <select
                   value={selectedVoice?.id ?? presetVoices[0].id}
@@ -727,59 +730,95 @@ export const AudioStudio = () => {
           </div>
         )}
 
-        {/* Generate Button */}
-        <button
-          onClick={handleGenerate}
-          disabled={isGenerating || (mode === "music" ? !musicPrompt : !voiceText)}
-          className={`
-            w-full py-4 rounded-xl font-medium text-sm
-            transition-all duration-300 relative overflow-hidden group
-            ${(!isGenerating && (mode === "music" ? musicPrompt : voiceText))
-              ? mode === "music"
-                ? "bg-gradient-to-r from-violet-600 via-fuchsia-600 to-violet-600 text-white shadow-lg shadow-violet-500/30 hover:shadow-violet-500/50"
-                : "bg-gradient-to-r from-blue-600 via-cyan-600 to-blue-600 text-white shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50"
-              : "bg-white/[0.05] text-[#555] cursor-not-allowed"
-            }
-          `}
-        >
-          {/* Shimmer effect */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
-          
-          {isGenerating ? (
+        {/* Кнопка генерации — на десктопе sticky внизу левой панели (как в Изображениях/Видео) */}
+        <div className="hidden md:block sticky bottom-0 z-[50] mt-5 pt-2 pb-2 -mx-6 px-6 bg-black">
+          <button
+            type="button"
+            onClick={handleGenerate}
+            disabled={isGenerating || (mode === "music" ? !musicPrompt.trim() : !voiceText.trim())}
+            className={`
+              w-full py-4 px-6 rounded-xl font-medium text-base mb-2
+              transition-all duration-300 relative overflow-hidden active:scale-[0.98] group
+              ${!isGenerating && (mode === "music" ? musicPrompt.trim() : voiceText.trim())
+                ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_24px_rgba(0,112,243,0.4)]"
+                : "bg-[#222] text-[#555] cursor-not-allowed"
+              }
+            `}
+          >
+            {!isGenerating && (mode === "music" ? musicPrompt.trim() : voiceText.trim()) && (
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+            )}
             <span className="relative flex items-center justify-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              {mode === "music" ? "Создание..." : "Синтез..."}
-            </span>
-          ) : (
-            <span className="relative flex items-center justify-center gap-2">
-              {mode === "music" ? (
+              {isGenerating ? (
                 <>
-                  <Sparkles className="w-4 h-4" />
-                  Создать музыку 🎵
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>{mode === "music" ? "Создание..." : "Синтез..."}</span>
+                </>
+              ) : mode === "music" ? (
+                <>
+                  <Sparkles className="w-5 h-5" />
+                  <span>Создать музыку</span>
                 </>
               ) : (
                 <>
-                  <Volume2 className="w-4 h-4" />
-                  Озвучить текст
+                  <Volume2 className="w-5 h-5" />
+                  <span>Озвучить текст</span>
                 </>
               )}
             </span>
-          )}
-        </button>
-
-        {/* Credit cost info */}
-        <div className="p-3 rounded-xl bg-white/[0.02] border border-[#222] text-center">
-          <p className="text-xs text-[#666]">
-            {mode === "music" 
-              ? <>Генерация музыки стоит <span className="text-violet-400 font-medium">10 кредитов</span> за трек</>
-              : <>Синтез речи стоит <span className="text-blue-400 font-medium">3 кредита</span> за запрос</>
-            }
+          </button>
+          <p className="text-center text-[#555] text-xs mb-3">
+            {mode === "music" ? `${CREDIT_COST_MUSIC} кредитов за трек` : `${CREDIT_COST_VOICE} кредита за запрос`} · Осталось: {creditBalance.toFixed(0)}
           </p>
         </div>
+          </div>
+        </div>
+
+      {/* Фиксированная кнопка на мобильных — как в Изображениях и Видео */}
+      <div className="md:hidden w-full px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)] bg-black/95 backdrop-blur-xl border-t border-white/10 shadow-[0_-4px_24px_rgba(0,0,0,0.4)] fixed bottom-0 left-0 right-0 z-50">
+        <button
+          type="button"
+          onClick={handleGenerate}
+          disabled={isGenerating || (mode === "music" ? !musicPrompt.trim() : !voiceText.trim())}
+          className={`
+            w-full py-4 px-6 rounded-xl font-medium text-base
+            transition-all duration-300 relative overflow-hidden active:scale-[0.98] group
+            ${!isGenerating && (mode === "music" ? musicPrompt.trim() : voiceText.trim())
+              ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_24px_rgba(0,112,243,0.4)]"
+              : "bg-[#222] text-[#555] cursor-not-allowed"
+            }
+          `}
+        >
+          {!isGenerating && (mode === "music" ? musicPrompt.trim() : voiceText.trim()) && (
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+          )}
+          <span className="relative flex items-center justify-center gap-2">
+            {isGenerating ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>{mode === "music" ? "Создание..." : "Синтез..."}</span>
+              </>
+            ) : mode === "music" ? (
+              <>
+                <Sparkles className="w-5 h-5" />
+                <span>Создать музыку</span>
+              </>
+            ) : (
+              <>
+                <Volume2 className="w-5 h-5" />
+                <span>Озвучить текст</span>
+              </>
+            )}
+          </span>
+        </button>
+        <p className="text-center text-[#555] text-xs mt-2">
+          {creditCost} кредитов · Осталось: {creditBalance.toFixed(0)}
+        </p>
       </div>
 
-      {/* Right Panel - Results */}
-      <div className="lg:w-[60%] space-y-6">
+      {/* Right Panel - Results: фиксированная высота, скролл внутри */}
+      <div className="flex-1 min-h-0 p-4 md:p-6 overflow-y-auto lg:w-[60%]">
+        <div className="space-y-6">
         {/* Audio Player */}
         <AudioPlayer 
           audio={currentAudio} 
@@ -795,6 +834,7 @@ export const AudioStudio = () => {
             setIsPlaying(false);
           }}
         />
+        </div>
       </div>
 
       {/* Voice Clone Modal */}
