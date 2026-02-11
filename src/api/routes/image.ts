@@ -36,10 +36,44 @@ const MODEL_MAP: Record<string, string> = {
   "nana-banana": "black-forest-labs/flux-1-schnell", // Using Flux with Nana Banana prompt enhancement
 }
 
+// Poll Replicate for prediction result
+async function pollReplicatePrediction(predictionId: string, apiToken: string, maxAttempts = 60): Promise<{ status: string; output?: string | string[] }> {
+  for (let i = 0; i < maxAttempts; i++) {
+    const response = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
+      headers: {
+        "Authorization": `Bearer ${apiToken}`,
+        "Content-Type": "application/json",
+      },
+    })
+    
+    if (!response.ok) {
+      throw new Error("Failed to check prediction status")
+    }
+    
+    const data = await response.json() as { status: string; output?: string | string[]; error?: string }
+    
+    if (data.status === "succeeded") {
+      return data
+    }
+    
+    if (data.status === "failed" || data.status === "canceled") {
+      throw new Error(data.error || "Image generation failed")
+    }
+    
+    // Wait 1 second before polling again (images are faster than videos)
+    await new Promise(resolve => setTimeout(resolve, 1000))
+  }
+  
+  throw new Error("Image generation timed out. Please try again.")
+}
+
 imageRoutes.post("/", async (c) => {
   // Declare variables outside try block for use in catch block
   let engine: string | undefined = undefined
   let mode: string | undefined = undefined
+  
+  // Log request start time for timeout tracking
+  const requestStartTime = Date.now()
   
   try {
     // Логирование для отладки маршрутизации
@@ -48,6 +82,7 @@ imageRoutes.post("/", async (c) => {
       path: url.pathname,
       method: c.req.method,
       url: c.req.url,
+      startTime: new Date(requestStartTime).toISOString(),
     });
     
     // Check for required API key
@@ -208,8 +243,64 @@ imageRoutes.post("/", async (c) => {
           requestedEngine: engine || "default",
           selectedModel: modelId,
           prompt: enhancedPrompt.substring(0, 100) + "...",
+          elapsedTime: Date.now() - requestStartTime,
         });
         
+        // For Nana Banana, try Replicate first if available (supports polling to avoid timeout)
+        if (engine === "nana-banana" && replicateToken) {
+          try {
+            console.log("[Image API] Attempting Replicate for Nana Banana with polling")
+            
+            // Create prediction in Replicate
+            // Note: Replicate requires model version hash, but we'll use model name format first
+            // If this fails, we'll need to get the actual version hash from Replicate API
+            const replicateResponse = await fetch("https://api.replicate.com/v1/predictions", {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${replicateToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                model: "black-forest-labs/flux-1-schnell", // Use Flux model via Replicate
+                input: {
+                  prompt: enhancedPrompt,
+                  aspect_ratio: aspectRatio === "16:9" ? "16:9" : aspectRatio === "9:16" ? "9:16" : "1:1",
+                  output_format: "png",
+                },
+              }),
+            })
+            
+            if (replicateResponse.ok) {
+              const prediction = await replicateResponse.json() as { id: string }
+              console.log("[Image API] Replicate prediction created:", prediction.id)
+              
+              // Poll for result (non-blocking, returns quickly)
+              const result = await pollReplicatePrediction(prediction.id, replicateToken, 60)
+              
+              if (result.output) {
+                const imageUrl = Array.isArray(result.output) ? result.output[0] : result.output
+                if (imageUrl) {
+                  generatedImages.push({
+                    id: `${Date.now()}-${generatedImages.length}`,
+                    url: imageUrl,
+                    prompt: prompt.trim(),
+                    aspectRatio,
+                    style: specializedEngine === "niji-v6" ? "nana-banana" : style,
+                    mode: mode || "text-to-image",
+                    createdAt: new Date().toISOString(),
+                    creditCost: 1,
+                  })
+                  continue // Skip OpenRouter for this iteration
+                }
+              }
+            }
+          } catch (replicateError) {
+            console.warn("[Image API] Replicate failed, falling back to OpenRouter:", replicateError instanceof Error ? replicateError.message : String(replicateError))
+            // Fall through to OpenRouter
+          }
+        }
+        
+        // Use OpenRouter for other models or as fallback
         const response = await fetch("https://openrouter.ai/api/v1/images/generations", {
           method: "POST",
           headers: {
@@ -310,16 +401,23 @@ imageRoutes.post("/", async (c) => {
       totalCreditCost: generatedImages.length,
     })
   } catch (error) {
-    // Log errors with full context
+    // Log errors with full context including elapsed time
+    const elapsedTime = Date.now() - requestStartTime
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    
     console.error("[Image API] Unexpected error:", {
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage,
       stack: error instanceof Error ? error.stack : undefined,
       engine: engine ?? "not specified",
       mode: mode ?? "text-to-image",
+      elapsedTimeMs: elapsedTime,
+      elapsedTimeSeconds: (elapsedTime / 1000).toFixed(2),
     })
     
-    // Убеждаемся, что всегда возвращаем JSON, даже при ошибке
-    const errorMessage = error instanceof Error ? error.message : "Unknown error"
+    // Check for timeout errors
+    if (elapsedTime > 9000) { // Vercel Edge timeout is ~10 seconds
+      return c.json({ error: "Request timed out. Image generation is taking longer than expected. Please try again." }, 503)
+    }
     
     // Проверяем, не является ли ошибка связанной с API ключом
     if (errorMessage.includes("API") || errorMessage.includes("key") || errorMessage.includes("401") || errorMessage.includes("403")) {
@@ -327,10 +425,11 @@ imageRoutes.post("/", async (c) => {
     }
     
     // Проверяем сетевые ошибки
-    if (errorMessage.includes("fetch") || errorMessage.includes("network") || errorMessage.includes("ECONNREFUSED")) {
+    if (errorMessage.includes("fetch") || errorMessage.includes("network") || errorMessage.includes("ECONNREFUSED") || errorMessage.includes("timeout")) {
       return c.json({ error: "Network error. Please check your internet connection and try again." }, 503)
     }
     
-    return c.json({ error: `Generation error: ${errorMessage}` }, 500)
+    // Return actual error message for debugging
+    return c.json({ error: errorMessage }, 503)
   }
 })
