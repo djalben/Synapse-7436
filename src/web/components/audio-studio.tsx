@@ -56,7 +56,7 @@ const WaveformVisualizer = ({ isPlaying }: { isPlaying: boolean }) => {
         <div
           key={i}
           className={`
-            w-1 rounded-full bg-gradient-to-t from-violet-500 to-fuchsia-500
+            w-1 rounded-full bg-gradient-to-t from-indigo-500 to-blue-500
             transition-all duration-150
           `}
           style={{
@@ -100,7 +100,7 @@ const AudioPlayer = ({
             w-12 h-12 rounded-full flex items-center justify-center
             transition-all duration-300
             ${audio 
-              ? "bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 shadow-lg shadow-violet-500/30" 
+              ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_24px_rgba(0,112,243,0.4)]" 
               : "bg-white/[0.05] text-[#444] cursor-not-allowed"
             }
           `}
@@ -116,7 +116,7 @@ const AudioPlayer = ({
         <div className="flex-1 space-y-1">
           <div className="h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
             <div 
-              className="h-full bg-gradient-to-r from-violet-500 to-fuchsia-500 rounded-full transition-all duration-100"
+              className="h-full bg-gradient-to-r from-indigo-500 to-blue-500 rounded-full transition-all duration-100"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -208,12 +208,12 @@ const RecentGenerations = ({
             <div className={`
               w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0
               ${gen.type === "music" 
-                ? "bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20" 
-                : "bg-gradient-to-br from-blue-500/20 to-cyan-500/20"
+                ? "bg-gradient-to-br from-indigo-500/20 to-blue-500/20" 
+                : "bg-gradient-to-br from-indigo-500/20 to-blue-500/20"
               }
             `}>
               {gen.type === "music" ? (
-                <Music className="w-5 h-5 text-violet-400" />
+                <Music className="w-5 h-5 text-indigo-400" />
               ) : (
                 <Mic className="w-5 h-5 text-blue-400" />
               )}
@@ -298,7 +298,7 @@ const VoiceCloneModal = ({
       
       <div className="relative w-full max-w-lg bg-[#0a0a0a] border border-[#333] rounded-2xl p-6 shadow-2xl">
         {/* Glow effect */}
-        <div className="absolute inset-0 -z-10 rounded-2xl bg-violet-500/10 blur-3xl" />
+        <div className="absolute inset-0 -z-10 rounded-2xl bg-indigo-500/10 blur-3xl" />
         
         {/* Close button */}
         <button
@@ -310,8 +310,8 @@ const VoiceCloneModal = ({
 
         {/* Header */}
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 flex items-center justify-center">
-            <Mic className="w-5 h-5 text-violet-400" />
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-blue-500/20 flex items-center justify-center">
+            <Mic className="w-5 h-5 text-indigo-400" />
           </div>
           <div>
             <h2 className="text-lg font-semibold text-white">Клонирование голоса</h2>
@@ -333,7 +333,7 @@ const VoiceCloneModal = ({
             value={voiceName}
             onChange={(e) => setVoiceName(e.target.value)}
             placeholder="Мой голос"
-            className="w-full px-4 py-3 rounded-xl bg-white/[0.03] border border-[#333] text-white placeholder-[#555] focus:border-violet-500/50 focus:outline-none transition-colors"
+            className="w-full px-4 py-3 rounded-xl bg-white/[0.03] border border-[#333] text-white placeholder-[#555] focus:border-indigo-500/50 focus:outline-none transition-colors"
           />
         </div>
 
@@ -347,7 +347,7 @@ const VoiceCloneModal = ({
             relative p-8 rounded-xl border-2 border-dashed cursor-pointer
             transition-all duration-300
             ${isDragging 
-              ? "border-violet-500 bg-violet-500/10" 
+              ? "border-indigo-500 bg-indigo-500/10" 
               : uploadedFile 
                 ? "border-emerald-500/50 bg-emerald-500/5" 
                 : "border-[#333] hover:border-[#444] bg-white/[0.02]"
@@ -407,7 +407,7 @@ const VoiceCloneModal = ({
         {/* Credit cost info */}
         <div className="mt-4 p-3 rounded-xl bg-white/[0.02] border border-[#222]">
           <p className="text-xs text-[#666] text-center">
-            Клонирование голоса стоит <span className="text-violet-400 font-medium">30 кредитов</span> за голос
+            Клонирование голоса стоит <span className="text-indigo-400 font-medium">30 кредитов</span> за голос
           </p>
         </div>
 
@@ -419,7 +419,7 @@ const VoiceCloneModal = ({
             w-full mt-4 py-3.5 rounded-xl font-medium text-sm
             transition-all duration-300 relative overflow-hidden
             ${uploadedFile && voiceName && !isProcessing
-              ? "bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-lg shadow-violet-500/30 hover:shadow-violet-500/50"
+              ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_24px_rgba(0,112,243,0.4)]"
               : "bg-white/[0.05] text-[#555] cursor-not-allowed"
             }
           `}
@@ -499,8 +499,8 @@ export const AudioStudio = () => {
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-2xl font-mono font-bold text-white mb-2 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 flex items-center justify-center">
-                <Music className="w-5 h-5 text-violet-400" />
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-blue-500/20 flex items-center justify-center">
+                <Music className="w-5 h-5 text-indigo-400" />
               </div>
               Аудио
             </h1>
@@ -508,17 +508,23 @@ export const AudioStudio = () => {
           </div>
         </div>
 
-        {/* Mode Switcher */}
-        <div className="bg-white/[0.02] border border-[#333] rounded-xl p-1.5 flex">
+        {/* Mode Switcher — как переключатель режима во вкладке Изображения */}
+        <div className="relative flex rounded-xl bg-[#0a0a0a] border border-[#333] p-1">
+          <div
+            className={`
+              absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-lg
+              bg-gradient-to-r from-indigo-600/30 to-blue-600/30
+              border border-indigo-500/30
+              transition-transform duration-300 ease-out
+              ${mode === "voice" ? "translate-x-[calc(100%+4px)]" : "translate-x-0"}
+            `}
+          />
           <button
             onClick={() => setMode("music")}
             className={`
-              flex-1 py-2.5 px-4 rounded-lg text-sm font-medium
-              transition-all duration-300 flex items-center justify-center gap-2
-              ${mode === "music"
-                ? "bg-gradient-to-r from-violet-600/20 to-fuchsia-600/20 text-white border border-violet-500/30"
-                : "text-[#888] hover:text-white"
-              }
+              relative flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg text-sm font-medium
+              transition-all duration-300
+              ${mode === "music" ? "text-white" : "text-[#666] hover:text-[#888]"}
             `}
           >
             <Music className="w-4 h-4" />
@@ -527,12 +533,9 @@ export const AudioStudio = () => {
           <button
             onClick={() => setMode("voice")}
             className={`
-              flex-1 py-2.5 px-4 rounded-lg text-sm font-medium
-              transition-all duration-300 flex items-center justify-center gap-2
-              ${mode === "voice"
-                ? "bg-gradient-to-r from-blue-600/20 to-cyan-600/20 text-white border border-blue-500/30"
-                : "text-[#888] hover:text-white"
-              }
+              relative flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg text-sm font-medium
+              transition-all duration-300
+              ${mode === "voice" ? "text-white" : "text-[#666] hover:text-[#888]"}
             `}
           >
             <Mic className="w-4 h-4" />
@@ -550,7 +553,7 @@ export const AudioStudio = () => {
                 value={musicPrompt}
                 onChange={(e) => setMusicPrompt(e.target.value)}
                 placeholder="энергичная поп-песня о летней любви, электронный бит с запоминающейся мелодией..."
-                className="w-full h-32 px-4 py-3 rounded-xl bg-white/[0.03] border border-[#333] text-white placeholder-[#555] resize-none focus:border-violet-500/50 focus:outline-none transition-colors"
+                className="w-full h-32 px-4 py-3 rounded-xl bg-white/[0.03] border border-[#333] text-white placeholder-[#555] resize-none focus:border-indigo-500/50 focus:outline-none transition-colors"
               />
               <div className="flex justify-between mt-2">
                 <span className="text-xs text-[#666]">Подробное описание даёт лучший результат</span>
@@ -568,7 +571,7 @@ export const AudioStudio = () => {
                     flex-1 py-2.5 px-4 rounded-xl text-sm font-medium
                     transition-all duration-300 border
                     ${musicType === "lyrics"
-                      ? "bg-violet-500/20 border-violet-500/50 text-white"
+                      ? "bg-indigo-500/20 border-indigo-500/50 text-white"
                       : "bg-white/[0.02] border-[#333] text-[#888] hover:text-white hover:border-[#444]"
                     }
                   `}
@@ -581,7 +584,7 @@ export const AudioStudio = () => {
                     flex-1 py-2.5 px-4 rounded-xl text-sm font-medium
                     transition-all duration-300 border
                     ${musicType === "instrumental"
-                      ? "bg-violet-500/20 border-violet-500/50 text-white"
+                      ? "bg-indigo-500/20 border-indigo-500/50 text-white"
                       : "bg-white/[0.02] border-[#333] text-[#888] hover:text-white hover:border-[#444]"
                     }
                   `}
@@ -603,7 +606,7 @@ export const AudioStudio = () => {
                       px-3 py-1.5 rounded-lg text-xs font-medium
                       transition-all duration-200 border
                       ${selectedGenre === genre
-                        ? "bg-violet-500/20 border-violet-500/50 text-violet-300"
+                        ? "bg-indigo-500/20 border-indigo-500/50 text-indigo-300"
                         : "bg-white/[0.02] border-[#333] text-[#888] hover:text-white hover:border-[#444]"
                       }
                     `}
@@ -626,7 +629,7 @@ export const AudioStudio = () => {
                       flex-1 py-2.5 rounded-xl text-sm font-medium
                       transition-all duration-300 border
                       ${duration === d
-                        ? "bg-violet-500/20 border-violet-500/50 text-white"
+                        ? "bg-indigo-500/20 border-indigo-500/50 text-white"
                         : "bg-white/[0.02] border-[#333] text-[#888] hover:text-white hover:border-[#444]"
                       }
                     `}
@@ -643,9 +646,9 @@ export const AudioStudio = () => {
         {mode === "voice" && (
           <div className="space-y-6 animate-in fade-in duration-300">
             {/* Voice Lab Header */}
-            <div className="p-4 rounded-xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/20">
+            <div className="p-4 rounded-xl bg-gradient-to-br from-indigo-500/10 to-blue-500/10 border border-indigo-500/20">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center">
                   <Mic className="w-5 h-5 text-blue-400" />
                 </div>
                 <div>
@@ -662,7 +665,7 @@ export const AudioStudio = () => {
                 value={voiceText}
                 onChange={(e) => setVoiceText(e.target.value)}
                 placeholder="Введите или вставьте текст для преобразования в речь..."
-                className="w-full h-32 px-4 py-3 rounded-xl bg-white/[0.03] border border-[#333] text-white placeholder-[#555] resize-none focus:border-blue-500/50 focus:outline-none transition-colors"
+                className="w-full h-32 px-4 py-3 rounded-xl bg-white/[0.03] border border-[#333] text-white placeholder-[#555] resize-none focus:border-indigo-500/50 focus:outline-none transition-colors"
               />
               <div className="flex justify-between mt-2">
                 <span className="text-xs text-[#666]">Максимум 1000 символов</span>
@@ -680,7 +683,7 @@ export const AudioStudio = () => {
                     const voice = allVoices.find(v => v.id === e.target.value);
                     if (voice) setSelectedVoice(voice);
                   }}
-                  className="w-full px-4 py-3 rounded-xl bg-white/[0.03] border border-[#333] text-white appearance-none cursor-pointer focus:border-blue-500/50 focus:outline-none transition-colors"
+                  className="w-full px-4 py-3 rounded-xl bg-white/[0.03] border border-[#333] text-white appearance-none cursor-pointer focus:border-indigo-500/50 focus:outline-none transition-colors"
                   style={{ backgroundColor: "rgba(255,255,255,0.03)" }}
                 >
                   <optgroup label="Готовые голоса">
@@ -705,10 +708,10 @@ export const AudioStudio = () => {
             </div>
 
             {/* Voice Clone Section */}
-            <div className="p-4 rounded-xl bg-gradient-to-br from-violet-500/5 to-fuchsia-500/5 border border-violet-500/20">
+            <div className="p-4 rounded-xl bg-gradient-to-br from-indigo-500/5 to-blue-500/5 border border-indigo-500/20">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <Wand2 className="w-4 h-4 text-violet-400" />
+                  <Wand2 className="w-4 h-4 text-indigo-400" />
                   <span className="text-sm font-medium text-white">Мгновенное клонирование</span>
                 </div>
                 <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-500/30 text-xs font-medium text-amber-400 flex items-center gap-1">
@@ -721,7 +724,7 @@ export const AudioStudio = () => {
               </p>
               <button
                 onClick={() => setShowCloneModal(true)}
-                className="w-full py-2.5 rounded-xl bg-white/[0.03] border border-[#333] text-sm font-medium text-white hover:bg-white/[0.05] hover:border-violet-500/30 transition-all flex items-center justify-center gap-2"
+                className="w-full py-2.5 rounded-xl bg-white/[0.03] border border-[#333] text-sm font-medium text-white hover:bg-white/[0.05] hover:border-indigo-500/30 transition-all flex items-center justify-center gap-2"
               >
                 <Plus className="w-4 h-4" />
                 Добавить мой голос
@@ -771,8 +774,8 @@ export const AudioStudio = () => {
               )}
             </span>
           </button>
-          <p className="text-center text-[#555] text-xs mb-3">
-            {mode === "music" ? `${CREDIT_COST_MUSIC} кредитов за трек` : `${CREDIT_COST_VOICE} кредита за запрос`} · Осталось: {creditBalance.toFixed(0)}
+          <p className="text-center text-[#666] text-xs mb-3">
+            {mode === "music" ? <><span className="text-indigo-400 font-medium">{CREDIT_COST_MUSIC}</span> кредитов за трек</> : <><span className="text-indigo-400 font-medium">{CREDIT_COST_VOICE}</span> кредита за запрос</>} · Осталось: <span className="text-white/90">{creditBalance.toFixed(0)}</span>
           </p>
         </div>
       </div>
@@ -814,8 +817,8 @@ export const AudioStudio = () => {
             )}
           </span>
         </button>
-        <p className="text-center text-[#555] text-xs mt-2">
-          {creditCost} кредитов · Осталось: {creditBalance.toFixed(0)}
+        <p className="text-center text-[#666] text-xs mt-2">
+          <span className="text-indigo-400 font-medium">{creditCost}</span> кредитов · Осталось: <span className="text-white/90">{creditBalance.toFixed(0)}</span>
         </p>
       </div>
 
