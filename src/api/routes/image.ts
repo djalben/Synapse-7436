@@ -29,11 +29,11 @@ const NANA_BANANA_PROMPT = ", anime masterpiece, niji style, vibrant colors, hig
 imageRoutes.post("/", async (c) => {
   try {
     // Логирование для отладки маршрутизации
+    const url = new URL(c.req.url)
     console.log("[Image API] Request received:", {
-      path: c.req.path,
+      path: url.pathname,
       method: c.req.method,
       url: c.req.url,
-      hasBody: !!c.req.body,
     });
     
     // Check for required API key
@@ -42,7 +42,17 @@ imageRoutes.post("/", async (c) => {
       return c.json({ error: "Image generation service is not available. Please try again later." }, 503)
     }
 
-    const { prompt, aspectRatio, numImages, style, mode, referenceImage, specializedEngine, engine } = await c.req.json()
+    const body = await c.req.json() as {
+      prompt?: string
+      aspectRatio?: string
+      numImages?: number
+      style?: string
+      mode?: string
+      referenceImage?: string
+      specializedEngine?: string
+      engine?: string
+    }
+    const { prompt, aspectRatio, numImages, style, mode, referenceImage, specializedEngine, engine } = body
 
     // Validate prompt
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
@@ -122,7 +132,16 @@ imageRoutes.post("/", async (c) => {
           return c.json({ error: "Image transformation is experiencing high demand. Please try again later." }, 500)
         }
 
-        const data = await response.json()
+        const data = await response.json() as {
+          choices?: Array<{
+            message?: {
+              images?: Array<{
+                image_url?: { url: string }
+                imageUrl?: { url: string }
+              }>
+            }
+          }>
+        }
         const message = data.choices?.[0]?.message
         
         if (message?.images && message.images.length > 0) {
@@ -180,7 +199,12 @@ imageRoutes.post("/", async (c) => {
           return c.json({ error: "Failed to generate image. Please try again." }, 500)
         }
 
-        const data = await response.json()
+        const data = await response.json() as {
+          data?: Array<{
+            url?: string
+            b64_json?: string
+          }>
+        }
 
         // Extract image URL from the response
         // Format: data[0].url or data[0].b64_json

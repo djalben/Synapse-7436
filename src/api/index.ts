@@ -1,12 +1,12 @@
 import { Hono } from 'hono';
 import { cors } from "hono/cors"
-import { chatRoutes } from './routes/chat'
-import { imageRoutes } from './routes/image'
-import { videoRoutes } from './routes/video'
-import { enhanceRoutes } from './routes/enhance'
-import { audioRoutes } from './routes/audio'
-import { avatarRoutes } from './routes/avatar'
-import { webhookRoutes } from './routes/webhook'
+import { chatRoutes } from './routes/chat.js'
+import { imageRoutes } from './routes/image.js'
+import { videoRoutes } from './routes/video.js'
+import { enhanceRoutes } from './routes/enhance.js'
+import { audioRoutes } from './routes/audio.js'
+import { avatarRoutes } from './routes/avatar.js'
+import { webhookRoutes } from './routes/webhook.js'
 
 // Создаем приложение без basePath для Cloudflare Workers
 // В Cloudflare Workers basePath может создавать проблемы с маршрутизацией
@@ -23,11 +23,11 @@ app.get('/api/ping', (c) => c.json({ message: `Pong! ${Date.now()}` }));
 
 // Debug endpoint для проверки маршрутизации
 app.get('/api/debug', (c) => {
+  const url = new URL(c.req.url)
   return c.json({ 
-    path: c.req.path,
+    path: url.pathname,
     method: c.req.method,
     url: c.req.url,
-    rawPath: c.req.raw.path,
     registeredRoutes: [
       '/api/ping',
       '/api/debug', 
@@ -53,15 +53,16 @@ app.route('/api/webhook', webhookRoutes);
 
 // Fallback для несуществующих роутов
 app.notFound((c) => {
+  const url = new URL(c.req.url)
+  const pathname = url.pathname
   console.error("[API] Route not found:", {
-    path: c.req.path,
+    path: pathname,
     method: c.req.method,
     url: c.req.url,
-    rawPath: c.req.raw.path,
   });
   
   return c.json({ 
-    error: `Route not found: ${c.req.path}`,
+    error: `Route not found: ${pathname}`,
     method: c.req.method,
     url: c.req.url,
     availableRoutes: ['/api/ping', '/api/debug', '/api/chat', '/api/image', '/api/video', '/api/enhance', '/api/audio', '/api/avatar', '/api/webhook']
