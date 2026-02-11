@@ -729,6 +729,8 @@ export const AudioStudio = () => {
             </div>
           </div>
         )}
+          </div>
+        </div>
 
         {/* Кнопка генерации — на десктопе sticky внизу левой панели (как в Изображениях/Видео) */}
         <div className="hidden md:block sticky bottom-0 z-[50] mt-5 pt-2 pb-2 -mx-6 px-6 bg-black">
@@ -771,8 +773,7 @@ export const AudioStudio = () => {
             {mode === "music" ? `${CREDIT_COST_MUSIC} кредитов за трек` : `${CREDIT_COST_VOICE} кредита за запрос`} · Осталось: {creditBalance.toFixed(0)}
           </p>
         </div>
-          </div>
-        </div>
+      </div>
 
       {/* Фиксированная кнопка на мобильных — как в Изображениях и Видео */}
       <div className="md:hidden w-full px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)] bg-black/95 backdrop-blur-xl border-t border-white/10 shadow-[0_-4px_24px_rgba(0,0,0,0.4)] fixed bottom-0 left-0 right-0 z-50">
