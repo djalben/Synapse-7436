@@ -8,8 +8,6 @@ import {
   Loader2,
   X,
   Camera,
-  Zap,
-  AlertCircle,
   Sparkles,
   Clock,
   Trash2,
@@ -19,6 +17,8 @@ import { useUsage } from "./usage-context";
 
 // Cost for avatar generation (heavy GPU processing)
 const AVATAR_COST = 30;
+// Daily limit for free users (if needed - currently uses credits only)
+const MAX_AVATARS_PER_DAY = 3;
 
 interface GeneratedAvatar {
   id: string;
@@ -90,12 +90,8 @@ const UploadZone = ({ type, file, preview, onFileSelect, disabled }: UploadZoneP
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-white flex items-center gap-2">
-          <Icon className="w-4 h-4 text-indigo-400" />
-          {type === "image" ? "Целевое лицо" : "Управляющее видео"}
-        </h3>
-        {file && (
+      {file && (
+        <div className="flex items-center justify-end">
           <button
             onClick={handleRemove}
             className="text-xs text-[#666] hover:text-red-400 transition-colors flex items-center gap-1"
@@ -103,8 +99,8 @@ const UploadZone = ({ type, file, preview, onFileSelect, disabled }: UploadZoneP
             <Trash2 className="w-3 h-3" />
             Удалить
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       <div
         onDragOver={handleDragOver}
@@ -354,7 +350,7 @@ const RecentGenerations = ({ generations, onSelect }: RecentGenerationsProps) =>
 
 // Main Avatar Studio Component
 export const AvatarStudio = () => {
-  const { creditBalance, deductCredits, setShowPaywall, setPaywallReason } = useUsage();
+  const { creditBalance, deductCredits, checkCredits, setShowPaywall, setPaywallReason } = useUsage();
   
   const [targetImage, setTargetImage] = useState<File | null>(null);
   const [targetPreview, setTargetPreview] = useState<string | null>(null);
@@ -363,6 +359,19 @@ export const AvatarStudio = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentVideo, setCurrentVideo] = useState<GeneratedAvatar | null>(null);
   const [recentGenerations, setRecentGenerations] = useState<GeneratedAvatar[]>([]);
+  
+  // Daily avatar count (local storage based, simple implementation)
+  const [avatarCountToday, setAvatarCountToday] = useState(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const stored = localStorage.getItem("avatar_count_today");
+    if (stored) {
+      const { date, count } = JSON.parse(stored);
+      return date === today ? count : 0;
+    }
+    return 0;
+  });
+  
+  const today = new Date().toISOString().slice(0, 10);
 
   // Handle image file selection
   const handleImageSelect = (file: File | null) => {
@@ -389,12 +398,17 @@ export const AvatarStudio = () => {
   // Check if can generate
   const canGenerate = targetImage && drivingVideo && !isGenerating;
   const hasEnoughCredits = creditBalance >= AVATAR_COST;
+  const atDailyLimit = avatarCountToday >= MAX_AVATARS_PER_DAY;
 
   // Handle generate
   const handleGenerate = async () => {
     if (!canGenerate) return;
 
-    if (!hasEnoughCredits) {
+    // Check credits first
+    if (!checkCredits(AVATAR_COST)) return;
+    
+    // Check daily limit (if implemented)
+    if (atDailyLimit) {
       setPaywallReason("credits");
       setShowPaywall(true);
       return;
@@ -422,6 +436,11 @@ export const AvatarStudio = () => {
 
       // Spend credits
       deductCredits(AVATAR_COST);
+      
+      // Increment daily count
+      const newCount = avatarCountToday + 1;
+      setAvatarCountToday(newCount);
+      localStorage.setItem("avatar_count_today", JSON.stringify({ date: today, count: newCount }));
 
       // Create generated avatar object
       const newAvatar: GeneratedAvatar = {
@@ -441,125 +460,163 @@ export const AvatarStudio = () => {
   };
 
   return (
-    <div className="min-h-screen">
-      {/* Header */}
-      <div className="px-4 md:px-8 pt-6 md:pt-8 pb-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div className="flex flex-col lg:flex-row h-full min-h-0 overflow-hidden">
+      {/* Left Panel - Controls: scrollable + sticky button */}
+      <div className="w-full lg:w-[42%] border-b lg:border-b-0 lg:border-r border-[#222] flex flex-col min-h-0">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 min-h-0 pb-36 md:pb-6">
+          <div className="space-y-6">
+          {/* Header */}
+          <div className="flex items-start justify-between">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-3">
-                <div className="relative">
-                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl blur-lg opacity-50" />
-                  <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-                    <User className="w-5 h-5 text-white" />
-                  </div>
+              <h2 className="font-mono text-xl md:text-2xl font-semibold text-white mb-1 flex items-center gap-2">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-blue-500/20 flex items-center justify-center">
+                  <User className="w-5 h-5 text-indigo-400" />
                 </div>
                 Аватары
-              </h1>
-              <p className="text-[#888] mt-2 text-sm md:text-base">
-                Создавайте гиперреалистичные AI-персонажи с анимацией лица.
+              </h2>
+              <p className="text-sm text-[#666]">
+                Создавайте гиперреалистичные AI-персонажи с анимацией лица
               </p>
             </div>
           </div>
-        </div>
-      </div>
+          {/* Target Face Upload */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-[#888]">Целевое лицо</label>
+            <UploadZone
+              type="image"
+              file={targetImage}
+              preview={targetPreview}
+              onFileSelect={handleImageSelect}
+              disabled={isGenerating}
+            />
+          </div>
 
-      {/* Main Content */}
-      <div className="px-4 md:px-8 pb-8">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Left Panel - Inputs */}
-            <div className="lg:col-span-5 space-y-6">
-              {/* Target Face Upload */}
-              <div className="bg-white/[0.02] border border-[#333] rounded-2xl p-5">
-                <UploadZone
-                  type="image"
-                  file={targetImage}
-                  preview={targetPreview}
-                  onFileSelect={handleImageSelect}
-                  disabled={isGenerating}
-                />
+          {/* Driving Video Upload */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-[#888]">Управляющее видео</label>
+            <div className="space-y-4">
+              <UploadZone
+                type="video"
+                file={drivingVideo}
+                preview={drivingPreview}
+                onFileSelect={handleVideoSelect}
+                disabled={isGenerating}
+              />
+              
+              {/* Divider */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-[#333]" />
+                <span className="text-xs text-[#555]">ИЛИ</span>
+                <div className="flex-1 h-px bg-[#333]" />
               </div>
 
-              {/* Driving Video Upload */}
-              <div className="bg-white/[0.02] border border-[#333] rounded-2xl p-5 space-y-4">
-                <UploadZone
-                  type="video"
-                  file={drivingVideo}
-                  preview={drivingPreview}
-                  onFileSelect={handleVideoSelect}
-                  disabled={isGenerating}
-                />
-                
-                {/* Divider */}
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 h-px bg-[#333]" />
-                  <span className="text-xs text-[#555]">ИЛИ</span>
-                  <div className="flex-1 h-px bg-[#333]" />
-                </div>
+              {/* Record Camera Button */}
+              <RecordCameraButton />
+            </div>
+          </div>
 
-                {/* Record Camera Button */}
-                <RecordCameraButton />
-              </div>
-
-              {/* Generate Button */}
-              <button
-                onClick={handleGenerate}
-                disabled={!canGenerate || !hasEnoughCredits}
-                className={`
-                  w-full py-4 px-6 rounded-xl font-medium text-base
-                  flex items-center justify-center gap-3
-                  transition-all duration-300
-                  ${canGenerate && hasEnoughCredits
-                    ? "bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 hover:from-indigo-500 hover:via-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40"
-                    : "bg-white/[0.03] border border-[#333] text-[#555] cursor-not-allowed"
-                  }
-                `}
-              >
+          {/* Кнопка генерации — на десктопе sticky внизу левой панели */}
+          <div className="hidden md:block sticky bottom-0 z-[50] mt-5 pt-2 pb-2 -mx-6 px-6">
+            <button
+              type="button"
+              onClick={() => {
+                if (atDailyLimit || !hasEnoughCredits) {
+                  setPaywallReason("credits");
+                  setShowPaywall(true);
+                  return;
+                }
+                handleGenerate();
+              }}
+              disabled={!canGenerate || !hasEnoughCredits || atDailyLimit}
+              className={`
+                w-full py-4 px-6 rounded-xl font-medium text-base mb-2
+                transition-all duration-300 relative overflow-hidden
+                active:scale-[0.98] group
+                ${canGenerate && hasEnoughCredits && !atDailyLimit
+                  ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_24px_rgba(0,112,243,0.4)]"
+                  : "bg-[#222] text-[#555] cursor-not-allowed"
+                }
+              `}
+            >
+              {canGenerate && hasEnoughCredits && !atDailyLimit && (
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+              )}
+              <span className="relative flex items-center justify-center gap-2">
                 {isGenerating ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    Обработка... Это может занять минуту
+                    <span>Обработка...</span>
                   </>
                 ) : (
                   <>
-                    <Zap className="w-5 h-5" />
-                    Анимировать персонажа
+                    <Sparkles className="w-5 h-5" />
+                    <span>Анимировать персонажа</span>
                   </>
                 )}
-              </button>
+              </span>
+            </button>
+            <p className="text-center text-[#666] text-xs mb-3">
+              <span className="text-indigo-400 font-medium">{AVATAR_COST}</span> кредитов за генерацию · Осталось: <span className="text-white/90">{Math.max(0, MAX_AVATARS_PER_DAY - avatarCountToday)}/{MAX_AVATARS_PER_DAY}</span> генераций сегодня
+            </p>
+          </div>
+          </div>
+        </div>
 
-              {/* Cost Warning */}
-              <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-amber-500/5 border border-amber-500/20">
-                <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
-                <p className="text-xs text-amber-400/80">
-                  Стоимость: ~{AVATAR_COST} кредитов за генерацию (Тяжёлая GPU обработка)
-                </p>
-              </div>
+      {/* Фиксированная кнопка на мобильных — как в Изображениях и Видео */}
+      <div className="md:hidden w-full px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)] bg-black/95 backdrop-blur-xl border-t border-white/10 shadow-[0_-4px_24px_rgba(0,0,0,0.4)] fixed bottom-0 left-0 right-0 z-50">
+        <button
+          type="button"
+          onClick={() => {
+            if (atDailyLimit || !hasEnoughCredits) {
+              setPaywallReason("credits");
+              setShowPaywall(true);
+              return;
+            }
+            handleGenerate();
+          }}
+          disabled={!canGenerate || !hasEnoughCredits || atDailyLimit}
+          className={`
+            w-full py-4 px-6 rounded-xl font-medium text-base
+            transition-all duration-300 relative overflow-hidden active:scale-[0.98] group
+            ${canGenerate && hasEnoughCredits && !atDailyLimit
+              ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_24px_rgba(0,112,243,0.4)]"
+              : "bg-[#222] text-[#555] cursor-not-allowed"
+            }
+          `}
+        >
+          {canGenerate && hasEnoughCredits && !atDailyLimit && (
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+          )}
+          <span className="relative flex items-center justify-center gap-2">
+            {isGenerating ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Обработка...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-5 h-5" />
+                <span>Анимировать персонажа</span>
+              </>
+            )}
+          </span>
+        </button>
+        <p className="text-center text-[#666] text-xs mt-2">
+          {AVATAR_COST} кредитов · Осталось: {Math.max(0, MAX_AVATARS_PER_DAY - avatarCountToday)}/{MAX_AVATARS_PER_DAY} генераций сегодня
+        </p>
+      </div>
 
-              {/* Credits status */}
-              {!hasEnoughCredits && (
-                <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-red-500/5 border border-red-500/20">
-                  <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                  <p className="text-xs text-red-400/80">
-                    Недостаточно кредитов. У вас {creditBalance.toFixed(1)} кредитов, нужно {AVATAR_COST}.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Right Panel - Output */}
-            <div className="lg:col-span-7 space-y-6">
+      {/* Right Panel - Output: фиксированная высота, скролл внутри */}
+      <div className="flex-1 min-h-0 p-4 md:p-6 overflow-y-auto lg:w-[58%]">
+        <div className="space-y-6">
               {/* Video Output */}
               <VideoOutput video={currentVideo} isGenerating={isGenerating} />
 
-              {/* Recent Generations */}
-              <RecentGenerations 
-                generations={recentGenerations}
-                onSelect={setCurrentVideo}
-              />
-            </div>
-          </div>
+          {/* Recent Generations */}
+          <RecentGenerations 
+            generations={recentGenerations}
+            onSelect={setCurrentVideo}
+          />
         </div>
       </div>
     </div>

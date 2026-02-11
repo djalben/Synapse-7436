@@ -117,7 +117,7 @@ function Index() {
           pt-[max(4rem,calc(env(safe-area-inset-top)+3.5rem))] md:pt-0
           pb-20 md:pb-0
         ">
-          <div className={activeTab === "chat" || activeTab === "image" || activeTab === "motion" || activeTab === "audio" ? "flex-1 min-h-0 overflow-hidden" : "flex-1 min-h-0 overflow-y-auto"}>
+          <div className={activeTab === "chat" || activeTab === "image" || activeTab === "motion" || activeTab === "audio" || activeTab === "avatar" ? "flex-1 min-h-0 overflow-hidden" : "flex-1 min-h-0 overflow-y-auto"}>
             {renderContent()}
           </div>
           
