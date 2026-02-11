@@ -1706,8 +1706,9 @@ const GeneratePanel = ({
       const data = await response.json();
 
       // Check if this is a Replicate prediction ID (needs polling)
-      if (data.predictionId && data.provider === "replicate") {
-        console.log("[Image Studio] Received Replicate prediction ID, starting polling:", data.predictionId);
+      if (data.id && data.provider === "replicate") {
+        const predictionId = data.id;
+        console.log("[Image Studio] Received Replicate prediction ID, starting polling:", predictionId);
         
         // Poll for result on frontend
         const pollStartTime = Date.now();
@@ -1718,7 +1719,7 @@ const GeneratePanel = ({
           await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second between polls
           pollAttempts++;
           
-          const statusResponse = await fetch(`/api/image/status/${data.predictionId}`);
+          const statusResponse = await fetch(`/api/image/status/${predictionId}`);
           
           if (!statusResponse.ok) {
             throw new Error(`Failed to check prediction status: ${statusResponse.statusText}`);

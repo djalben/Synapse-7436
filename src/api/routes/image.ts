@@ -257,10 +257,10 @@ imageRoutes.post("/", async (c) => {
               const prediction = await replicateResponse.json() as { id: string; status: string }
               console.log("[Image API] Replicate prediction created:", prediction.id, "status:", prediction.status)
               
-              // Return prediction ID immediately for frontend polling
+              // Return prediction ID immediately for frontend polling (no waiting)
               // Frontend will poll /api/image/status/:id to get the result
               return c.json({
-                predictionId: prediction.id,
+                id: prediction.id,
                 status: prediction.status,
                 provider: "replicate",
                 engine: engine,
@@ -410,7 +410,8 @@ imageRoutes.post("/", async (c) => {
   }
 })
 
-// GET endpoint for checking prediction status (frontend polling)
+// GET /api/image/status/:id — single status check (equivalent to replicate.predictions.get(id))
+// Used by frontend polling; no server-side waiting, stays within Vercel 10s limit.
 imageRoutes.get("/status/:id", async (c) => {
   try {
     const predictionId = c.req.param("id")
@@ -424,6 +425,7 @@ imageRoutes.get("/status/:id", async (c) => {
       return c.json({ error: "Prediction ID is required" }, 400)
     }
     
+    // Single GET to Replicate — no polling on server
     const prediction = await getReplicatePredictionStatus(predictionId, replicateToken)
     
     return c.json({
