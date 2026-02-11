@@ -559,8 +559,8 @@ export const AvatarStudio = () => {
               <span className="text-indigo-400 font-medium">{AVATAR_COST}</span> кредитов за генерацию · Осталось: <span className="text-white/90">{Math.max(0, MAX_AVATARS_PER_DAY - avatarCountToday)}/{MAX_AVATARS_PER_DAY}</span> генераций сегодня
             </p>
           </div>
-          </div>
         </div>
+      </div>
 
       {/* Фиксированная кнопка на мобильных — как в Изображениях и Видео */}
       <div className="md:hidden w-full px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)] bg-black/95 backdrop-blur-xl border-t border-white/10 shadow-[0_-4px_24px_rgba(0,0,0,0.4)] fixed bottom-0 left-0 right-0 z-50">
@@ -609,8 +609,8 @@ export const AvatarStudio = () => {
       {/* Right Panel - Output: фиксированная высота, скролл внутри */}
       <div className="flex-1 min-h-0 p-4 md:p-6 overflow-y-auto lg:w-[58%]">
         <div className="space-y-6">
-              {/* Video Output */}
-              <VideoOutput video={currentVideo} isGenerating={isGenerating} />
+          {/* Video Output */}
+          <VideoOutput video={currentVideo} isGenerating={isGenerating} />
 
           {/* Recent Generations */}
           <RecentGenerations 
