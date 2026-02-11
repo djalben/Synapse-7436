@@ -29,6 +29,9 @@ import { useLocation } from "wouter";
 import { useAuth } from "./auth-context";
 import { useUsage } from "./usage-context";
 
+// History storage key
+const HISTORY_KEY = "synapse_history";
+
 // Generate a unique user ID for referrals
 const generateUserId = () => {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -192,7 +195,7 @@ const PinModal = ({ isOpen, onClose }: PinModalProps) => {
 
         {/* Header */}
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center">
             <Lock className="w-6 h-6 text-white" />
           </div>
           <div>
@@ -237,7 +240,7 @@ const PinModal = ({ isOpen, onClose }: PinModalProps) => {
           <button
             type="submit"
             disabled={pin.length !== 4 || isLocked}
-            className="w-full py-3.5 rounded-xl font-medium text-sm bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-400 hover:to-purple-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-indigo-500 disabled:hover:to-purple-600"
+            className="w-full py-3.5 rounded-xl font-medium text-sm bg-[#0070f3] hover:bg-[#0060df] text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[0_0_24px_rgba(0,112,243,0.4)]"
           >
             {isLocked ? `Заблокировано (${lockTimer}с)` : "Подтвердить"}
           </button>
@@ -254,7 +257,9 @@ const PinModal = ({ isOpen, onClose }: PinModalProps) => {
 
 // Plan display names
 const planDisplayNames: Record<string, string> = {
-  free: "Бесплатный",
+  free: "Free",
+  standard: "Standard",
+  ultra: "Pro",
   start: "START",
   creator: "CREATOR",
   pro_studio: "PRO STUDIO",
@@ -288,12 +293,12 @@ const ReferralCard = () => {
   };
 
   return (
-    <section className="relative overflow-hidden p-5 md:p-6 rounded-2xl bg-gradient-to-br from-indigo-500/5 via-purple-500/5 to-pink-500/5 border border-indigo-500/20">
-      <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-pink-500/10 opacity-50" />
+    <section className="relative overflow-hidden p-4 md:p-5 rounded-xl md:rounded-2xl bg-gradient-to-br from-indigo-500/5 via-blue-500/5 to-indigo-500/5 border border-indigo-500/20">
+      <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/10 via-blue-500/10 to-indigo-500/10 opacity-50" />
       
       <div className="relative">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center flex-shrink-0">
             <Gift className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -314,7 +319,7 @@ const ReferralCard = () => {
             <button
               onClick={handleCopy}
               disabled={!referralLink}
-              className="px-3 md:px-4 py-2.5 rounded-lg bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/30 transition-colors flex items-center gap-2 disabled:opacity-50 flex-shrink-0"
+              className="px-3 md:px-4 py-2.5 rounded-lg bg-[#0070f3] hover:bg-[#0060df] text-white transition-all shadow-lg shadow-[0_0_24px_rgba(0,112,243,0.4)] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
             >
               {copied ? (
                 <Check className="w-4 h-4" />
@@ -406,9 +411,9 @@ const RedeemCodeCard = () => {
   };
 
   return (
-    <section className="p-5 md:p-6 rounded-2xl bg-white/[0.02] border border-[#222]">
+    <section className="p-4 md:p-5 rounded-xl md:rounded-2xl bg-white/[0.02] border border-[#222]">
       <div className="flex items-center gap-3 mb-4">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center flex-shrink-0">
           <Gift className="w-5 h-5 text-white" />
         </div>
         <div>
@@ -433,7 +438,7 @@ const RedeemCodeCard = () => {
         <button
           onClick={handleRedeem}
           disabled={isRedeeming || !code.trim()}
-          className="px-5 py-3 rounded-xl font-medium text-sm bg-gradient-to-r from-pink-500 to-purple-600 text-white hover:from-pink-400 hover:to-purple-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+          className="px-5 py-3 rounded-xl font-medium text-sm bg-[#0070f3] hover:bg-[#0060df] text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 shadow-lg shadow-[0_0_24px_rgba(0,112,243,0.4)]"
         >
           {isRedeeming ? "..." : "Активировать"}
         </button>
@@ -454,10 +459,65 @@ interface SettingsPageProps {
   onOpenPaywall?: () => void;
 }
 
+// Confirm Modal Component
+interface ConfirmModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+}
+
+const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, confirmText = "Удалить", cancelText = "Отмена" }: ConfirmModalProps) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="relative bg-[#0a0a0a] border border-[#333] rounded-2xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-2 rounded-lg bg-white/[0.05] text-[#888] hover:text-white transition-colors"
+        >
+          <X className="w-4 h-4" />
+        </button>
+        <div className="text-center">
+          <div className="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center mx-auto mb-4">
+            <Trash2 className="w-6 h-6 text-red-400" />
+          </div>
+          <h3 className="text-lg font-semibold text-white mb-2">{title}</h3>
+          <p className="text-sm text-[#888] mb-6">{message}</p>
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="flex-1 py-2.5 rounded-xl bg-white/[0.05] border border-[#333] text-white font-medium hover:bg-white/[0.08] transition-colors"
+            >
+              {cancelText}
+            </button>
+            <button
+              onClick={() => {
+                onConfirm();
+                onClose();
+              }}
+              className="flex-1 py-2.5 rounded-xl bg-red-500/20 border border-red-500/40 text-red-400 font-medium hover:bg-red-500/30 transition-colors"
+            >
+              {confirmText}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const SettingsPage = ({ onOpenPaywall }: SettingsPageProps) => {
   const { showPinModal, handleClick, closePinModal } = useSecretKnock(5, 3000);
   const { user } = useAuth();
   const { creditBalance, userPlan, setShowPaywall } = useUsage();
+  const [showClearChatModal, setShowClearChatModal] = useState(false);
+  const [showClearImagesModal, setShowClearImagesModal] = useState(false);
 
   // Get initials from name or email
   const getInitials = (name?: string, email?: string | null) => {
@@ -497,12 +557,40 @@ export const SettingsPage = ({ onOpenPaywall }: SettingsPageProps) => {
     }
   };
 
+  const handleClearChatHistory = () => {
+    try {
+      const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+      const filteredHistory = history.filter((item: { type: string }) => item.type !== "chat");
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(filteredHistory));
+      toast.success("История чата очищена", {
+        description: "Все диалоги были удалены.",
+      });
+    } catch (error) {
+      console.error("Failed to clear chat history:", error);
+      toast.error("Не удалось очистить историю");
+    }
+  };
+
+  const handleClearImageHistory = () => {
+    try {
+      const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+      const filteredHistory = history.filter((item: { type: string }) => item.type !== "image");
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(filteredHistory));
+      toast.success("История изображений очищена", {
+        description: "Все генерации изображений были удалены.",
+      });
+    } catch (error) {
+      console.error("Failed to clear image history:", error);
+      toast.error("Не удалось очистить историю");
+    }
+  };
+
   const displayName = user?.name || "Пользователь";
   const displayEmail = user?.email || "Не указан";
   const displayPlan = planDisplayNames[userPlan] || "Бесплатный";
 
   return (
-    <div className="min-h-screen p-4 md:p-8">
+    <div className="min-h-screen p-4 md:p-6 pb-20 md:pb-8">
       <div className="max-w-2xl mx-auto">
         {/* Header */}
         <div className="mb-6 md:mb-8">
@@ -515,9 +603,9 @@ export const SettingsPage = ({ onOpenPaywall }: SettingsPageProps) => {
           <p className="text-[#666] text-sm">Управление настройками Synapse</p>
         </div>
 
-        <div className="space-y-5 md:space-y-6">
+        <div className="space-y-4 md:space-y-5">
           {/* Section 1: Account / Profile */}
-          <section className="p-5 md:p-6 rounded-2xl bg-white/[0.02] border border-[#222]">
+          <section className="p-4 md:p-5 rounded-xl md:rounded-2xl bg-white/[0.02] border border-[#222]">
             <SectionHeader icon={User} title="Профиль" />
             
             <div className="flex items-center gap-4 p-4 rounded-xl bg-white/[0.02] border border-[#222]">
@@ -529,7 +617,7 @@ export const SettingsPage = ({ onOpenPaywall }: SettingsPageProps) => {
                   className="w-12 h-12 md:w-14 md:h-14 rounded-full border border-[#333] flex-shrink-0"
                 />
               ) : (
-                <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center flex-shrink-0">
                   <span className="text-white text-lg font-medium">
                     {getInitials(user?.name, user?.email)}
                   </span>
@@ -549,7 +637,7 @@ export const SettingsPage = ({ onOpenPaywall }: SettingsPageProps) => {
           </section>
 
           {/* Section 2: Balance and Plan */}
-          <section className="p-5 md:p-6 rounded-2xl bg-gradient-to-br from-indigo-500/5 via-purple-500/5 to-transparent border border-indigo-500/20">
+          <section className="p-4 md:p-5 rounded-xl md:rounded-2xl bg-gradient-to-br from-indigo-500/5 via-blue-500/5 to-transparent border border-indigo-500/20">
             <SectionHeader icon={Wallet} title="Баланс и тариф" />
             
             <div className="space-y-4">
@@ -578,9 +666,11 @@ export const SettingsPage = ({ onOpenPaywall }: SettingsPageProps) => {
                   <span className={`px-3 py-1 rounded-full text-xs font-medium border ${
                     userPlan === "free" 
                       ? "bg-white/[0.05] text-[#888] border-[#333]"
-                      : "bg-indigo-500/20 text-indigo-400 border-indigo-500/30"
+                      : userPlan === "standard"
+                        ? "bg-indigo-500/20 text-indigo-400 border-indigo-500/30"
+                        : "bg-amber-500/20 text-amber-400 border-amber-500/30"
                   }`}>
-                    {userPlan === "free" ? "Бесплатный" : "Активен"}
+                    {userPlan === "free" ? "Free" : userPlan === "standard" ? "Standard" : userPlan === "ultra" ? "Pro" : "Активен"}
                   </span>
                 </div>
               </div>
@@ -589,7 +679,7 @@ export const SettingsPage = ({ onOpenPaywall }: SettingsPageProps) => {
               <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={handleOpenPaywall}
-                  className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 text-white font-medium text-sm hover:from-indigo-500 hover:via-blue-500 hover:to-indigo-500 transition-all shadow-lg shadow-indigo-500/20"
+                  className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#0070f3] hover:bg-[#0060df] text-white font-medium text-sm transition-all shadow-lg shadow-[0_0_24px_rgba(0,112,243,0.4)]"
                 >
                   <CreditCard className="w-4 h-4" />
                   <span>Пополнить баланс</span>
@@ -612,7 +702,7 @@ export const SettingsPage = ({ onOpenPaywall }: SettingsPageProps) => {
           <RedeemCodeCard />
 
           {/* Section 5: Preferences */}
-          <section className="p-5 md:p-6 rounded-2xl bg-white/[0.02] border border-[#222]">
+          <section className="p-4 md:p-5 rounded-xl md:rounded-2xl bg-white/[0.02] border border-[#222]">
             <SectionHeader icon={Globe} title="Настройки" />
             
             <div className="space-y-3">
@@ -651,7 +741,7 @@ export const SettingsPage = ({ onOpenPaywall }: SettingsPageProps) => {
           </section>
 
           {/* Section 6: Notifications */}
-          <section className="p-5 md:p-6 rounded-2xl bg-white/[0.02] border border-[#222]">
+          <section className="p-4 md:p-5 rounded-xl md:rounded-2xl bg-white/[0.02] border border-[#222]">
             <SectionHeader icon={Bell} title="Уведомления" />
             
             <div className="space-y-3">
@@ -682,38 +772,30 @@ export const SettingsPage = ({ onOpenPaywall }: SettingsPageProps) => {
           </section>
 
           {/* Section 7: Data & Privacy */}
-          <section className="p-5 md:p-6 rounded-2xl bg-white/[0.02] border border-[#222]">
+          <section className="p-4 md:p-5 rounded-xl md:rounded-2xl bg-white/[0.02] border border-[#222]">
             <SectionHeader icon={Shield} title="Данные и конфиденциальность" />
             
             <div className="space-y-3">
               <button 
-                onClick={() => {
-                  if (confirm("Очистить всю историю чата? Это действие нельзя отменить.")) {
-                    localStorage.removeItem("chatHistory");
-                    toast.success("История чата очищена");
-                  }
-                }}
+                onClick={() => setShowClearChatModal(true)}
                 className="w-full flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-[#222] hover:bg-white/[0.03] transition-colors text-left"
               >
                 <div>
                   <p className="text-sm font-medium text-white">Очистить историю чата</p>
                   <p className="text-xs text-[#666]">Удалить все диалоги</p>
                 </div>
+                <Trash2 className="w-4 h-4 text-[#666] flex-shrink-0" />
               </button>
 
               <button 
-                onClick={() => {
-                  if (confirm("Очистить все сгенерированные изображения? Это действие нельзя отменить.")) {
-                    localStorage.removeItem("generatedImages");
-                    toast.success("Изображения удалены");
-                  }
-                }}
+                onClick={() => setShowClearImagesModal(true)}
                 className="w-full flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-[#222] hover:bg-white/[0.03] transition-colors text-left"
               >
                 <div>
                   <p className="text-sm font-medium text-white">Очистить изображения</p>
                   <p className="text-xs text-[#666]">Удалить историю генераций</p>
                 </div>
+                <Trash2 className="w-4 h-4 text-[#666] flex-shrink-0" />
               </button>
 
               <button 
@@ -746,8 +828,24 @@ export const SettingsPage = ({ onOpenPaywall }: SettingsPageProps) => {
           {/* PIN Modal for Developer Access */}
           <PinModal isOpen={showPinModal} onClose={closePinModal} />
 
+          {/* Confirm Modals */}
+          <ConfirmModal
+            isOpen={showClearChatModal}
+            onClose={() => setShowClearChatModal(false)}
+            onConfirm={handleClearChatHistory}
+            title="Очистить историю чата?"
+            message="Вы уверены? Это действие нельзя отменить. Все ваши диалоги будут удалены."
+          />
+          <ConfirmModal
+            isOpen={showClearImagesModal}
+            onClose={() => setShowClearImagesModal(false)}
+            onConfirm={handleClearImageHistory}
+            title="Очистить историю изображений?"
+            message="Вы уверены? Это действие нельзя отменить. Все ваши генерации изображений будут удалены."
+          />
+
           {/* Section 8: About */}
-          <section className="p-5 md:p-6 rounded-2xl bg-white/[0.02] border border-[#222]">
+          <section className="p-4 md:p-5 rounded-xl md:rounded-2xl bg-white/[0.02] border border-[#222]">
             <SectionHeader icon={Sparkles} title="О приложении" />
             
             <div className="space-y-3">
