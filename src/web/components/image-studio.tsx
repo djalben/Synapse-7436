@@ -92,9 +92,9 @@ interface ImageEngineOption {
 const imageEngineOptions: ImageEngineOption[] = [
   { id: "kandinsky-3.1", label: "Kandinsky 3.1", creditCost: 0, requiredPlan: "free" },
   { id: "flux-schnell", label: "Flux.1 [schnell]", creditCost: 0, requiredPlan: "free" },
-  { id: "dall-e-3", label: "DALL-E 3", creditCost: 1, requiredPlan: "standard" },
-  { id: "midjourney-v7", label: "Midjourney v7", creditCost: 1, requiredPlan: "ultra" },
-  { id: "nana-banana", label: "Nana Banana", creditCost: 1, requiredPlan: "standard", isExclusive: true },
+  { id: "dall-e-3", label: "DALL-E 3", creditCost: 1, requiredPlan: "free" },
+  { id: "midjourney-v7", label: "Midjourney v7", creditCost: 1, requiredPlan: "free" },
+  { id: "nana-banana", label: "Nana Banana", creditCost: 1, requiredPlan: "free", isExclusive: true },
 ];
 
 const styleOptions: StyleOption[] = [
