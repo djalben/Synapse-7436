@@ -1620,6 +1620,9 @@ const GeneratePanel = ({
     setIsGenerating(true);
     setError(null);
 
+    // Log generation start time
+    const generationStartTime = Date.now();
+
     try {
       // Диагностика: сначала проверяем доступность API
       const debugResponse = await fetch("/api/debug").catch(() => null);
@@ -1634,6 +1637,7 @@ const GeneratePanel = ({
         prompt: prompt.trim().substring(0, 50) + "...",
         aspectRatio,
         numImages: imageCount,
+        startTime: new Date(generationStartTime).toISOString(),
       });
       
       const response = await fetch(apiUrl, {
@@ -1658,6 +1662,7 @@ const GeneratePanel = ({
         statusText: response.statusText,
         url: response.url,
         ok: response.ok,
+        elapsedTime: Date.now() - generationStartTime,
       });
 
       // Проверяем статус ответа перед парсингом JSON
@@ -1700,28 +1705,114 @@ const GeneratePanel = ({
       // Только если response.ok === true, парсим JSON
       const data = await response.json();
 
-      setGeneratedImages((prev) => [...data.images, ...prev]);
-      if (isNanaBanana) {
-        incrementImages();
-      } else if (isFreeEngine) {
-        incrementFreeImageDaily();
-      } else {
-        incrementImages();
+      // Check if this is a Replicate prediction ID (needs polling)
+      if (data.predictionId && data.provider === "replicate") {
+        console.log("[Image Studio] Received Replicate prediction ID, starting polling:", data.predictionId);
+        
+        // Poll for result on frontend
+        const pollStartTime = Date.now();
+        let pollAttempts = 0;
+        const maxPollAttempts = 120; // 2 minutes max (1 second intervals)
+        
+        while (pollAttempts < maxPollAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second between polls
+          pollAttempts++;
+          
+          const statusResponse = await fetch(`/api/image/status/${data.predictionId}`);
+          
+          if (!statusResponse.ok) {
+            throw new Error(`Failed to check prediction status: ${statusResponse.statusText}`);
+          }
+          
+          const statusData = await statusResponse.json();
+          console.log(`[Image Studio] Poll attempt ${pollAttempts}:`, {
+            status: statusData.status,
+            elapsedTime: Date.now() - pollStartTime,
+          });
+          
+          if (statusData.status === "succeeded") {
+            const imageUrl = Array.isArray(statusData.output) ? statusData.output[0] : statusData.output;
+            
+            if (imageUrl) {
+              const totalTime = Date.now() - generationStartTime;
+              console.log("[Image Studio] Generation completed:", {
+                totalTimeMs: totalTime,
+                totalTimeSeconds: (totalTime / 1000).toFixed(2),
+                pollAttempts,
+                pollTimeMs: Date.now() - pollStartTime,
+              });
+              
+              const generatedImage = {
+                id: `${Date.now()}-0`,
+                url: imageUrl,
+                prompt: prompt.trim(),
+                aspectRatio: data.aspectRatio,
+                style: data.style,
+                mode: data.mode,
+                createdAt: new Date().toISOString(),
+                creditCost: 1,
+              };
+              
+              setGeneratedImages((prev) => [generatedImage, ...prev]);
+              incrementImages();
+              
+              // Сохранить в историю
+              const engineCost = imageEngineOptions.find(e => e.id === selectedEngine)?.creditCost || 0;
+              addToHistory({
+                type: "image",
+                prompt: prompt.trim(),
+                model: selectedEngine,
+                result: imageUrl,
+                credits: engineCost,
+              });
+              
+              setPrompt("");
+              return; // Success, exit function
+            }
+          } else if (statusData.status === "failed" || statusData.status === "canceled") {
+            throw new Error(statusData.error || "Image generation failed");
+          }
+          // Continue polling if status is "starting" or "processing"
+        }
+        
+        // If we exit the loop, it means we timed out
+        throw new Error("Image generation timed out. Please try again.");
       }
-      
-      // Сохранить каждое изображение в историю
-      const engineCost = imageEngineOptions.find(e => e.id === selectedEngine)?.creditCost || 0;
-      data.images.forEach((img: { url: string }) => {
-        addToHistory({
-          type: "image",
-          prompt: prompt.trim(),
-          model: selectedEngine,
-          result: img.url,
-          credits: engineCost,
+
+      // Handle regular OpenRouter response (immediate images)
+      if (data.images && Array.isArray(data.images)) {
+        const totalTime = Date.now() - generationStartTime;
+        console.log("[Image Studio] Generation completed:", {
+          totalTimeMs: totalTime,
+          totalTimeSeconds: (totalTime / 1000).toFixed(2),
+          imageCount: data.images.length,
         });
-      });
-      
-      setPrompt("");
+
+        setGeneratedImages((prev) => [...data.images, ...prev]);
+        if (isNanaBanana) {
+          incrementImages();
+        } else if (isFreeEngine) {
+          incrementFreeImageDaily();
+        } else {
+          incrementImages();
+        }
+        
+        // Сохранить каждое изображение в историю
+        const engineCost = imageEngineOptions.find(e => e.id === selectedEngine)?.creditCost || 0;
+        data.images.forEach((img: { url: string }) => {
+          addToHistory({
+            type: "image",
+            prompt: prompt.trim(),
+            model: selectedEngine,
+            result: img.url,
+            credits: engineCost,
+          });
+        });
+        
+        setPrompt("");
+      } else {
+        throw new Error("Unexpected response format from server");
+      }
     } catch (err) {
       console.error("Generation error:", err);
       setError(err instanceof Error ? err.message : "Failed to generate images");

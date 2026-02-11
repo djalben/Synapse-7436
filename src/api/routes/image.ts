@@ -36,35 +36,20 @@ const MODEL_MAP: Record<string, string> = {
   "nana-banana": "black-forest-labs/flux-1-schnell", // Using Flux with Nana Banana prompt enhancement
 }
 
-// Poll Replicate for prediction result
-async function pollReplicatePrediction(predictionId: string, apiToken: string, maxAttempts = 60): Promise<{ status: string; output?: string | string[] }> {
-  for (let i = 0; i < maxAttempts; i++) {
-    const response = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
-      headers: {
-        "Authorization": `Bearer ${apiToken}`,
-        "Content-Type": "application/json",
-      },
-    })
-    
-    if (!response.ok) {
-      throw new Error("Failed to check prediction status")
-    }
-    
-    const data = await response.json() as { status: string; output?: string | string[]; error?: string }
-    
-    if (data.status === "succeeded") {
-      return data
-    }
-    
-    if (data.status === "failed" || data.status === "canceled") {
-      throw new Error(data.error || "Image generation failed")
-    }
-    
-    // Wait 1 second before polling again (images are faster than videos)
-    await new Promise(resolve => setTimeout(resolve, 1000))
+// Get Replicate prediction status (for frontend polling)
+async function getReplicatePredictionStatus(predictionId: string, apiToken: string): Promise<{ status: string; output?: string | string[]; error?: string }> {
+  const response = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
+    headers: {
+      "Authorization": `Bearer ${apiToken}`,
+      "Content-Type": "application/json",
+    },
+  })
+  
+  if (!response.ok) {
+    throw new Error("Failed to check prediction status")
   }
   
-  throw new Error("Image generation timed out. Please try again.")
+  return await response.json() as { status: string; output?: string | string[]; error?: string }
 }
 
 imageRoutes.post("/", async (c) => {
@@ -246,14 +231,12 @@ imageRoutes.post("/", async (c) => {
           elapsedTime: Date.now() - requestStartTime,
         });
         
-        // For Nana Banana, try Replicate first if available (supports polling to avoid timeout)
+        // For Nana Banana, try Replicate first if available (returns prediction ID for frontend polling)
         if (engine === "nana-banana" && replicateToken) {
           try {
-            console.log("[Image API] Attempting Replicate for Nana Banana with polling")
+            console.log("[Image API] Creating Replicate prediction for Nana Banana")
             
             // Create prediction in Replicate
-            // Note: Replicate requires model version hash, but we'll use model name format first
-            // If this fails, we'll need to get the actual version hash from Replicate API
             const replicateResponse = await fetch("https://api.replicate.com/v1/predictions", {
               method: "POST",
               headers: {
@@ -271,28 +254,21 @@ imageRoutes.post("/", async (c) => {
             })
             
             if (replicateResponse.ok) {
-              const prediction = await replicateResponse.json() as { id: string }
-              console.log("[Image API] Replicate prediction created:", prediction.id)
+              const prediction = await replicateResponse.json() as { id: string; status: string }
+              console.log("[Image API] Replicate prediction created:", prediction.id, "status:", prediction.status)
               
-              // Poll for result (non-blocking, returns quickly)
-              const result = await pollReplicatePrediction(prediction.id, replicateToken, 60)
-              
-              if (result.output) {
-                const imageUrl = Array.isArray(result.output) ? result.output[0] : result.output
-                if (imageUrl) {
-                  generatedImages.push({
-                    id: `${Date.now()}-${generatedImages.length}`,
-                    url: imageUrl,
-                    prompt: prompt.trim(),
-                    aspectRatio,
-                    style: specializedEngine === "niji-v6" ? "nana-banana" : style,
-                    mode: mode || "text-to-image",
-                    createdAt: new Date().toISOString(),
-                    creditCost: 1,
-                  })
-                  continue // Skip OpenRouter for this iteration
-                }
-              }
+              // Return prediction ID immediately for frontend polling
+              // Frontend will poll /api/image/status/:id to get the result
+              return c.json({
+                predictionId: prediction.id,
+                status: prediction.status,
+                provider: "replicate",
+                engine: engine,
+                prompt: prompt.trim(),
+                aspectRatio,
+                style: specializedEngine === "niji-v6" ? "nana-banana" : style,
+                mode: mode || "text-to-image",
+              })
             }
           } catch (replicateError) {
             console.warn("[Image API] Replicate failed, falling back to OpenRouter:", replicateError instanceof Error ? replicateError.message : String(replicateError))
@@ -431,5 +407,34 @@ imageRoutes.post("/", async (c) => {
     
     // Return actual error message for debugging
     return c.json({ error: errorMessage }, 503)
+  }
+})
+
+// GET endpoint for checking prediction status (frontend polling)
+imageRoutes.get("/status/:id", async (c) => {
+  try {
+    const predictionId = c.req.param("id")
+    const replicateToken = c.env.REPLICATE_API_TOKEN
+    
+    if (!replicateToken) {
+      return c.json({ error: "Replicate API token not configured" }, 503)
+    }
+    
+    if (!predictionId) {
+      return c.json({ error: "Prediction ID is required" }, 400)
+    }
+    
+    const prediction = await getReplicatePredictionStatus(predictionId, replicateToken)
+    
+    return c.json({
+      id: predictionId,
+      status: prediction.status,
+      output: prediction.output,
+      error: prediction.error,
+    })
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    console.error("[Image API] Status check error:", errorMessage)
+    return c.json({ error: errorMessage }, 500)
   }
 })
