@@ -155,26 +155,27 @@ avatarRoutes.post("/", async (c) => {
     const drivingVideoBase64 = `data:${drivingVideoFile.type};base64,${Buffer.from(drivingVideoBuffer).toString("base64")}`
     
     // Try Replicate for actual avatar generation
+    const apiToken = env.REPLICATE_API_TOKEN
     if (import.meta.env.DEV) {
       console.log("[Avatar API] Attempting Replicate avatar generation")
     }
     let videoUrl = await tryReplicateAvatar(targetImageBase64, drivingVideoBase64)
     
-    // Use sample video as fallback for demo
-    // In production, this would fail if Replicate is not configured
+    // Only use sample video if Replicate is not configured
     if (!videoUrl) {
-      // For demo purposes, return a sample video
-      // In production, you might want to return an error instead
-      if (import.meta.env.DEV) {
-        console.warn("[Avatar API] Replicate unavailable or failed, using sample video")
+      if (!apiToken) {
+        // Replicate not configured - use sample for demo
+        if (import.meta.env.DEV) {
+          console.warn("[Avatar API] REPLICATE_API_TOKEN not configured, using sample video")
+        }
+        videoUrl = SAMPLE_AVATAR_VIDEOS[Math.floor(Math.random() * SAMPLE_AVATAR_VIDEOS.length)]
+      } else {
+        // Replicate is configured but generation failed - return error
+        return c.json({ 
+          error: "Avatar generation failed. Please try again later.",
+          creditCost: AVATAR_COST 
+        }, 500)
       }
-      videoUrl = SAMPLE_AVATAR_VIDEOS[Math.floor(Math.random() * SAMPLE_AVATAR_VIDEOS.length)]
-      
-      // Uncomment the following to require actual API configuration
-      // return c.json({ 
-      //   error: "Avatar generation service is not configured. Please try again later.",
-      //   creditCost: AVATAR_COST 
-      // }, 503)
     } else if (import.meta.env.DEV) {
       console.log("[Avatar API] Successfully generated avatar via Replicate")
     }
@@ -224,17 +225,26 @@ avatarRoutes.post("/json", async (c) => {
     }
     
     // Try Replicate for actual avatar generation
+    const apiToken = env.REPLICATE_API_TOKEN
     if (import.meta.env.DEV) {
       console.log("[Avatar API] Attempting Replicate avatar generation (JSON)")
     }
     let videoUrl = await tryReplicateAvatar(targetImage, drivingVideo)
     
-    // Use sample video as fallback
+    // Only use sample video if Replicate is not configured
     if (!videoUrl) {
-      if (import.meta.env.DEV) {
-        console.warn("[Avatar API] Replicate unavailable or failed, using sample video")
+      if (!apiToken) {
+        if (import.meta.env.DEV) {
+          console.warn("[Avatar API] REPLICATE_API_TOKEN not configured, using sample video")
+        }
+        videoUrl = SAMPLE_AVATAR_VIDEOS[Math.floor(Math.random() * SAMPLE_AVATAR_VIDEOS.length)]
+      } else {
+        // Replicate is configured but generation failed - return error
+        return c.json({ 
+          error: "Avatar generation failed. Please try again later.",
+          creditCost: AVATAR_COST 
+        }, 500)
       }
-      videoUrl = SAMPLE_AVATAR_VIDEOS[Math.floor(Math.random() * SAMPLE_AVATAR_VIDEOS.length)]
     } else if (import.meta.env.DEV) {
       console.log("[Avatar API] Successfully generated avatar via Replicate")
     }

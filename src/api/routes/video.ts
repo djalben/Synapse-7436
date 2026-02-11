@@ -171,14 +171,20 @@ videoRoutes.post("/animate", async (c) => {
         : `Animate this portrait: ${animationPrompt}`
 
     // Try Replicate for video generation
+    const apiToken = env.REPLICATE_API_TOKEN
     let videoUrl = await tryReplicateVideo(fullPrompt, finalDuration, "9:16", image)
     
-    // Use sample video as fallback
+    // Only use sample video if Replicate is not configured
     if (!videoUrl) {
-      if (import.meta.env.DEV) {
-        console.warn("[Video API] Replicate unavailable or failed, using sample video")
+      if (!apiToken) {
+        if (import.meta.env.DEV) {
+          console.warn("[Video API] REPLICATE_API_TOKEN not configured, using sample video")
+        }
+        videoUrl = SAMPLE_ANIMATION_VIDEOS[Math.floor(Math.random() * SAMPLE_ANIMATION_VIDEOS.length)]
+      } else {
+        // Replicate is configured but generation failed - return error
+        return c.json({ error: "Video generation failed. Please try again later." }, 500)
       }
-      videoUrl = SAMPLE_ANIMATION_VIDEOS[Math.floor(Math.random() * SAMPLE_ANIMATION_VIDEOS.length)]
     } else if (import.meta.env.DEV) {
       console.log("[Video API] Successfully generated animation via Replicate")
     }
@@ -238,6 +244,7 @@ videoRoutes.post("/", async (c) => {
     enhancedPrompt += ", cinematic quality, smooth motion, professional video"
 
     // Try Replicate for actual video generation
+    const apiToken = env.REPLICATE_API_TOKEN
     let videoUrl = await tryReplicateVideo(
       enhancedPrompt,
       finalDuration,
@@ -245,12 +252,17 @@ videoRoutes.post("/", async (c) => {
       mode === "image-to-video" ? referenceImage : null
     )
     
-    // Use sample video as fallback
+    // Only use sample video if Replicate is not configured
     if (!videoUrl) {
-      if (import.meta.env.DEV) {
-        console.warn("[Video API] Replicate unavailable or failed, using sample video")
+      if (!apiToken) {
+        if (import.meta.env.DEV) {
+          console.warn("[Video API] REPLICATE_API_TOKEN not configured, using sample video")
+        }
+        videoUrl = SAMPLE_VIDEOS[Math.floor(Math.random() * SAMPLE_VIDEOS.length)]
+      } else {
+        // Replicate is configured but generation failed - return error
+        return c.json({ error: "Video generation failed. Please try again later." }, 500)
       }
-      videoUrl = SAMPLE_VIDEOS[Math.floor(Math.random() * SAMPLE_VIDEOS.length)]
     } else if (import.meta.env.DEV) {
       console.log("[Video API] Successfully generated video via Replicate")
     }

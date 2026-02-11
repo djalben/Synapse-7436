@@ -464,19 +464,76 @@ export const AudioStudio = () => {
   const handleGenerate = async () => {
     if (!checkCredits(creditCost)) return;
     setIsGenerating(true);
-    deductCredits(creditCost);
+    
     try {
-      // TODO: replace with real API call
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      let response: Response;
+      let requestBody: Record<string, unknown>;
+      
+      if (mode === "music") {
+        // Генерация музыки
+        if (!musicPrompt.trim()) {
+          alert("Пожалуйста, введите описание музыки");
+          setIsGenerating(false);
+          return;
+        }
+        
+        const durationSeconds = duration === "30s" ? 30 : duration === "60s" ? 60 : 120;
+        requestBody = {
+          prompt: musicPrompt.trim(),
+          duration: durationSeconds,
+          instrumental: musicType === "instrumental",
+          genre: selectedGenre || undefined,
+        };
+        
+        response = await fetch("/api/audio/music", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        });
+      } else {
+        // Озвучка текста
+        if (!voiceText.trim()) {
+          alert("Пожалуйста, введите текст для озвучки");
+          setIsGenerating(false);
+          return;
+        }
+        
+        requestBody = {
+          text: voiceText.trim(),
+          voice: selectedVoice.id,
+        };
+        
+        response = await fetch("/api/audio/tts", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        });
+      }
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Неизвестная ошибка" }));
+        throw new Error(errorData.error || "Ошибка генерации аудио");
+      }
+      
+      const data = await response.json();
+      
+      // Списываем кредиты только после успешной генерации
+      deductCredits(creditCost);
+      
       const newAudio: GeneratedAudio = {
-        id: Date.now().toString(),
+        id: data.id || Date.now().toString(),
         type: mode,
         prompt: mode === "music" ? musicPrompt : undefined,
         text: mode === "voice" ? voiceText : undefined,
-        duration: duration,
-        createdAt: new Date(),
-        audioUrl: "/sample-audio.mp3", // TODO: replace with actual URL from API
+        duration: data.duration || duration,
+        createdAt: new Date(data.createdAt || Date.now()),
+        audioUrl: data.url || data.audioUrl || "",
       };
+      
       setCurrentAudio(newAudio);
       setGenerations(prev => [newAudio, ...prev]);
       
@@ -488,6 +545,16 @@ export const AudioStudio = () => {
         result: newAudio.audioUrl || "",
         credits: creditCost,
       });
+      
+      // Очистить промпт после успешной генерации
+      if (mode === "music") {
+        setMusicPrompt("");
+      } else {
+        setVoiceText("");
+      }
+    } catch (error) {
+      console.error("Audio generation error:", error);
+      alert(error instanceof Error ? error.message : "Ошибка генерации аудио. Попробуйте еще раз.");
     } finally {
       setIsGenerating(false);
     }

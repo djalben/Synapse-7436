@@ -446,6 +446,12 @@ export const ChatInterface = () => {
     userPlan = "free",
   } = useUsage()
   
+  // Use ref to track credit balance for callbacks
+  const creditBalanceRef = useRef(creditBalance)
+  useEffect(() => {
+    creditBalanceRef.current = creditBalance
+  }, [creditBalance])
+  
   // Keep ref in sync with state
   useEffect(() => {
     selectedModelRef.current = selectedModel
@@ -462,14 +468,21 @@ export const ChatInterface = () => {
     onFinish: (message) => {
       const modelId = selectedModelRef.current
       if (FREE_CHAT_MODEL_IDS.includes(modelId as typeof FREE_CHAT_MODEL_IDS[number])) {
+        // Бесплатная модель - только увеличиваем счетчик дневных сообщений
         incrementMessageDaily()
       } else {
+        // Платная модель - списываем кредиты
         const cost = getModelCreditCost(modelId)
-        deductCredits(cost)
-        toast.success(`-${cost} кредитов`, {
-          description: `Осталось ${creditBalance - cost} кредитов`,
-          duration: 2000,
-        })
+        const success = deductCredits(cost)
+        if (success) {
+          // Используем ref для получения актуального значения после обновления состояния
+          // Состояние обновится асинхронно, поэтому используем вычисленное значение
+          const newBalance = Math.max(0, creditBalanceRef.current - cost)
+          toast.success(`-${cost} кредитов`, {
+            description: `Осталось ${newBalance.toFixed(1)} кредитов`,
+            duration: 2000,
+          })
+        }
       }
       incrementMessages()
       
@@ -477,12 +490,15 @@ export const ChatInterface = () => {
       const userMessages = messages.filter(m => m.role === "user")
       const lastUserMessage = userMessages[userMessages.length - 1]
       if (lastUserMessage && message.content) {
+        const cost = FREE_CHAT_MODEL_IDS.includes(modelId as typeof FREE_CHAT_MODEL_IDS[number]) 
+          ? 0 
+          : getModelCreditCost(modelId)
         addToHistory({
           type: "chat",
           prompt: typeof lastUserMessage.content === "string" ? lastUserMessage.content : "",
           model: modelId,
           result: typeof message.content === "string" ? message.content : "",
-          credits: FREE_CHAT_MODEL_IDS.includes(modelId as typeof FREE_CHAT_MODEL_IDS[number]) ? 0 : cost,
+          credits: cost,
         })
       }
     }

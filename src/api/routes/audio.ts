@@ -143,21 +143,26 @@ audioRoutes.post("/music", async (c) => {
         // Fall through to sample response
       }
     } else if (import.meta.env.DEV) {
-      console.warn("[Audio API] REPLICATE_API_TOKEN not configured, using sample audio")
+      console.warn("[Audio API] REPLICATE_API_TOKEN not configured")
     }
     
-    // Return sample audio URL for demonstration
-    return c.json({
-      id: `music-${Date.now()}`,
-      url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
-      prompt: prompt.trim(),
-      duration: `0:${modelDuration}`,
-      type: "music",
-      genre: genre || null,
-      instrumental,
-      createdAt: new Date().toISOString(),
-      creditCost: 10,
-    })
+    // Only return sample audio if Replicate is not configured
+    if (!apiToken) {
+      return c.json({
+        id: `music-${Date.now()}`,
+        url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+        prompt: prompt.trim(),
+        duration: `0:${modelDuration}`,
+        type: "music",
+        genre: genre || null,
+        instrumental,
+        createdAt: new Date().toISOString(),
+        creditCost: 10,
+      })
+    }
+    
+    // Replicate is configured but generation failed - return error
+    return c.json({ error: "Music generation failed. Please try again later." }, 500)
   } catch (error) {
     if (import.meta.env.DEV) {
       console.error("[Audio API] Music generation error:", error)
@@ -284,24 +289,29 @@ audioRoutes.post("/tts", async (c) => {
         // Fall through to sample response
       }
     } else if (import.meta.env.DEV) {
-      console.warn("[Audio API] REPLICATE_API_TOKEN not configured, using sample audio")
+      console.warn("[Audio API] REPLICATE_API_TOKEN and HUGGINGFACE_API_KEY not configured")
     }
     
-    // Return sample response for demonstration
-    const wordCount = text.trim().split(/\s+/).length
-    const durationSeconds = Math.ceil((wordCount / 150) * 60)
+    // Only return sample audio if no API tokens are configured
+    if (!apiToken && !hfToken) {
+      const wordCount = text.trim().split(/\s+/).length
+      const durationSeconds = Math.ceil((wordCount / 150) * 60)
+      
+      return c.json({
+        id: `tts-${Date.now()}`,
+        url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+        text: text.trim(),
+        voice,
+        voiceDescription: voicePreset.description,
+        duration: `${Math.floor(durationSeconds / 60)}:${(durationSeconds % 60).toString().padStart(2, "0")}`,
+        type: "voice",
+        createdAt: new Date().toISOString(),
+        creditCost: 3, // TTS costs 3 credits
+      })
+    }
     
-    return c.json({
-      id: `tts-${Date.now()}`,
-      url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
-      text: text.trim(),
-      voice,
-      voiceDescription: voicePreset.description,
-      duration: `${Math.floor(durationSeconds / 60)}:${(durationSeconds % 60).toString().padStart(2, "0")}`,
-      type: "voice",
-      createdAt: new Date().toISOString(),
-      creditCost: 3, // TTS costs 3 credits
-    })
+    // API tokens are configured but generation failed - return error
+    return c.json({ error: "Text-to-speech generation failed. Please try again later." }, 500)
   } catch (error) {
     if (import.meta.env.DEV) {
       console.error("[Audio API] TTS error:", error)
@@ -390,23 +400,28 @@ audioRoutes.post("/clone", async (c) => {
         // Fall through to sample response
       }
     } else if (import.meta.env.DEV) {
-      console.warn("[Audio API] REPLICATE_API_TOKEN not configured, using sample audio")
+      console.warn("[Audio API] REPLICATE_API_TOKEN not configured")
     }
     
-    // Return sample response for demonstration
-    const wordCount = text.trim().split(/\s+/).length
-    const durationSeconds = Math.ceil((wordCount / 150) * 60)
+    // Only return sample audio if Replicate is not configured
+    if (!apiToken) {
+      const wordCount = text.trim().split(/\s+/).length
+      const durationSeconds = Math.ceil((wordCount / 150) * 60)
+      
+      return c.json({
+        id: `clone-${Date.now()}`,
+        url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
+        text: text.trim(),
+        voiceName: voiceName || "My Cloned Voice",
+        duration: `${Math.floor(durationSeconds / 60)}:${(durationSeconds % 60).toString().padStart(2, "0")}`,
+        type: "clone",
+        createdAt: new Date().toISOString(),
+        creditCost: 30, // Voice cloning - expensive GPU operation
+      })
+    }
     
-    return c.json({
-      id: `clone-${Date.now()}`,
-      url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
-      text: text.trim(),
-      voiceName: voiceName || "My Cloned Voice",
-      duration: `${Math.floor(durationSeconds / 60)}:${(durationSeconds % 60).toString().padStart(2, "0")}`,
-      type: "clone",
-      createdAt: new Date().toISOString(),
-      creditCost: 30, // Voice cloning - expensive GPU operation
-    })
+    // Replicate is configured but generation failed - return error
+    return c.json({ error: "Voice cloning failed. Please try again later." }, 500)
   } catch (error) {
     if (import.meta.env.DEV) {
       console.error("[Audio API] Voice cloning error:", error)
