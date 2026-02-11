@@ -1,7 +1,11 @@
 import { Hono } from "hono"
-import { env } from "cloudflare:workers"
 
-export const videoRoutes = new Hono()
+// Environment variables type for Hono context
+type Env = {
+  REPLICATE_API_TOKEN?: string
+}
+
+export const videoRoutes = new Hono<{ Bindings: Env }>()
 
 // Animation preset prompt mapping
 const PRESET_PROMPTS: Record<string, string> = {
@@ -26,8 +30,7 @@ const VIDEO_MODELS = {
 }
 
 // Poll Replicate for prediction result
-async function pollReplicatePrediction(predictionId: string, maxAttempts = 120): Promise<{ status: string; output?: string | string[] }> {
-  const apiToken = env.REPLICATE_API_TOKEN
+async function pollReplicatePrediction(predictionId: string, apiToken: string, maxAttempts = 120): Promise<{ status: string; output?: string | string[] }> {
   
   for (let i = 0; i < maxAttempts; i++) {
     const response = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
@@ -63,10 +66,9 @@ async function tryReplicateVideo(
   prompt: string, 
   duration: number, 
   aspectRatio: string,
+  apiToken: string | undefined,
   referenceImage?: string | null
 ): Promise<string | null> {
-  const apiToken = env.REPLICATE_API_TOKEN
-  
   if (!apiToken) {
     return null // Replicate not configured
   }
@@ -116,7 +118,7 @@ async function tryReplicateVideo(
     const prediction = await response.json() as { id: string }
     
     // Poll for result (videos take longer, up to 4 minutes)
-    const result = await pollReplicatePrediction(prediction.id, 120)
+    const result = await pollReplicatePrediction(prediction.id, apiToken, 120)
     
     if (result.output) {
       return Array.isArray(result.output) ? result.output[0] : result.output
@@ -145,10 +147,7 @@ const SAMPLE_ANIMATION_VIDEOS = [
 // Dedicated endpoint for portrait animation (Bring Photos to Life feature)
 videoRoutes.post("/animate", async (c) => {
   try {
-    // Log request in development
-    if (import.meta.env.DEV) {
-      console.log("[Video API] Portrait animation request received")
-    }
+    console.log("[Video API] Portrait animation request received")
 
     const { image, preset, duration, prompt: userPrompt } = await c.req.json()
 
@@ -171,21 +170,19 @@ videoRoutes.post("/animate", async (c) => {
         : `Animate this portrait: ${animationPrompt}`
 
     // Try Replicate for video generation
-    const apiToken = env.REPLICATE_API_TOKEN
-    let videoUrl = await tryReplicateVideo(fullPrompt, finalDuration, "9:16", image)
+    const apiToken = c.env.REPLICATE_API_TOKEN
+    let videoUrl = await tryReplicateVideo(fullPrompt, finalDuration, "9:16", apiToken, image)
     
     // Only use sample video if Replicate is not configured
     if (!videoUrl) {
       if (!apiToken) {
-        if (import.meta.env.DEV) {
-          console.warn("[Video API] REPLICATE_API_TOKEN not configured, using sample video")
-        }
+        console.warn("[Video API] REPLICATE_API_TOKEN not configured, using sample video")
         videoUrl = SAMPLE_ANIMATION_VIDEOS[Math.floor(Math.random() * SAMPLE_ANIMATION_VIDEOS.length)]
       } else {
         // Replicate is configured but generation failed - return error
         return c.json({ error: "Video generation failed. Please try again later." }, 500)
       }
-    } else if (import.meta.env.DEV) {
+    } else {
       console.log("[Video API] Successfully generated animation via Replicate")
     }
 
@@ -198,9 +195,7 @@ videoRoutes.post("/animate", async (c) => {
       creditCost: 30, // Expensive GPU operation - 30 credits
     })
   } catch (error) {
-    if (import.meta.env.DEV) {
-      console.error("[Video API] Portrait animation error:", error)
-    }
+    console.error("[Video API] Portrait animation error:", error)
     return c.json({ error: "High load on GPU servers, please try again later." }, 500)
   }
 })
@@ -208,10 +203,7 @@ videoRoutes.post("/animate", async (c) => {
 // Original text-to-video and image-to-video endpoint
 videoRoutes.post("/", async (c) => {
   try {
-    // Log request in development
-    if (import.meta.env.DEV) {
-      console.log("[Video API] Video generation request received")
-    }
+    console.log("[Video API] Video generation request received")
 
     const { prompt, duration, aspectRatio, motionScale, mode, referenceImage, videoModel } = await c.req.json()
 
@@ -244,26 +236,25 @@ videoRoutes.post("/", async (c) => {
     enhancedPrompt += ", cinematic quality, smooth motion, professional video"
 
     // Try Replicate for actual video generation
-    const apiToken = env.REPLICATE_API_TOKEN
+    const apiToken = c.env.REPLICATE_API_TOKEN
     let videoUrl = await tryReplicateVideo(
       enhancedPrompt,
       finalDuration,
       finalAspectRatio,
+      apiToken,
       mode === "image-to-video" ? referenceImage : null
     )
     
     // Only use sample video if Replicate is not configured
     if (!videoUrl) {
       if (!apiToken) {
-        if (import.meta.env.DEV) {
-          console.warn("[Video API] REPLICATE_API_TOKEN not configured, using sample video")
-        }
+        console.warn("[Video API] REPLICATE_API_TOKEN not configured, using sample video")
         videoUrl = SAMPLE_VIDEOS[Math.floor(Math.random() * SAMPLE_VIDEOS.length)]
       } else {
         // Replicate is configured but generation failed - return error
         return c.json({ error: "Video generation failed. Please try again later." }, 500)
       }
-    } else if (import.meta.env.DEV) {
+    } else {
       console.log("[Video API] Successfully generated video via Replicate")
     }
 
@@ -279,9 +270,7 @@ videoRoutes.post("/", async (c) => {
       creditCost: isFreePreview ? 0 : 30, // 2s preview free (Kling), full video 30 credits
     })
   } catch (error) {
-    if (import.meta.env.DEV) {
-      console.error("[Video API] Video generation error:", error)
-    }
+    console.error("[Video API] Video generation error:", error)
     return c.json({ error: "High load on GPU servers, please try again later." }, 500)
   }
 })

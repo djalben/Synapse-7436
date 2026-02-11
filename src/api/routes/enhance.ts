@@ -1,7 +1,13 @@
 import { Hono } from "hono"
-import { env } from "cloudflare:workers"
 
-export const enhanceRoutes = new Hono()
+// Environment variables type for Hono context
+type Env = {
+  REPLICATE_API_TOKEN?: string
+  OPENROUTER_API_KEY?: string
+  VITE_BASE_URL?: string
+}
+
+export const enhanceRoutes = new Hono<{ Bindings: Env }>()
 
 // Enhancement tool types
 type EnhancementTool = "face-restore" | "colorize" | "beauty-retouch"
@@ -70,8 +76,7 @@ Important: The result should look like professional photography, not heavy editi
 }
 
 // Poll Replicate for prediction result
-async function pollReplicatePrediction(predictionId: string, maxAttempts = 60): Promise<{ status: string; output?: string | string[] }> {
-  const apiToken = env.REPLICATE_API_TOKEN
+async function pollReplicatePrediction(predictionId: string, apiToken: string, maxAttempts = 60): Promise<{ status: string; output?: string | string[] }> {
   
   for (let i = 0; i < maxAttempts; i++) {
     const response = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
@@ -103,9 +108,7 @@ async function pollReplicatePrediction(predictionId: string, maxAttempts = 60): 
 }
 
 // Try Replicate API
-async function tryReplicateEnhancement(image: string, tool: EnhancementTool): Promise<string | null> {
-  const apiToken = env.REPLICATE_API_TOKEN
-  
+async function tryReplicateEnhancement(image: string, tool: EnhancementTool, apiToken: string | undefined): Promise<string | null> {
   if (!apiToken) {
     return null // Replicate not configured, use fallback
   }
@@ -133,7 +136,7 @@ async function tryReplicateEnhancement(image: string, tool: EnhancementTool): Pr
     const prediction = await response.json() as { id: string }
     
     // Poll for result
-    const result = await pollReplicatePrediction(prediction.id)
+    const result = await pollReplicatePrediction(prediction.id, apiToken)
     
     // Extract output URL
     if (result.output) {
@@ -149,13 +152,17 @@ async function tryReplicateEnhancement(image: string, tool: EnhancementTool): Pr
 }
 
 // Fallback to OpenRouter
-async function fallbackOpenRouterEnhancement(image: string, tool: EnhancementTool): Promise<string | null> {
+async function fallbackOpenRouterEnhancement(image: string, tool: EnhancementTool, openRouterKey: string | undefined, baseUrl: string | undefined): Promise<string | null> {
+  if (!openRouterKey) {
+    return null
+  }
+  
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${env.OPENROUTER_API_KEY}`,
+      "Authorization": `Bearer ${openRouterKey}`,
       "Content-Type": "application/json",
-      "HTTP-Referer": env.VITE_BASE_URL || "https://synapse.app",
+      "HTTP-Referer": baseUrl || "https://synapse.app",
       "X-Title": "Synapse Photo Enhancement",
     },
     body: JSON.stringify({
@@ -208,10 +215,7 @@ async function fallbackOpenRouterEnhancement(image: string, tool: EnhancementToo
 
 enhanceRoutes.post("/", async (c) => {
   try {
-    // Log request in development
-    if (import.meta.env.DEV) {
-      console.log("[Enhance API] Image enhancement request received")
-    }
+    console.log("[Enhance API] Image enhancement request received")
 
     const { image, tool } = await c.req.json()
 
@@ -233,27 +237,21 @@ enhanceRoutes.post("/", async (c) => {
     let enhancedUrl: string | null = null
     
     // Try Replicate first (better quality for specific tasks)
-    if (import.meta.env.DEV) {
-      console.log(`[Enhance API] Attempting Replicate enhancement for tool: ${tool}`)
-    }
-    enhancedUrl = await tryReplicateEnhancement(image, tool as EnhancementTool)
+    console.log(`[Enhance API] Attempting Replicate enhancement for tool: ${tool}`)
+    enhancedUrl = await tryReplicateEnhancement(image, tool as EnhancementTool, c.env.REPLICATE_API_TOKEN)
     
     // Fall back to OpenRouter if Replicate unavailable or failed
     if (!enhancedUrl) {
-      if (import.meta.env.DEV) {
-        console.warn("[Enhance API] Replicate failed, falling back to OpenRouter")
-      }
-      enhancedUrl = await fallbackOpenRouterEnhancement(image, tool as EnhancementTool)
-    } else if (import.meta.env.DEV) {
+      console.warn("[Enhance API] Replicate failed, falling back to OpenRouter")
+      enhancedUrl = await fallbackOpenRouterEnhancement(image, tool as EnhancementTool, c.env.OPENROUTER_API_KEY, c.env.VITE_BASE_URL)
+    } else {
       console.log("[Enhance API] Successfully enhanced via Replicate")
     }
     
     const processingTime = Date.now() - startTime
 
     if (enhancedUrl) {
-      if (import.meta.env.DEV) {
-        console.log(`[Enhance API] Enhancement completed in ${processingTime}ms`)
-      }
+      console.log(`[Enhance API] Enhancement completed in ${processingTime}ms`)
       return c.json({
         originalUrl: image,
         enhancedUrl: enhancedUrl,
@@ -264,15 +262,11 @@ enhanceRoutes.post("/", async (c) => {
     }
 
     // If no image was returned, return user-friendly error
-    if (import.meta.env.DEV) {
-      console.error("[Enhance API] Both Replicate and OpenRouter failed")
-    }
+    console.error("[Enhance API] Both Replicate and OpenRouter failed")
     return c.json({ error: "High load on GPU servers, please try again later." }, 500)
   } catch (error) {
-    // Log errors in development only
-    if (import.meta.env.DEV) {
-      console.error("[Enhance API] Image enhancement error:", error)
-    }
+    // Log errors
+    console.error("[Enhance API] Image enhancement error:", error)
     return c.json({ error: "Enhancement is taking longer than expected. Please try again." }, 500)
   }
 })

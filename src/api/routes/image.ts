@@ -1,7 +1,12 @@
 import { Hono } from "hono"
-import { env } from "cloudflare:workers"
 
-export const imageRoutes = new Hono()
+// Environment variables type for Hono context
+type Env = {
+  OPENROUTER_API_KEY?: string
+  VITE_BASE_URL?: string
+}
+
+export const imageRoutes = new Hono<{ Bindings: Env }>()
 
 // Aspect ratio to size mapping for Flux model
 const ASPECT_RATIO_MAP: Record<string, { width: number; height: number }> = {
@@ -32,10 +37,8 @@ imageRoutes.post("/", async (c) => {
     });
     
     // Check for required API key
-    if (!env.OPENROUTER_API_KEY) {
-      if (import.meta.env.DEV) {
-        console.warn("OPENROUTER_API_KEY not configured")
-      }
+    if (!c.env.OPENROUTER_API_KEY) {
+      console.warn("OPENROUTER_API_KEY not configured")
       return c.json({ error: "Image generation service is not available. Please try again later." }, 503)
     }
 
@@ -83,9 +86,9 @@ imageRoutes.post("/", async (c) => {
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${env.OPENROUTER_API_KEY}`,
+            "Authorization": `Bearer ${c.env.OPENROUTER_API_KEY}`,
             "Content-Type": "application/json",
-            "HTTP-Referer": env.VITE_BASE_URL || "https://synapse.app",
+            "HTTP-Referer": c.env.VITE_BASE_URL || "https://synapse.app",
             "X-Title": "Synapse Image Studio",
           },
           body: JSON.stringify({
@@ -144,9 +147,9 @@ imageRoutes.post("/", async (c) => {
         const response = await fetch("https://openrouter.ai/api/v1/images/generations", {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${env.OPENROUTER_API_KEY}`,
+            "Authorization": `Bearer ${c.env.OPENROUTER_API_KEY}`,
             "Content-Type": "application/json",
-            "HTTP-Referer": env.VITE_BASE_URL || "https://synapse.app",
+            "HTTP-Referer": c.env.VITE_BASE_URL || "https://synapse.app",
             "X-Title": "Synapse Image Studio",
           },
           body: JSON.stringify({
@@ -213,10 +216,8 @@ imageRoutes.post("/", async (c) => {
       totalCreditCost: generatedImages.length,
     })
   } catch (error) {
-    // Log errors in development only
-    if (import.meta.env.DEV) {
-      console.error("Image generation error:", error)
-    }
+    // Log errors
+    console.error("Image generation error:", error)
     
     // Убеждаемся, что всегда возвращаем JSON, даже при ошибке
     const errorMessage = error instanceof Error ? error.message : "Unknown error"

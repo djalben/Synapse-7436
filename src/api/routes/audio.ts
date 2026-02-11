@@ -1,7 +1,13 @@
 import { Hono } from "hono"
-import { env } from "cloudflare:workers"
 
-export const audioRoutes = new Hono()
+// Environment variables type for Hono context
+type Env = {
+  REPLICATE_API_TOKEN?: string
+  HUGGINGFACE_API_KEY?: string
+  HF_API_TOKEN?: string
+}
+
+export const audioRoutes = new Hono<{ Bindings: Env }>()
 
 // Voice preset configurations
 const VOICE_PRESETS: Record<string, { description: string; style?: string }> = {
@@ -23,8 +29,7 @@ const GENRE_STYLES: Record<string, string> = {
 }
 
 // Poll Replicate for prediction result
-async function pollReplicatePrediction(predictionId: string, maxAttempts = 120): Promise<{ status: string; output?: string | string[] }> {
-  const apiToken = env.REPLICATE_API_TOKEN
+async function pollReplicatePrediction(predictionId: string, apiToken: string, maxAttempts = 120): Promise<{ status: string; output?: string | string[] }> {
   
   for (let i = 0; i < maxAttempts; i++) {
     const response = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
@@ -57,10 +62,7 @@ async function pollReplicatePrediction(predictionId: string, maxAttempts = 120):
 // Music generation endpoint
 audioRoutes.post("/music", async (c) => {
   try {
-    // Log request in development
-    if (import.meta.env.DEV) {
-      console.log("[Audio API] Music generation request received")
-    }
+    console.log("[Audio API] Music generation request received")
 
     const { prompt, duration, instrumental, genre } = await c.req.json()
     
@@ -68,7 +70,7 @@ audioRoutes.post("/music", async (c) => {
       return c.json({ error: "Please describe the music you want to create." }, 400)
     }
     
-    const apiToken = env.REPLICATE_API_TOKEN
+    const apiToken = c.env.REPLICATE_API_TOKEN
     
     // Build enhanced prompt
     let enhancedPrompt = prompt.trim()
@@ -90,9 +92,7 @@ audioRoutes.post("/music", async (c) => {
     // Try Replicate MusicGen if available
     if (apiToken) {
       try {
-        if (import.meta.env.DEV) {
-          console.log("[Audio API] Attempting Replicate MusicGen")
-        }
+        console.log("[Audio API] Attempting Replicate MusicGen")
         
         const response = await fetch("https://api.replicate.com/v1/predictions", {
           method: "POST",
@@ -114,14 +114,12 @@ audioRoutes.post("/music", async (c) => {
         
         if (response.ok) {
           const prediction = await response.json() as { id: string }
-          const result = await pollReplicatePrediction(prediction.id, 120)
+          const result = await pollReplicatePrediction(prediction.id, apiToken, 120)
           
           if (result.output) {
             const audioUrl = Array.isArray(result.output) ? result.output[0] : result.output
             
-            if (import.meta.env.DEV) {
-              console.log("[Audio API] Successfully generated music via Replicate")
-            }
+            console.log("[Audio API] Successfully generated music via Replicate")
             
             return c.json({
               id: `music-${Date.now()}`,
@@ -137,12 +135,10 @@ audioRoutes.post("/music", async (c) => {
           }
         }
       } catch (replicateError) {
-        if (import.meta.env.DEV) {
-          console.warn("[Audio API] Replicate MusicGen failed:", replicateError)
-        }
+        console.warn("[Audio API] Replicate MusicGen failed:", replicateError)
         // Fall through to sample response
       }
-    } else if (import.meta.env.DEV) {
+    } else {
       console.warn("[Audio API] REPLICATE_API_TOKEN not configured")
     }
     
@@ -164,9 +160,7 @@ audioRoutes.post("/music", async (c) => {
     // Replicate is configured but generation failed - return error
     return c.json({ error: "Music generation failed. Please try again later." }, 500)
   } catch (error) {
-    if (import.meta.env.DEV) {
-      console.error("[Audio API] Music generation error:", error)
-    }
+    console.error("[Audio API] Music generation error:", error)
     return c.json({ error: "High load on GPU servers, please try again later." }, 500)
   }
 })
@@ -174,10 +168,7 @@ audioRoutes.post("/music", async (c) => {
 // Text-to-speech endpoint
 audioRoutes.post("/tts", async (c) => {
   try {
-    // Log request in development
-    if (import.meta.env.DEV) {
-      console.log("[Audio API] TTS request received")
-    }
+    console.log("[Audio API] TTS request received")
 
     const { text, voice } = await c.req.json()
     
@@ -190,8 +181,8 @@ audioRoutes.post("/tts", async (c) => {
     }
     
     const voicePreset = VOICE_PRESETS[voice] || VOICE_PRESETS["female-warm"]
-    const hfToken = env.HUGGINGFACE_API_KEY ?? env.HF_API_TOKEN
-    const apiToken = env.REPLICATE_API_TOKEN
+    const hfToken = c.env.HUGGINGFACE_API_KEY ?? c.env.HF_API_TOKEN
+    const apiToken = c.env.REPLICATE_API_TOKEN
 
     // Бесплатная озвучка через Hugging Face TTS (если задан токен)
     if (hfToken) {
@@ -225,16 +216,14 @@ audioRoutes.post("/tts", async (c) => {
           })
         }
       } catch (e) {
-        if (import.meta.env.DEV) console.warn("[Audio API] Hugging Face TTS failed:", e)
+        console.warn("[Audio API] Hugging Face TTS failed:", e)
       }
     }
 
     // Try Replicate XTTS if available
     if (apiToken) {
       try {
-        if (import.meta.env.DEV) {
-          console.log("[Audio API] Attempting Replicate XTTS")
-        }
+        console.log("[Audio API] Attempting Replicate XTTS")
         
         const response = await fetch("https://api.replicate.com/v1/predictions", {
           method: "POST",
@@ -254,7 +243,7 @@ audioRoutes.post("/tts", async (c) => {
         
         if (response.ok) {
           const prediction = await response.json() as { id: string }
-          const result = await pollReplicatePrediction(prediction.id, 60)
+          const result = await pollReplicatePrediction(prediction.id, apiToken, 60)
           
           if (result.output) {
             const audioUrl = Array.isArray(result.output) ? result.output[0] : result.output
@@ -265,9 +254,7 @@ audioRoutes.post("/tts", async (c) => {
             const durationSeconds = Math.ceil((wordCount / wordsPerMinute) * 60)
             const durationStr = `${Math.floor(durationSeconds / 60)}:${(durationSeconds % 60).toString().padStart(2, "0")}`
             
-            if (import.meta.env.DEV) {
-              console.log("[Audio API] Successfully generated TTS via Replicate")
-            }
+            console.log("[Audio API] Successfully generated TTS via Replicate")
             
             return c.json({
               id: `tts-${Date.now()}`,
@@ -283,12 +270,10 @@ audioRoutes.post("/tts", async (c) => {
           }
         }
       } catch (replicateError) {
-        if (import.meta.env.DEV) {
-          console.warn("[Audio API] Replicate XTTS failed:", replicateError)
-        }
+        console.warn("[Audio API] Replicate XTTS failed:", replicateError)
         // Fall through to sample response
       }
-    } else if (import.meta.env.DEV) {
+    } else {
       console.warn("[Audio API] REPLICATE_API_TOKEN and HUGGINGFACE_API_KEY not configured")
     }
     
@@ -313,9 +298,7 @@ audioRoutes.post("/tts", async (c) => {
     // API tokens are configured but generation failed - return error
     return c.json({ error: "Text-to-speech generation failed. Please try again later." }, 500)
   } catch (error) {
-    if (import.meta.env.DEV) {
-      console.error("[Audio API] TTS error:", error)
-    }
+    console.error("[Audio API] TTS error:", error)
     return c.json({ error: "High load on GPU servers, please try again later." }, 500)
   }
 })
@@ -323,10 +306,7 @@ audioRoutes.post("/tts", async (c) => {
 // Voice cloning endpoint
 audioRoutes.post("/clone", async (c) => {
   try {
-    // Log request in development
-    if (import.meta.env.DEV) {
-      console.log("[Audio API] Voice cloning request received")
-    }
+    console.log("[Audio API] Voice cloning request received")
 
     const { referenceAudio, text, voiceName } = await c.req.json()
     
@@ -342,14 +322,12 @@ audioRoutes.post("/clone", async (c) => {
       return c.json({ error: "Text is too long. Maximum 2000 characters for voice cloning." }, 400)
     }
     
-    const apiToken = env.REPLICATE_API_TOKEN
+    const apiToken = c.env.REPLICATE_API_TOKEN
     
     // Try Replicate XTTS voice cloning if available
     if (apiToken) {
       try {
-        if (import.meta.env.DEV) {
-          console.log("[Audio API] Attempting Replicate voice cloning")
-        }
+        console.log("[Audio API] Attempting Replicate voice cloning")
         
         const response = await fetch("https://api.replicate.com/v1/predictions", {
           method: "POST",
@@ -369,7 +347,7 @@ audioRoutes.post("/clone", async (c) => {
         
         if (response.ok) {
           const prediction = await response.json() as { id: string }
-          const result = await pollReplicatePrediction(prediction.id, 90)
+          const result = await pollReplicatePrediction(prediction.id, apiToken, 90)
           
           if (result.output) {
             const audioUrl = Array.isArray(result.output) ? result.output[0] : result.output
@@ -377,9 +355,7 @@ audioRoutes.post("/clone", async (c) => {
             const wordCount = text.trim().split(/\s+/).length
             const durationSeconds = Math.ceil((wordCount / 150) * 60)
             
-            if (import.meta.env.DEV) {
-              console.log("[Audio API] Successfully cloned voice via Replicate")
-            }
+            console.log("[Audio API] Successfully cloned voice via Replicate")
             
             return c.json({
               id: `clone-${Date.now()}`,
@@ -394,12 +370,10 @@ audioRoutes.post("/clone", async (c) => {
           }
         }
       } catch (replicateError) {
-        if (import.meta.env.DEV) {
-          console.warn("[Audio API] Replicate voice cloning failed:", replicateError)
-        }
+        console.warn("[Audio API] Replicate voice cloning failed:", replicateError)
         // Fall through to sample response
       }
-    } else if (import.meta.env.DEV) {
+    } else {
       console.warn("[Audio API] REPLICATE_API_TOKEN not configured")
     }
     
@@ -423,9 +397,7 @@ audioRoutes.post("/clone", async (c) => {
     // Replicate is configured but generation failed - return error
     return c.json({ error: "Voice cloning failed. Please try again later." }, 500)
   } catch (error) {
-    if (import.meta.env.DEV) {
-      console.error("[Audio API] Voice cloning error:", error)
-    }
+    console.error("[Audio API] Voice cloning error:", error)
     return c.json({ error: "High load on GPU servers, please try again later." }, 500)
   }
 })

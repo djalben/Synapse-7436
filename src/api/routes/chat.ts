@@ -1,9 +1,19 @@
 import { Hono } from "hono"
 import { streamText, convertToModelMessages, UIMessage } from "ai"
 import { createOpenAI } from "@ai-sdk/openai"
-import { env } from "cloudflare:workers"
 
-export const chatRoutes = new Hono()
+// Environment variables type for Hono context
+type Env = {
+  AI_GATEWAY_API_KEY?: string
+  AI_GATEWAY_BASE_URL?: string
+  OPENROUTER_API_KEY?: string
+  REPLICATE_API_TOKEN?: string
+  HUGGINGFACE_API_KEY?: string
+  HF_API_TOKEN?: string
+  VITE_BASE_URL?: string
+}
+
+export const chatRoutes = new Hono<{ Bindings: Env }>()
 
 // Interface for incoming chat request
 interface ChatRequest {
@@ -39,10 +49,8 @@ const CREDIT_COSTS: Record<string, number> = {
 chatRoutes.post("/", async (c) => {
   try {
     // Check for required API key
-    if (!env.AI_GATEWAY_API_KEY || !env.AI_GATEWAY_BASE_URL) {
-      if (import.meta.env.DEV) {
-        console.warn("AI Gateway not configured")
-      }
+    if (!c.env.AI_GATEWAY_API_KEY || !c.env.AI_GATEWAY_BASE_URL) {
+      console.warn("AI Gateway not configured")
       return c.json({ error: "Chat service is not available. Please try again later." }, 503)
     }
 
@@ -71,8 +79,8 @@ chatRoutes.post("/", async (c) => {
 
     // Create OpenAI-compatible client pointing to the AI Gateway
     const openai = createOpenAI({
-      baseURL: env.AI_GATEWAY_BASE_URL,
-      apiKey: env.AI_GATEWAY_API_KEY,
+      baseURL: c.env.AI_GATEWAY_BASE_URL!,
+      apiKey: c.env.AI_GATEWAY_API_KEY!,
     })
 
     // Convert UI messages to model messages
@@ -91,10 +99,8 @@ chatRoutes.post("/", async (c) => {
     
     return response
   } catch (error) {
-    // Log errors in development only
-    if (import.meta.env.DEV) {
-      console.error("Chat API error:", error)
-    }
+    // Log errors
+    console.error("Chat API error:", error)
     
     // Return user-friendly error messages
     // Never expose internal details, API keys, or payment info

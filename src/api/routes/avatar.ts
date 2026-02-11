@@ -1,7 +1,11 @@
 import { Hono } from "hono"
-import { env } from "cloudflare:workers"
 
-export const avatarRoutes = new Hono()
+// Environment variables type for Hono context
+type Env = {
+  REPLICATE_API_TOKEN?: string
+}
+
+export const avatarRoutes = new Hono<{ Bindings: Env }>()
 
 // Avatar generation cost (heavy GPU processing)
 const AVATAR_COST = 30
@@ -14,8 +18,7 @@ const SAMPLE_AVATAR_VIDEOS = [
 ]
 
 // Poll Replicate for prediction result
-async function pollReplicatePrediction(predictionId: string, maxAttempts = 180): Promise<{ status: string; output?: string | string[] }> {
-  const apiToken = env.REPLICATE_API_TOKEN
+async function pollReplicatePrediction(predictionId: string, apiToken: string, maxAttempts = 180): Promise<{ status: string; output?: string | string[] }> {
   
   for (let i = 0; i < maxAttempts; i++) {
     const response = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
@@ -50,10 +53,9 @@ async function pollReplicatePrediction(predictionId: string, maxAttempts = 180):
 // Will use SadTalker or similar model for face animation
 async function tryReplicateAvatar(
   targetImage: string,
-  drivingVideo: string
+  drivingVideo: string,
+  apiToken: string | undefined
 ): Promise<string | null> {
-  const apiToken = env.REPLICATE_API_TOKEN
-  
   if (!apiToken) {
     return null // Replicate not configured
   }
@@ -88,7 +90,7 @@ async function tryReplicateAvatar(
     const prediction = await response.json() as { id: string }
     
     // Poll for result (avatar generation can take 2-3 minutes)
-    const result = await pollReplicatePrediction(prediction.id, 180)
+    const result = await pollReplicatePrediction(prediction.id, apiToken, 180)
     
     if (result.output) {
       return Array.isArray(result.output) ? result.output[0] : result.output
@@ -103,10 +105,7 @@ async function tryReplicateAvatar(
 // Avatar animation endpoint
 avatarRoutes.post("/", async (c) => {
   try {
-    // Log request in development
-    if (import.meta.env.DEV) {
-      console.log("[Avatar API] Avatar generation request received")
-    }
+    console.log("[Avatar API] Avatar generation request received")
 
     // Get form data (supports multipart/form-data for file uploads)
     const formData = await c.req.formData()
@@ -155,19 +154,15 @@ avatarRoutes.post("/", async (c) => {
     const drivingVideoBase64 = `data:${drivingVideoFile.type};base64,${Buffer.from(drivingVideoBuffer).toString("base64")}`
     
     // Try Replicate for actual avatar generation
-    const apiToken = env.REPLICATE_API_TOKEN
-    if (import.meta.env.DEV) {
-      console.log("[Avatar API] Attempting Replicate avatar generation")
-    }
-    let videoUrl = await tryReplicateAvatar(targetImageBase64, drivingVideoBase64)
+    const apiToken = c.env.REPLICATE_API_TOKEN
+    console.log("[Avatar API] Attempting Replicate avatar generation")
+    let videoUrl = await tryReplicateAvatar(targetImageBase64, drivingVideoBase64, apiToken)
     
     // Only use sample video if Replicate is not configured
     if (!videoUrl) {
       if (!apiToken) {
         // Replicate not configured - use sample for demo
-        if (import.meta.env.DEV) {
-          console.warn("[Avatar API] REPLICATE_API_TOKEN not configured, using sample video")
-        }
+        console.warn("[Avatar API] REPLICATE_API_TOKEN not configured, using sample video")
         videoUrl = SAMPLE_AVATAR_VIDEOS[Math.floor(Math.random() * SAMPLE_AVATAR_VIDEOS.length)]
       } else {
         // Replicate is configured but generation failed - return error
@@ -176,7 +171,7 @@ avatarRoutes.post("/", async (c) => {
           creditCost: AVATAR_COST 
         }, 500)
       }
-    } else if (import.meta.env.DEV) {
+    } else {
       console.log("[Avatar API] Successfully generated avatar via Replicate")
     }
     
@@ -189,9 +184,7 @@ avatarRoutes.post("/", async (c) => {
     })
     
   } catch (error) {
-    if (import.meta.env.DEV) {
-      console.error("[Avatar API] Avatar generation error:", error)
-    }
+    console.error("[Avatar API] Avatar generation error:", error)
     return c.json({ 
       error: "High load on GPU servers, please try again later.",
       creditCost: AVATAR_COST 
@@ -202,10 +195,7 @@ avatarRoutes.post("/", async (c) => {
 // Alternative JSON endpoint for testing (base64 images/videos)
 avatarRoutes.post("/json", async (c) => {
   try {
-    // Log request in development
-    if (import.meta.env.DEV) {
-      console.log("[Avatar API] JSON avatar generation request received")
-    }
+    console.log("[Avatar API] JSON avatar generation request received")
 
     const { targetImage, drivingVideo } = await c.req.json()
     
@@ -225,18 +215,14 @@ avatarRoutes.post("/json", async (c) => {
     }
     
     // Try Replicate for actual avatar generation
-    const apiToken = env.REPLICATE_API_TOKEN
-    if (import.meta.env.DEV) {
-      console.log("[Avatar API] Attempting Replicate avatar generation (JSON)")
-    }
-    let videoUrl = await tryReplicateAvatar(targetImage, drivingVideo)
+    const apiToken = c.env.REPLICATE_API_TOKEN
+    console.log("[Avatar API] Attempting Replicate avatar generation (JSON)")
+    let videoUrl = await tryReplicateAvatar(targetImage, drivingVideo, apiToken)
     
     // Only use sample video if Replicate is not configured
     if (!videoUrl) {
       if (!apiToken) {
-        if (import.meta.env.DEV) {
-          console.warn("[Avatar API] REPLICATE_API_TOKEN not configured, using sample video")
-        }
+        console.warn("[Avatar API] REPLICATE_API_TOKEN not configured, using sample video")
         videoUrl = SAMPLE_AVATAR_VIDEOS[Math.floor(Math.random() * SAMPLE_AVATAR_VIDEOS.length)]
       } else {
         // Replicate is configured but generation failed - return error
@@ -245,7 +231,7 @@ avatarRoutes.post("/json", async (c) => {
           creditCost: AVATAR_COST 
         }, 500)
       }
-    } else if (import.meta.env.DEV) {
+    } else {
       console.log("[Avatar API] Successfully generated avatar via Replicate")
     }
     
@@ -258,9 +244,7 @@ avatarRoutes.post("/json", async (c) => {
     })
     
   } catch (error) {
-    if (import.meta.env.DEV) {
-      console.error("[Avatar API] JSON avatar generation error:", error)
-    }
+    console.error("[Avatar API] JSON avatar generation error:", error)
     return c.json({ 
       error: "High load on GPU servers, please try again later.",
       creditCost: AVATAR_COST 
@@ -270,7 +254,7 @@ avatarRoutes.post("/json", async (c) => {
 
 // Status endpoint to check service availability
 avatarRoutes.get("/status", async (c) => {
-  const apiToken = env.REPLICATE_API_TOKEN
+  const apiToken = c.env.REPLICATE_API_TOKEN
   
   return c.json({
     available: !!apiToken,
