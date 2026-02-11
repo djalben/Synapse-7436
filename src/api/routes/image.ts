@@ -37,6 +37,10 @@ const MODEL_MAP: Record<string, string> = {
 }
 
 imageRoutes.post("/", async (c) => {
+  // Declare variables outside try block for use in catch block
+  let engine: string | undefined = undefined
+  let mode: string | undefined = undefined
+  
   try {
     // Логирование для отладки маршрутизации
     const url = new URL(c.req.url)
@@ -72,7 +76,10 @@ imageRoutes.post("/", async (c) => {
       specializedEngine?: string
       engine?: string
     }
-    const { prompt, aspectRatio, numImages, style, mode, referenceImage, specializedEngine, engine } = body
+    const { prompt, aspectRatio, numImages, style, referenceImage, specializedEngine } = body
+    // Assign to outer scope variables
+    engine = body.engine
+    mode = body.mode
     
     console.log("[Image API] Request body:", {
       engine: engine || "not specified",
@@ -257,7 +264,9 @@ imageRoutes.post("/", async (c) => {
             return c.json({ error: "Image generation service is not available. Please check API configuration." }, 503)
           }
           
-          return c.json({ error: errorMessage }, status >= 500 ? 500 : status)
+          // Ensure status is a valid HTTP status code
+          const httpStatus = status >= 500 ? 500 : (status >= 400 ? status : 500)
+          return c.json({ error: errorMessage }, httpStatus as 400 | 401 | 403 | 429 | 500 | 503)
         }
 
         const data = await response.json() as {
@@ -305,8 +314,8 @@ imageRoutes.post("/", async (c) => {
     console.error("[Image API] Unexpected error:", {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
-      engine: engine || "not specified",
-      mode: mode || "text-to-image",
+      engine: engine ?? "not specified",
+      mode: mode ?? "text-to-image",
     })
     
     // Убеждаемся, что всегда возвращаем JSON, даже при ошибке
