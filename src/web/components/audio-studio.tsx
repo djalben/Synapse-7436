@@ -733,14 +733,16 @@ export const AudioStudio = () => {
         </div>
 
         {/* Кнопка генерации — на десктопе sticky внизу левой панели (как в Изображениях/Видео) */}
-        <div className="hidden md:block sticky bottom-0 z-[50] mt-5 pt-2 pb-2 -mx-6 px-6 bg-black">
+        <div className="hidden md:block sticky bottom-0 z-[50] mt-5 pt-2 pb-2 -mx-6 px-6">
           <button
             type="button"
             onClick={handleGenerate}
             disabled={isGenerating || (mode === "music" ? !musicPrompt.trim() : !voiceText.trim())}
             className={`
-              w-full py-4 px-6 rounded-xl font-medium text-base mb-2
-              transition-all duration-300 relative overflow-hidden active:scale-[0.98] group
+              w-full py-4 px-6 rounded-xl font-medium text-base mb-3
+              transition-all duration-300 relative overflow-hidden
+              active:scale-[0.98]
+              group
               ${!isGenerating && (mode === "music" ? musicPrompt.trim() : voiceText.trim())
                 ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_24px_rgba(0,112,243,0.4)]"
                 : "bg-[#222] text-[#555] cursor-not-allowed"
@@ -763,7 +765,7 @@ export const AudioStudio = () => {
                 </>
               ) : (
                 <>
-                  <Volume2 className="w-5 h-5" />
+                  <Sparkles className="w-5 h-5" />
                   <span>Озвучить текст</span>
                 </>
               )}
@@ -806,7 +808,7 @@ export const AudioStudio = () => {
               </>
             ) : (
               <>
-                <Volume2 className="w-5 h-5" />
+                <Sparkles className="w-5 h-5" />
                 <span>Озвучить текст</span>
               </>
             )}
