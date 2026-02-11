@@ -1,4 +1,5 @@
 import { Hono } from "hono"
+import { env as getRuntimeEnv } from "hono/adapter"
 
 // Environment variables type for Hono context
 type Env = {
@@ -60,26 +61,32 @@ imageRoutes.post("/", async (c) => {
   // Log request start time for timeout tracking
   const requestStartTime = Date.now()
   
-  // Isolate c.env access once (Edge Runtime can throw on destructuring or missing bindings)
+  // c.env may be undefined on Vercel Edge; use hono/adapter env() then process.env
   let openRouterKey: string | undefined
   let replicateToken: string | undefined
   try {
-    const env = c.env as Env | undefined
-    if (env == null) {
-      console.error("[Image API] c.env is undefined — bindings may not be injected")
-      return c.json({ error: "Error: c.env is undefined (bindings not injected)." }, 503)
-    }
-    openRouterKey = env.OPENROUTER_API_KEY
-    replicateToken = env.REPLICATE_API_TOKEN
+    const bindings = c.env as Env | undefined
+    const runtimeEnv = getRuntimeEnv<Env>(c)
+    openRouterKey = bindings?.OPENROUTER_API_KEY ?? runtimeEnv?.OPENROUTER_API_KEY ?? (typeof process !== "undefined" && process.env?.OPENROUTER_API_KEY)
+    replicateToken = bindings?.REPLICATE_API_TOKEN ?? runtimeEnv?.REPLICATE_API_TOKEN ?? (typeof process !== "undefined" && process.env?.REPLICATE_API_TOKEN)
     if (openRouterKey === undefined || openRouterKey === "") {
-      return c.json({ error: "Error: Key OPENROUTER_API_KEY is missing." }, 503)
+      const debugEnvKeys = typeof process !== "undefined" && process.env ? Object.keys(process.env) : []
+      console.error("[Image API] OPENROUTER_API_KEY missing after c.env and process.env fallback. process.env keys:", debugEnvKeys.length)
+      return c.json({
+        error: "Error: Key OPENROUTER_API_KEY is missing.",
+        debug_env_keys: debugEnvKeys,
+      }, 503)
     }
     if (replicateToken === undefined || replicateToken === "") {
       console.warn("[Image API] REPLICATE_API_TOKEN is missing — Replicate path will be skipped")
     }
   } catch (envErr) {
-    console.error("[Image API] Failed to read c.env:", envErr)
-    return c.json({ error: "Error: Failed to read env (Key OPENROUTER_API_KEY or REPLICATE_API_TOKEN)." }, 503)
+    const debugEnvKeys = typeof process !== "undefined" && process.env ? Object.keys(process.env) : []
+    console.error("[Image API] Failed to read env:", envErr)
+    return c.json({
+      error: "Error: Failed to read env (Key OPENROUTER_API_KEY or REPLICATE_API_TOKEN).",
+      debug_env_keys: debugEnvKeys,
+    }, 503)
   }
   
   try {
@@ -448,9 +455,15 @@ imageRoutes.post("/", async (c) => {
 imageRoutes.get("/status/:id", async (c) => {
   try {
     const predictionId = c.req.param("id")
-    const replicateToken = c.env?.REPLICATE_API_TOKEN
+    const bindings = c.env as Env | undefined
+    const runtimeEnv = getRuntimeEnv<Env>(c)
+    const replicateToken = bindings?.REPLICATE_API_TOKEN ?? runtimeEnv?.REPLICATE_API_TOKEN ?? (typeof process !== "undefined" && process.env?.REPLICATE_API_TOKEN)
     if (replicateToken === undefined || replicateToken === "") {
-      return c.json({ error: "Error: Key REPLICATE_API_TOKEN is missing." }, 503)
+      const debugEnvKeys = typeof process !== "undefined" && process.env ? Object.keys(process.env) : []
+      return c.json({
+        error: "Error: Key REPLICATE_API_TOKEN is missing.",
+        debug_env_keys: debugEnvKeys,
+      }, 503)
     }
     
     if (!predictionId) {
