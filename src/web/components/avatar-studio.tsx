@@ -14,6 +14,7 @@ import {
   Download,
 } from "lucide-react";
 import { useUsage } from "./usage-context";
+import { addToHistory } from "./placeholder-pages";
 
 // Cost for avatar generation (heavy GPU processing)
 const AVATAR_COST = 30;
@@ -451,6 +452,15 @@ export const AvatarStudio = () => {
 
       setCurrentVideo(newAvatar);
       setRecentGenerations((prev) => [newAvatar, ...prev].slice(0, 6));
+      
+      // Сохранить в историю
+      addToHistory({
+        type: "avatar",
+        prompt: "Анимированный аватар",
+        model: "Avatar Generator",
+        result: newAvatar.videoUrl,
+        credits: AVATAR_COST,
+      });
     } catch (error) {
       console.error("Avatar generation error:", error);
       alert(error instanceof Error ? error.message : "Failed to generate avatar");

@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useUsage } from "./usage-context";
 import { type UserPlan, canAccessModel } from "./model-selector";
+import { addToHistory } from "./placeholder-pages";
 
 // Video model type
 type VideoModel = "kling" | "standard" | "veo";
@@ -880,6 +881,16 @@ export const MotionLab = () => {
       setCurrentVideo(newVideo);
       setRecentVideos((prev) => [newVideo, ...prev].slice(0, 6));
       if (isKlingModel) incrementVideoDaily();
+      
+      // Сохранить в историю
+      const videoCost = selectedModelData.requiredPlan === "free" ? 0 : selectedModelData.requiredPlan === "standard" ? 1 : 2;
+      addToHistory({
+        type: "video",
+        prompt: newVideo.prompt,
+        model: selectedModelData.name,
+        result: newVideo.url,
+        credits: videoCost,
+      });
     } catch (err) {
       console.error("Animation error:", err);
       setError(err instanceof Error ? err.message : "Failed to animate portrait");

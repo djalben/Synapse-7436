@@ -7,6 +7,7 @@ import { Paperclip, Mic, ArrowUp, Sparkles, Zap, Lightbulb, Code, Bot, User, Cop
 import { useUsage } from "./usage-context"
 import { useTour } from "./onboarding-tour"
 import { toast } from "sonner"
+import { addToHistory } from "./placeholder-pages"
 
 // Provider logos — те же цветные иконки, что и в model-selector (без currentColor)
 const OpenAILogo = () => (
@@ -458,7 +459,7 @@ export const ChatInterface = () => {
       api: "/api/chat",
       body: () => ({ model: selectedModelRef.current })
     }),
-    onFinish: () => {
+    onFinish: (message) => {
       const modelId = selectedModelRef.current
       if (FREE_CHAT_MODEL_IDS.includes(modelId as typeof FREE_CHAT_MODEL_IDS[number])) {
         incrementMessageDaily()
@@ -471,6 +472,19 @@ export const ChatInterface = () => {
         })
       }
       incrementMessages()
+      
+      // Сохранить в историю: найти последнее сообщение пользователя и ответ
+      const userMessages = messages.filter(m => m.role === "user")
+      const lastUserMessage = userMessages[userMessages.length - 1]
+      if (lastUserMessage && message.content) {
+        addToHistory({
+          type: "chat",
+          prompt: typeof lastUserMessage.content === "string" ? lastUserMessage.content : "",
+          model: modelId,
+          result: typeof message.content === "string" ? message.content : "",
+          credits: FREE_CHAT_MODEL_IDS.includes(modelId as typeof FREE_CHAT_MODEL_IDS[number]) ? 0 : cost,
+        })
+      }
     }
   })
 

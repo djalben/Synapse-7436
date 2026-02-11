@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useUsage, MAX_FREE_IMAGE_PER_DAY } from "./usage-context";
 import { type UserPlan, canAccessModel } from "./model-selector";
+import { addToHistory } from "./placeholder-pages";
 
 // ===== TYPES & INTERFACES =====
 
@@ -1651,6 +1652,19 @@ const GeneratePanel = ({
       } else {
         incrementImages();
       }
+      
+      // Сохранить каждое изображение в историю
+      const engineCost = imageEngineOptions.find(e => e.id === selectedEngine)?.creditCost || 0;
+      data.images.forEach((img: { url: string }) => {
+        addToHistory({
+          type: "image",
+          prompt: prompt.trim(),
+          model: selectedEngine,
+          result: img.url,
+          credits: engineCost,
+        });
+      });
+      
       setPrompt("");
     } catch (err) {
       console.error("Generation error:", err);

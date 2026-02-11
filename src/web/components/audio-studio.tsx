@@ -17,6 +17,7 @@ import {
   Crown,
 } from "lucide-react";
 import { useUsage } from "./usage-context";
+import { addToHistory } from "./placeholder-pages";
 
 type AudioMode = "music" | "voice";
 type MusicType = "instrumental" | "lyrics";
@@ -474,9 +475,19 @@ export const AudioStudio = () => {
         text: mode === "voice" ? voiceText : undefined,
         duration: duration,
         createdAt: new Date(),
+        audioUrl: "/sample-audio.mp3", // TODO: replace with actual URL from API
       };
       setCurrentAudio(newAudio);
       setGenerations(prev => [newAudio, ...prev]);
+      
+      // Сохранить в историю
+      addToHistory({
+        type: "audio",
+        prompt: mode === "music" ? musicPrompt : voiceText || "",
+        model: mode === "music" ? "Music Generator" : "Voice Synthesizer",
+        result: newAudio.audioUrl || "",
+        credits: creditCost,
+      });
     } finally {
       setIsGenerating(false);
     }
