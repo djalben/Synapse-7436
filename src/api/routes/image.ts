@@ -75,6 +75,12 @@ imageRoutes.post("/", async (c) => {
   // Log request start time for timeout tracking
   const requestStartTime = Date.now()
   
+  // Валидация метода запроса
+  if (c.req.method !== "POST") {
+    console.error(`[Image API] Invalid method: ${c.req.method}, expected POST`)
+    return c.json({ error: `Method ${c.req.method} not allowed. Use POST.` }, 405)
+  }
+  
   // c.env may be undefined on Vercel Edge; use hono/adapter env() then process.env
   let openRouterKey: string | undefined
   let replicateToken: string | undefined
@@ -120,7 +126,8 @@ imageRoutes.post("/", async (c) => {
       replicateTokenPreview: replicateToken ? `${replicateToken.substring(0, 4)}...` : "missing",
     });
     
-    const body = await c.req.json() as {
+    // Парсинг тела запроса с обработкой ошибок
+    let body: {
       prompt?: string
       aspectRatio?: string
       numImages?: number
@@ -130,6 +137,22 @@ imageRoutes.post("/", async (c) => {
       specializedEngine?: string
       engine?: string
     }
+    try {
+      body = await c.req.json() as typeof body
+      console.log("[Image API] Request body parsed successfully:", {
+        hasPrompt: !!body.prompt,
+        engine: body.engine || "not specified",
+        mode: body.mode || "not specified",
+        bodyKeys: Object.keys(body),
+      })
+    } catch (jsonError) {
+      console.error("[Image API] Failed to parse request body:", jsonError)
+      return c.json({ 
+        error: "Invalid JSON in request body",
+        debug_error: jsonError instanceof Error ? jsonError.message : String(jsonError)
+      }, 400)
+    }
+    
     const { prompt, aspectRatio, numImages, style, referenceImage, specializedEngine } = body
     // Assign to outer scope variables
     engine = body.engine
@@ -291,20 +314,34 @@ imageRoutes.post("/", async (c) => {
             console.log(`[FETCH START] URL: ${replicateUrl} | Model: ${replicateModel} | Provider: replicate | Engine: ${engine}`)
             
             // Create prediction in Replicate - используем абсолютный URL для внешнего API
+            const replicatePayload = {
+              model: replicateModel, // Replicate model format
+              input: {
+                prompt: enhancedPrompt,
+                aspect_ratio: aspectRatio === "16:9" ? "16:9" : aspectRatio === "9:16" ? "9:16" : "1:1",
+                output_format: "png",
+              },
+            }
+            console.log("[Image API] Replicate payload:", {
+              model: replicatePayload.model,
+              inputKeys: Object.keys(replicatePayload.input),
+              promptLength: replicatePayload.input.prompt.length,
+            })
+            
             const replicateResponse = await fetch(replicateUrl, {
               method: "POST",
               headers: {
                 "Authorization": `Bearer ${replicateToken}`,
                 "Content-Type": "application/json",
               },
-              body: JSON.stringify({
-                model: replicateModel, // Replicate model format
-                input: {
-                  prompt: enhancedPrompt,
-                  aspect_ratio: aspectRatio === "16:9" ? "16:9" : aspectRatio === "9:16" ? "9:16" : "1:1",
-                  output_format: "png",
-                },
-              }),
+              body: JSON.stringify(replicatePayload),
+            })
+            
+            console.log("[Image API] Replicate response:", {
+              status: replicateResponse.status,
+              statusText: replicateResponse.statusText,
+              ok: replicateResponse.ok,
+              headers: Object.fromEntries(replicateResponse.headers.entries()),
             })
             
             if (replicateResponse.ok) {
@@ -322,10 +359,29 @@ imageRoutes.post("/", async (c) => {
                 aspectRatio,
                 style: specializedEngine === "niji-v6" ? "nana-banana" : style,
                 mode: mode || "text-to-image",
+              }, 201) // 201 Created для успешного создания prediction
+            } else {
+              // Логируем детали ошибки от Replicate
+              const errorText = await replicateResponse.text().catch(() => "Failed to read error response")
+              console.error("[Image API] Replicate API error:", {
+                status: replicateResponse.status,
+                statusText: replicateResponse.statusText,
+                errorBody: errorText.substring(0, 500),
+                model: replicateModel,
+                url: replicateUrl,
               })
+              
+              // Если 404 - модель не найдена, пробуем OpenRouter
+              if (replicateResponse.status === 404) {
+                console.warn(`[Image API] Replicate model ${replicateModel} not found (404), falling back to OpenRouter`)
+              }
+              // Fall through to OpenRouter fallback
             }
           } catch (replicateError) {
-            console.warn("[Image API] Replicate failed, falling back to OpenRouter:", replicateError instanceof Error ? replicateError.message : String(replicateError))
+            console.error("[Image API] Replicate request failed:", {
+              error: replicateError instanceof Error ? replicateError.message : String(replicateError),
+              stack: replicateError instanceof Error ? replicateError.stack : undefined,
+            })
             // Fall through to OpenRouter
           }
         }
@@ -338,6 +394,18 @@ imageRoutes.post("/", async (c) => {
         const openRouterAbort = new AbortController()
         const openRouterTimeout = setTimeout(() => openRouterAbort.abort(), 8000)
         let response: Response
+        const openRouterPayload = {
+          model: modelId, // OpenRouter model format
+          prompt: enhancedPrompt,
+          n: 1,
+          size: `${size.width}x${size.height}`,
+        }
+        console.log("[Image API] OpenRouter payload:", {
+          model: openRouterPayload.model,
+          promptLength: openRouterPayload.prompt.length,
+          size: openRouterPayload.size,
+        })
+        
         try {
           response = await fetch(openRouterUrl, {
             method: "POST",
@@ -348,12 +416,14 @@ imageRoutes.post("/", async (c) => {
               "HTTP-Referer": "https://synapse-7436.vercel.app",
               "X-Title": "Synapse AI",
             },
-            body: JSON.stringify({
-              model: modelId, // OpenRouter model format
-              prompt: enhancedPrompt,
-              n: 1,
-              size: `${size.width}x${size.height}`,
-            }),
+            body: JSON.stringify(openRouterPayload),
+          })
+          
+          console.log("[Image API] OpenRouter response:", {
+            status: response.status,
+            statusText: response.statusText,
+            ok: response.ok,
+            headers: Object.fromEntries(response.headers.entries()),
           })
         } finally {
           clearTimeout(openRouterTimeout)
