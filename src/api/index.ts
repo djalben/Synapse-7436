@@ -378,12 +378,21 @@ app.post('/image', async (c) => {
       body: JSON.stringify(openRouterPayload),
     })
     
+    console.log(`[DEBUG] NITRO REQUEST: Sending to Gemini 3 Pro:`, {
+      url: openRouterUrl,
+      model: openRouterPayload.model,
+      modalities: openRouterPayload.modalities,
+      promptLength: enhancedPrompt.length,
+      promptPreview: enhancedPrompt.substring(0, 200),
+    })
+    
     console.log(`[DEBUG] OpenRouter response received:`, {
       status: response.status,
       statusText: response.statusText,
       ok: response.ok,
       url: response.url,
       elapsedTime: Date.now() - requestStartTime,
+      model: openRouterPayload.model,
     })
     
     if (!response.ok) {
@@ -432,13 +441,20 @@ app.post('/image', async (c) => {
       }>
     }
     
-    console.log(`[DEBUG] Parsed response data:`, {
+    // Детальное логирование ответа от Gemini 3 Pro (Nitro)
+    console.log(`[DEBUG] NITRO RESPONSE: Full response from Gemini 3 Pro:`, {
+      model: openRouterPayload.model,
+      modalities: openRouterPayload.modalities,
       hasChoices: !!data.choices,
       choicesCount: data.choices?.length || 0,
       hasImages: !!data.choices?.[0]?.message?.images,
       imagesCount: data.choices?.[0]?.message?.images?.length || 0,
-      fullResponse: JSON.stringify(data).substring(0, 500),
+      fullResponse: JSON.stringify(data, null, 2),
+      responsePreview: JSON.stringify(data).substring(0, 1000),
     })
+    
+    // Выводим полный ответ для анализа
+    console.log(`[DEBUG] NITRO FULL RESPONSE BODY:`, JSON.stringify(data, null, 2))
     
     const message = data.choices?.[0]?.message
     if (message?.images && message.images.length > 0) {

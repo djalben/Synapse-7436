@@ -117,7 +117,7 @@ async function tryReplicateVideo(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        version: VIDEO_MODELS.standard.version,
+        version: VIDEO_MODELS.standard.replicateVersion,
         input: input,
       }),
     })
