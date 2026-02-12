@@ -30,25 +30,16 @@ function Index() {
       case "chat":
         return <ChatInterface />;
       case "motion":
-        return (
-          <TierGate requiredTier="PRO_STUDIO" featureName="Видео">
-            <MotionLab />
-          </TierGate>
-        );
+        // ВРЕМЕННО ОТКЛЮЧЕНО: TierGate для тестирования
+        return <MotionLab />;
       case "image":
         return <ImageStudio />;
       case "audio":
-        return (
-          <TierGate requiredTier="PRO_STUDIO" featureName="Аудио">
-            <AudioStudio />
-          </TierGate>
-        );
+        // ВРЕМЕННО ОТКЛЮЧЕНО: TierGate для тестирования
+        return <AudioStudio />;
       case "avatar":
-        return (
-          <TierGate requiredTier="PRO_STUDIO" featureName="Аватары">
-            <AvatarStudio />
-          </TierGate>
-        );
+        // ВРЕМЕННО ОТКЛЮЧЕНО: TierGate для тестирования
+        return <AvatarStudio />;
       case "history":
         return <HistoryPage onNavigate={setActiveTab} />;
       case "settings":

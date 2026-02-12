@@ -566,11 +566,12 @@ const ImageEngineSelector = ({ selected, onChange, userPlan, onPremiumClick }: I
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
         {imageEngineOptions.map((engine) => {
           const isSelected = selected === engine.id;
-          // Конвертируем frontend ID в backend ID для проверки тарифа
-          const backendId = FRONTEND_TO_BACKEND[engine.id] || engine.id;
-          const requiredTier = getRequiredTierForImageModel(backendId);
-          const accessCheck = checkTierAccess(userTier, requiredTier);
-          const isLocked = !accessCheck.allowed || engine.isLocked;
+          // ВРЕМЕННО ОТКЛЮЧЕНО: Проверка доступа по тарифу (режим тестирования)
+          // const backendId = FRONTEND_TO_BACKEND[engine.id] || engine.id;
+          // const requiredTier = getRequiredTierForImageModel(backendId);
+          // const accessCheck = checkTierAccess(userTier, requiredTier);
+          // const isLocked = !accessCheck.allowed || engine.isLocked;
+          const isLocked = false; // Все модели доступны для тестирования
 
           return (
             <button

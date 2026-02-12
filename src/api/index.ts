@@ -200,15 +200,15 @@ app.post('/image', async (c) => {
     enhancedPrompt += stylePrompts[style] || ""
   }
   
-  // Получение tier пользователя из заголовка или дефолт START
-  const userPlan = c.req.header("X-User-Plan") || "free"
-  const userTier: SynapseTier = planToTier(userPlan)
+  // ВРЕМЕННО ОТКЛЮЧЕНО: Проверка доступа по тарифу (режим тестирования)
+  // const userPlan = c.req.header("X-User-Plan") || "free"
+  // const userTier: SynapseTier = planToTier(userPlan)
   
-  console.log(`[DEBUG] User tier check:`, {
-    userPlan,
-    userTier,
-    tierHeader: c.req.header("X-User-Tier"),
-  })
+  // console.log(`[DEBUG] User tier check:`, {
+  //   userPlan,
+  //   userTier,
+  //   tierHeader: c.req.header("X-User-Tier"),
+  // })
   
   // Model mapping: только модели из тарифной сетки Synapse
   const MODEL_MAP: Record<string, string> = {
@@ -225,39 +225,31 @@ app.post('/image', async (c) => {
   const openRouterModel = engine && MODEL_MAP[engine] ? MODEL_MAP[engine] : "black-forest-labs/flux-schnell"
   const replicateModel = "black-forest-labs/flux-schnell" // Для Replicate
   
-  // Проверка доступа к модели по тарифу
-  const requiredTier = getRequiredTierForImageModel(openRouterModel)
-  const accessCheck = checkTierAccess(userTier, requiredTier)
+  // ВРЕМЕННО ОТКЛЮЧЕНО: Проверка доступа к модели по тарифу
+  // const requiredTier = getRequiredTierForImageModel(openRouterModel)
+  // const accessCheck = checkTierAccess(userTier, requiredTier)
   
-  console.log(`[DEBUG] Model selection:`, {
+  console.log(`[DEBUG] Model selection (testing mode - no tier restrictions):`, {
     engine: engine || "default",
     openRouterModel,
     replicateModel,
-    requiredTier,
-    userTier,
-    accessAllowed: accessCheck.allowed,
     willUseReplicate: engine === "nana-banana" && !!replicateToken,
   })
   
-  if (!accessCheck.allowed) {
-    console.warn(`[DEBUG] Image access denied:`, {
-      userTier,
-      requiredTier,
-      model: openRouterModel,
-      message: accessCheck.message,
-    })
-    return c.json({ 
-      error: accessCheck.message || "Доступно только в PRO STUDIO",
-      requiredTier,
-      userTier,
-    }, 403 as const)
-  }
-    return c.json({ 
-      error: accessCheck.message || "Требуется более высокий тариф для этой модели",
-      requiredTier,
-      userTier,
-    }, 403 as const)
-  }
+  // ВРЕМЕННО ОТКЛЮЧЕНО: Блокировка доступа
+  // if (!accessCheck.allowed) {
+  //   console.warn(`[DEBUG] Image access denied:`, {
+  //     userTier,
+  //     requiredTier,
+  //     model: openRouterModel,
+  //     message: accessCheck.message,
+  //   })
+  //   return c.json({ 
+  //     error: accessCheck.message || "Доступно только в PRO STUDIO",
+  //     requiredTier,
+  //     userTier,
+  //   }, 403 as const)
+  // }
   
   // Для nana-banana пробуем Replicate сначала
   if (engine === "nana-banana" && replicateToken) {

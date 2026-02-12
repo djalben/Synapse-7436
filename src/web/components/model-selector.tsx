@@ -206,19 +206,21 @@ export const ModelSelector = ({
   }, [open]);
 
   const handleSelect = (model: Model) => {
-    const isLocked = !canAccessModel(userPlan, model.requiredPlan);
-    if (isLocked) {
-      setPaywallReason("messages");
-      setShowPaywall(true);
-      return;
-    }
+    // ВРЕМЕННО ОТКЛЮЧЕНО: Проверка доступа (режим тестирования)
+    // const isLocked = !canAccessModel(userPlan, model.requiredPlan);
+    // if (isLocked) {
+    //   setPaywallReason("messages");
+    //   setShowPaywall(true);
+    //   return;
+    // }
     onModelChange(model.id);
     setOpen(false);
   };
 
   const listItems = models.map((model) => {
     const isSelected = model.id === selectedModel;
-    const isLocked = !canAccessModel(userPlan, model.requiredPlan);
+    // ВРЕМЕННО ОТКЛЮЧЕНО: Проверка доступа (режим тестирования)
+    const isLocked = false; // !canAccessModel(userPlan, model.requiredPlan);
     return (
       <button
         key={model.id}

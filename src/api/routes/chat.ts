@@ -80,33 +80,35 @@ chatRoutes.post("/", async (c) => {
     // Map the model ID to OpenRouter format (default to DeepSeek R1)
     const modelId = MODEL_MAP[model] || "deepseek/deepseek-r1"
     
-    // Проверка доступа по тарифу
-    const userPlan = c.req.header("X-User-Plan") || "free"
-    const userTier: SynapseTier = planToTier(userPlan)
-    const requiredTier = getRequiredTierForChatModel(modelId)
-    const accessCheck = checkTierAccess(userTier, requiredTier)
+    // ВРЕМЕННО ОТКЛЮЧЕНО: Проверка доступа по тарифу (режим тестирования)
+    // const userPlan = c.req.header("X-User-Plan") || "free"
+    // const userTier: SynapseTier = planToTier(userPlan)
+    // const requiredTier = getRequiredTierForChatModel(modelId)
+    // const accessCheck = checkTierAccess(userTier, requiredTier)
     
-    console.log(`[DEBUG] Chat tier check:`, {
-      userPlan,
-      userTier,
-      modelId,
-      requiredTier,
-      accessAllowed: accessCheck.allowed,
-    })
+    // console.log(`[DEBUG] Chat tier check:`, {
+    //   userPlan,
+    //   userTier,
+    //   modelId,
+    //   requiredTier,
+    //   accessAllowed: accessCheck.allowed,
+    // })
     
-    if (!accessCheck.allowed) {
-      console.warn(`[DEBUG] Chat access denied:`, {
-        userTier,
-        requiredTier,
-        model: modelId,
-        message: accessCheck.message,
-      })
-      return c.json({ 
-        error: accessCheck.message || "Доступно только в PRO STUDIO",
-        requiredTier,
-        userTier,
-      }, 403 as const)
-    }
+    // if (!accessCheck.allowed) {
+    //   console.warn(`[DEBUG] Chat access denied:`, {
+    //     userTier,
+    //     requiredTier,
+    //     model: modelId,
+    //     message: accessCheck.message,
+    //   })
+    //   return c.json({ 
+    //     error: accessCheck.message || "Доступно только в PRO STUDIO",
+    //     requiredTier,
+    //     userTier,
+    //   }, 403 as const)
+    // }
+    
+    console.log(`[DEBUG] Chat tier check: DISABLED (testing mode)`)
     
     // Get credit cost for response metadata
     const creditCost = CREDIT_COSTS[model] || 0.1
