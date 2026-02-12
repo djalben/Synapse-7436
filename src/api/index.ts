@@ -224,12 +224,12 @@ app.post('/image', async (c) => {
     // PRO_STUDIO tier (2 990 ₽)
     "flux-pro": "black-forest-labs/flux.2-pro", // Премиум (2026)
   }
-  // NITRO-ТЕСТ: Используем Gemini 3 Pro для всех запросов
-  const modelToUse = "google/gemini-3-pro-preview:nitro"
-  const openRouterModel = modelToUse // Принудительно используем Gemini 3 Pro для теста
+  // КОНТРОЛЬНЫЙ ТЕСТ: Используем Flux.2 Max (самая мощная модель)
+  const modelToUse = "black-forest-labs/flux.2-max"
+  const openRouterModel = modelToUse // Принудительно используем Flux.2 Max для теста
   const replicateModel = "black-forest-labs/flux-schnell" // Для Replicate (использует другой формат)
   
-  console.log(`[DEBUG] NITRO MODE: Using Gemini 3 Pro for all requests`)
+  console.log(`[DEBUG] FLUX.2 MAX MODE: Using Flux.2 Max for all requests`)
   
   // ВРЕМЕННО ОТКЛЮЧЕНО: Проверка доступа к модели по тарифу
   // const requiredTier = getRequiredTierForImageModel(openRouterModel)
@@ -323,28 +323,40 @@ app.post('/image', async (c) => {
     keyPreview: openRouterKey.substring(0, 8) + "...",
   })
   
-  // Для серии Gemini 3 обязательно отправляем и текст, и изображение
-  // NITRO-ТЕСТ: Gemini 3 Pro требует ["image", "text"]
+  // Определяем modalities в зависимости от модели
+  // Flux модели используют только ["image"], Gemini использует ["image", "text"]
   const isGeminiModel = openRouterModel.includes("gemini")
   const isGemini3 = openRouterModel.includes("gemini-3") || openRouterModel.includes("gemini-3-pro")
+  const isFluxModel = openRouterModel.includes("flux")
+  
+  // Flux.2 Max требует строго ["image"] по стандарту OpenRouter
   const modalities = isGemini3 ? ["image", "text"] : (isGeminiModel ? ["image", "text"] : ["image"])
   
-  console.log(`[DEBUG] Gemini 3 detected:`, isGemini3)
-  console.log(`[DEBUG] Required modalities for Gemini 3:`, modalities)
+  console.log(`[DEBUG] Model type:`, isFluxModel ? "Flux (image only)" : isGeminiModel ? "Gemini (image+text)" : "Other")
+  console.log(`[DEBUG] Flux.2 Max detected:`, isFluxModel && openRouterModel.includes("flux.2-max"))
+  console.log(`[DEBUG] Required modalities:`, modalities)
   
-  // Формат chat/completions для генерации изображений
+  // Формат chat/completions для генерации изображений (строго по стандарту)
   const openRouterPayload = {
-    model: openRouterModel, // Актуальный ID модели OpenRouter 2026
+    model: openRouterModel, // Flux.2 Max: "black-forest-labs/flux.2-max"
     messages: [
       {
         role: "user",
         content: enhancedPrompt,
       },
     ],
-    modalities: modalities, // Flux: ["image"], Gemini: ["image", "text"]
+    modalities: modalities, // Flux.2 Max: ["image"]
   }
   
-  console.log(`[DEBUG] Model type:`, isGeminiModel ? "Gemini (image+text)" : "Flux (image only)")
+  console.log(`[DEBUG] FLUX.2 MAX REQUEST: Sending to Flux.2 Max:`, {
+    model: openRouterPayload.model,
+    modalities: openRouterPayload.modalities,
+    promptLength: enhancedPrompt.length,
+    promptPreview: enhancedPrompt.substring(0, 200),
+  })
+  
+  console.log(`[DEBUG] Model type:`, isFluxModel ? "Flux (image only)" : isGeminiModel ? "Gemini (image+text)" : "Other")
+  console.log(`[DEBUG] Flux.2 Max detected:`, isFluxModel && openRouterModel.includes("flux.2-max"))
   console.log(`[DEBUG] Final model ID sent to OpenRouter:`, openRouterPayload.model)
   console.log(`[DEBUG] Modalities:`, modalities)
   console.log(`[DEBUG] Full payload:`, JSON.stringify(openRouterPayload, null, 2))
@@ -430,19 +442,22 @@ app.post('/image', async (c) => {
     }
     
     // Формат ответа chat/completions: images в choices[0].message.images
+    // OpenRouter может возвращать изображения как URL или base64
     const data = await response.json() as {
       choices?: Array<{
         message?: {
           images?: Array<{
-            image_url?: { url: string }
-            imageUrl?: { url: string }
+            image_url?: { url: string; b64_json?: string }
+            imageUrl?: { url: string; b64_json?: string }
+            url?: string // Прямой URL
+            b64_json?: string // Base64 изображение
           }>
         }
       }>
     }
     
-    // Детальное логирование ответа от Gemini 3 Pro (Nitro)
-    console.log(`[DEBUG] NITRO RESPONSE: Full response from Gemini 3 Pro:`, {
+    // Детальное логирование ответа от Flux.2 Max
+    console.log(`[DEBUG] FLUX.2 MAX RESPONSE: Full response from Flux.2 Max:`, {
       model: openRouterPayload.model,
       modalities: openRouterPayload.modalities,
       hasChoices: !!data.choices,
@@ -454,12 +469,26 @@ app.post('/image', async (c) => {
     })
     
     // Выводим полный ответ для анализа
-    console.log(`[DEBUG] NITRO FULL RESPONSE BODY:`, JSON.stringify(data, null, 2))
+    console.log(`[DEBUG] FLUX.2 MAX FULL RESPONSE BODY:`, JSON.stringify(data, null, 2))
     
     const message = data.choices?.[0]?.message
     if (message?.images && message.images.length > 0) {
       const images = message.images.map((img, idx) => {
-        const imageUrl = img.image_url?.url || img.imageUrl?.url
+        // Поддержка разных форматов ответа от OpenRouter
+        // 1. URL через image_url.url
+        // 2. URL через imageUrl.url
+        // 3. Прямой URL
+        // 4. Base64 через image_url.b64_json или imageUrl.b64_json
+        // 5. Прямой base64 через b64_json
+        let imageUrl = img.image_url?.url || img.imageUrl?.url || img.url
+        
+        // Если есть base64, конвертируем в data URL для фронтенда
+        const base64Data = img.image_url?.b64_json || img.imageUrl?.b64_json || img.b64_json
+        if (base64Data && !imageUrl) {
+          imageUrl = `data:image/png;base64,${base64Data}`
+          console.log(`[DEBUG] Converted base64 to data URL for image ${idx}`)
+        }
+        
         return {
           id: `${Date.now()}-${idx}`,
           url: imageUrl,
