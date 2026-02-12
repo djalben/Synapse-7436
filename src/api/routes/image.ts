@@ -40,7 +40,10 @@ const MODEL_MAP: Record<string, string> = {
 // Get Replicate prediction status (for frontend polling)
 // Используем абсолютный URL для внешнего API
 async function getReplicatePredictionStatus(predictionId: string, apiToken: string): Promise<{ status: string; output?: string | string[]; error?: string }> {
-  const response = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
+  const statusUrl = `https://api.replicate.com/v1/predictions/${predictionId}`
+  console.log(`[FETCH START] URL: ${statusUrl} | Provider: replicate | Action: status-check`)
+  
+  const response = await fetch(statusUrl, {
     headers: {
       "Authorization": `Bearer ${apiToken}`,
       "Content-Type": "application/json",
@@ -184,11 +187,15 @@ imageRoutes.post("/", async (c) => {
       if (mode === "image-to-image" && referenceImage) {
         // OpenRouter image-to-image; 8s client timeout to avoid Vercel 10s limit
         // Используем абсолютный URL для внешнего API OpenRouter
+        const imageToImageUrl = "https://openrouter.ai/api/v1/chat/completions"
+        const imageToImageModel = "google/gemini-2.0-flash-exp:free"
+        console.log(`[FETCH START] URL: ${imageToImageUrl} | Model: ${imageToImageModel} | Provider: openrouter | Engine: ${engine || "default"} | Mode: image-to-image`)
+        
         const imageToImageAbort = new AbortController()
         const imageToImageTimeout = setTimeout(() => imageToImageAbort.abort(), 8000)
         let response: Response
         try {
-          response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          response = await fetch(imageToImageUrl, {
             method: "POST",
             signal: imageToImageAbort.signal,
             headers: {
@@ -198,7 +205,7 @@ imageRoutes.post("/", async (c) => {
               "X-Title": "Synapse AI",
             },
             body: JSON.stringify({
-              model: "google/gemini-2.0-flash-exp:free",
+              model: imageToImageModel,
               messages: [
                 {
                   role: "user",
@@ -276,15 +283,22 @@ imageRoutes.post("/", async (c) => {
           try {
             console.log("[Image API] Creating Replicate prediction for Nana Banana")
             
+            // Replicate model format: owner/model or owner/model:version
+            // Для flux-1-schnell используем полный путь Replicate
+            const replicateModel = "black-forest-labs/flux-1-schnell"
+            const replicateUrl = "https://api.replicate.com/v1/predictions"
+            
+            console.log(`[FETCH START] URL: ${replicateUrl} | Model: ${replicateModel} | Provider: replicate | Engine: ${engine}`)
+            
             // Create prediction in Replicate - используем абсолютный URL для внешнего API
-            const replicateResponse = await fetch("https://api.replicate.com/v1/predictions", {
+            const replicateResponse = await fetch(replicateUrl, {
               method: "POST",
               headers: {
                 "Authorization": `Bearer ${replicateToken}`,
                 "Content-Type": "application/json",
               },
               body: JSON.stringify({
-                model: "black-forest-labs/flux-1-schnell", // Use Flux model via Replicate
+                model: replicateModel, // Replicate model format
                 input: {
                   prompt: enhancedPrompt,
                   aspect_ratio: aspectRatio === "16:9" ? "16:9" : aspectRatio === "9:16" ? "9:16" : "1:1",
@@ -318,11 +332,14 @@ imageRoutes.post("/", async (c) => {
         
         // Use OpenRouter for other models or as fallback; 8s client timeout to avoid Vercel 10s limit
         // Используем абсолютный URL для внешнего API OpenRouter
+        const openRouterUrl = "https://openrouter.ai/api/v1/images/generations"
+        console.log(`[FETCH START] URL: ${openRouterUrl} | Model: ${modelId} | Provider: openrouter | Engine: ${engine || "default"}`)
+        
         const openRouterAbort = new AbortController()
         const openRouterTimeout = setTimeout(() => openRouterAbort.abort(), 8000)
         let response: Response
         try {
-          response = await fetch("https://openrouter.ai/api/v1/images/generations", {
+          response = await fetch(openRouterUrl, {
             method: "POST",
             signal: openRouterAbort.signal,
             headers: {
@@ -332,7 +349,7 @@ imageRoutes.post("/", async (c) => {
               "X-Title": "Synapse AI",
             },
             body: JSON.stringify({
-              model: modelId,
+              model: modelId, // OpenRouter model format
               prompt: enhancedPrompt,
               n: 1,
               size: `${size.width}x${size.height}`,
