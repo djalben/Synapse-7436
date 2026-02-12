@@ -130,10 +130,11 @@ app.route('/chat', chatRoutes);
 
 // Прямой роут POST /api/image для упрощения маршрутизации Vercel Edge
 app.post('/image', async (c) => {
+  const requestStartTime = Date.now()
+  console.log(`[DEBUG] Image generation request START at ${new Date().toISOString()} (elapsed 0ms)`)
   console.log(`[DEBUG] Request URL:`, c.req.url)
   console.log(`[DEBUG] Request path:`, new URL(c.req.url).pathname)
   console.log(`[DEBUG] POST /image handler called`)
-  const requestStartTime = Date.now()
   
   // Получение env переменных через getRuntimeEnv (стандарт Vercel Edge)
   const runtimeEnv = getRuntimeEnv<Env>(c)
@@ -378,7 +379,10 @@ app.post('/image', async (c) => {
   })
   
   const openRouterAbort = new AbortController()
-  const openRouterTimeout = setTimeout(() => openRouterAbort.abort(), 8000)
+  // Таймаут 60 секунд для тяжёлых моделей (Flux.2 Max и др.)
+  const OPENROUTER_TIMEOUT_MS = 60000
+  const openRouterTimeout = setTimeout(() => openRouterAbort.abort(), OPENROUTER_TIMEOUT_MS)
+  console.log(`[DEBUG] OpenRouter fetch timeout set to ${OPENROUTER_TIMEOUT_MS / 1000}s`)
   
   try {
     console.log(`[DEBUG] Sending fetch request to:`, openRouterUrl)
@@ -429,6 +433,9 @@ app.post('/image', async (c) => {
       
       // Выводим полную ошибку в консоль для сопоставления с OpenRouter журналами
       console.error(`[DEBUG] Full error response body:`, fullError)
+      
+      const elapsedError = Date.now() - requestStartTime
+      console.log(`[DEBUG] Image generation request END (response not ok): elapsed ${elapsedError}ms (${(elapsedError / 1000).toFixed(1)}s), status ${response.status}`)
       
       const statusCode = response.status >= 500 ? (500 as const) : (response.status >= 400 ? (response.status as 400 | 401 | 403 | 404 | 429) : (500 as const))
       return c.json({ 
@@ -501,17 +508,22 @@ app.post('/image', async (c) => {
         }
       }).filter(img => img.url)
       
-      console.log(`[DEBUG] Successfully generated ${images.length} images`)
+      const elapsedMs = Date.now() - requestStartTime
+      console.log(`[DEBUG] Image generation request END (success): generated ${images.length} images, elapsed ${elapsedMs}ms (${(elapsedMs / 1000).toFixed(1)}s)`)
       return c.json({ images, totalCreditCost: images.length }, 201 as const)
     }
     
-    console.error(`[DEBUG] No images found in response:`, JSON.stringify(data))
+    const elapsedNoImages = Date.now() - requestStartTime
+    console.error(`[DEBUG] Image generation request END (no images): elapsed ${elapsedNoImages}ms (${(elapsedNoImages / 1000).toFixed(1)}s)`, JSON.stringify(data))
     return c.json({ error: "No images generated" }, 500 as const)
   } catch (fetchError) {
-    console.error(`[DEBUG] Fetch error:`, fetchError)
+    const elapsedCatch = Date.now() - requestStartTime
+    console.error(`[DEBUG] Image generation request END (fetch error): elapsed ${elapsedCatch}ms (${(elapsedCatch / 1000).toFixed(1)}s)`, fetchError)
     return c.json({ error: "Network error. Please try again." }, 503 as const)
   } finally {
     clearTimeout(openRouterTimeout)
+    const totalElapsedMs = Date.now() - requestStartTime
+    console.log(`[DEBUG] Image generation total elapsed: ${totalElapsedMs}ms (${(totalElapsedMs / 1000).toFixed(1)}s) — exiting handler`)
   }
 })
 
