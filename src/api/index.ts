@@ -224,9 +224,12 @@ app.post('/image', async (c) => {
     // PRO_STUDIO tier (2 990 ₽)
     "flux-pro": "black-forest-labs/flux.2-pro", // Премиум (2026)
   }
-  // Fallback на рабочий ID модели (актуальный стандарт 2026)
-  const openRouterModel = engine && MODEL_MAP[engine] ? MODEL_MAP[engine] : "black-forest-labs/flux.2-klein"
+  // NITRO-ТЕСТ: Используем Gemini 3 Pro для всех запросов
+  const modelToUse = "google/gemini-3-pro-preview:nitro"
+  const openRouterModel = modelToUse // Принудительно используем Gemini 3 Pro для теста
   const replicateModel = "black-forest-labs/flux-schnell" // Для Replicate (использует другой формат)
+  
+  console.log(`[DEBUG] NITRO MODE: Using Gemini 3 Pro for all requests`)
   
   // ВРЕМЕННО ОТКЛЮЧЕНО: Проверка доступа к модели по тарифу
   // const requiredTier = getRequiredTierForImageModel(openRouterModel)
@@ -320,10 +323,14 @@ app.post('/image', async (c) => {
     keyPreview: openRouterKey.substring(0, 8) + "...",
   })
   
-  // Определяем modalities в зависимости от модели
-  // Flux модели используют только ["image"], Gemini использует ["image", "text"]
+  // Для серии Gemini 3 обязательно отправляем и текст, и изображение
+  // NITRO-ТЕСТ: Gemini 3 Pro требует ["image", "text"]
   const isGeminiModel = openRouterModel.includes("gemini")
-  const modalities = isGeminiModel ? ["image", "text"] : ["image"]
+  const isGemini3 = openRouterModel.includes("gemini-3") || openRouterModel.includes("gemini-3-pro")
+  const modalities = isGemini3 ? ["image", "text"] : (isGeminiModel ? ["image", "text"] : ["image"])
+  
+  console.log(`[DEBUG] Gemini 3 detected:`, isGemini3)
+  console.log(`[DEBUG] Required modalities for Gemini 3:`, modalities)
   
   // Формат chat/completions для генерации изображений
   const openRouterPayload = {
@@ -381,16 +388,36 @@ app.post('/image', async (c) => {
     
     if (!response.ok) {
       const errorText = await response.text().catch(() => "Unknown error")
-      console.error(`[DEBUG] OpenRouter error:`, {
+      const fullError = errorText.length > 2000 ? errorText.substring(0, 2000) + "..." : errorText
+      
+      // Детальное логирование для сопоставления с журналами OpenRouter
+      console.error(`[DEBUG] OpenRouter error (FULL):`, {
         status: response.status,
         statusText: response.statusText,
         url: response.url,
-        responseUrl: response.url, // Проверка, не редирект ли это на Vercel
-        errorPreview: errorText.substring(0, 500),
+        requestUrl: openRouterUrl,
+        model: openRouterPayload.model,
+        modalities: openRouterPayload.modalities,
+        payload: JSON.stringify(openRouterPayload, null, 2),
+        headers: JSON.stringify(openRouterHeaders, null, 2),
+        fullErrorText: fullError,
+        errorLength: errorText.length,
         isHtml: errorText.includes("<!DOCTYPE") || errorText.includes("<html"),
+        timestamp: new Date().toISOString(),
       })
+      
+      // Выводим полную ошибку в консоль для сопоставления с OpenRouter журналами
+      console.error(`[DEBUG] Full error response body:`, fullError)
+      
       const statusCode = response.status >= 500 ? (500 as const) : (response.status >= 400 ? (response.status as 400 | 401 | 403 | 404 | 429) : (500 as const))
-      return c.json({ error: "Failed to generate image. Please try again." }, statusCode)
+      return c.json({ 
+        error: "Failed to generate image. Please try again.",
+        debug: {
+          status: response.status,
+          model: openRouterPayload.model,
+          errorPreview: errorText.substring(0, 500),
+        }
+      }, statusCode)
     }
     
     // Формат ответа chat/completions: images в choices[0].message.images
