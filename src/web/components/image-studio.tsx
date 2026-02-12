@@ -86,7 +86,8 @@ interface EnhancedResult {
 // ===== CONSTANTS =====
 
 // Image engine (model) for generation — только модели из тарифной сетки Synapse
-type ImageEngineId = "flux-schnell" | "dall-e-3" | "nana-banana" | "flux-pro";
+// Включает альтернативные модели для тестирования
+type ImageEngineId = "flux-schnell" | "dall-e-3" | "nana-banana" | "flux-pro" | "gemini-pro" | "gpt-4o-latest";
 
 interface ImageEngineOption {
   id: ImageEngineId;
@@ -101,7 +102,10 @@ const imageEngineOptions: ImageEngineOption[] = [
   { id: "flux-schnell", label: "Flux Schnell", subtitle: "START", creditCost: 0, requiredPlan: "free" },
   { id: "dall-e-3", label: "DALL-E 3", subtitle: "CREATOR", creditCost: 1, requiredPlan: "standard" },
   { id: "nana-banana", label: "Nana Banana", subtitle: "CREATOR", creditCost: 1, requiredPlan: "standard" },
-  { id: "flux-pro", label: "Flux Pro", subtitle: "PRO STUDIO", creditCost: 2, requiredPlan: "ultra", isLocked: true },
+  { id: "flux-pro", label: "Flux Pro", subtitle: "PRO STUDIO", creditCost: 2, requiredPlan: "ultra", isLocked: false }, // Разблокировано для тестирования
+  // Альтернативные модели для тестирования (все открыты)
+  { id: "gemini-pro", label: "Gemini 2.0 Pro", subtitle: "TESTING", creditCost: 1, requiredPlan: "free" },
+  { id: "gpt-4o-latest", label: "GPT-4o Latest", subtitle: "TESTING", creditCost: 1, requiredPlan: "free" },
 ];
 
 const styleOptions: StyleOption[] = [
@@ -575,10 +579,12 @@ const ImageEngineSelector = ({ selected, onChange, userPlan, onPremiumClick }: I
           
           // Определяем requiredTier из engine.subtitle для отображения цвета метки
           // Преобразуем "PRO STUDIO" -> "PRO_STUDIO" для совместимости с типом SynapseTier
+          // Модели "TESTING" отображаются как START для единообразия
           const requiredTier: SynapseTier = engine.subtitle === "START" ? "START" :
             engine.subtitle === "CREATOR" ? "CREATOR" :
             engine.subtitle === "PRO STUDIO" ? "PRO_STUDIO" :
-            engine.subtitle === "MAXIMAL" ? "MAXIMAL" : "START";
+            engine.subtitle === "MAXIMAL" ? "MAXIMAL" :
+            engine.subtitle === "TESTING" ? "START" : "START"; // TESTING модели отображаются как START
 
           return (
             <button

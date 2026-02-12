@@ -211,9 +211,10 @@ app.post('/image', async (c) => {
   // })
   
   // Model mapping: только модели из тарифной сетки Synapse
+  // Обновлено на основе реальных ID моделей от OpenRouter
   const MODEL_MAP: Record<string, string> = {
-    // START tier (390 ₽)
-    "flux-schnell": "black-forest-labs/flux-schnell",
+    // START tier (390 ₽) - исправлен ID модели
+    "flux-schnell": "black-forest-labs/flux-1-schnell", // Правильный ID для OpenRouter
     
     // CREATOR tier (990 ₽)
     "dall-e-3": "openai/dall-e-3",
@@ -221,9 +222,14 @@ app.post('/image', async (c) => {
     
     // PRO_STUDIO tier (2 990 ₽)
     "flux-pro": "black-forest-labs/flux-pro",
+    
+    // Альтернативные модели для тестирования (все открыты в режиме тестирования)
+    "gemini-pro": "google/gemini-2.0-pro-exp-02-05:free", // Для тестирования лучших моделей
+    "gpt-4o-latest": "openai/gpt-4o-2024-11-20", // Последняя версия GPT-4o
   }
-  const openRouterModel = engine && MODEL_MAP[engine] ? MODEL_MAP[engine] : "black-forest-labs/flux-schnell"
-  const replicateModel = "black-forest-labs/flux-schnell" // Для Replicate
+  // Fallback на рабочий ID модели
+  const openRouterModel = engine && MODEL_MAP[engine] ? MODEL_MAP[engine] : "black-forest-labs/flux-1-schnell"
+  const replicateModel = "black-forest-labs/flux-schnell" // Для Replicate (использует другой формат)
   
   // ВРЕМЕННО ОТКЛЮЧЕНО: Проверка доступа к модели по тарифу
   // const requiredTier = getRequiredTierForImageModel(openRouterModel)
