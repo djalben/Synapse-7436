@@ -13,6 +13,13 @@ import { webhookRoutes } from './routes/webhook.js'
 // basePath('/api') — все роуты доступны как /api/... (фронт должен слать /api/image без слеша в конце)
 const app = new Hono().basePath('/api')
 
+// Глобальное логирование всех входящих запросов
+app.use('*', async (c, next) => {
+  const url = new URL(c.req.url)
+  console.log(`[DEBUG] ${c.req.method} ${url.pathname} (full URL: ${c.req.url})`)
+  await next()
+})
+
 app.use('*', trimTrailingSlash())
 app.use('*', prettyJSON())
 app.use('*', cors({
@@ -44,6 +51,7 @@ app.get('/debug', (c) => {
 });
 
 // Роуты: /api/chat, /api/image, ... (без лишних слешей)
+// Порядок важен: более специфичные роуты должны быть выше
 app.route('/chat', chatRoutes);
 app.route('/image', imageRoutes);
 app.route('/video', videoRoutes);

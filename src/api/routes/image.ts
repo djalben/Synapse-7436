@@ -54,8 +54,16 @@ async function getReplicatePredictionStatus(predictionId: string, apiToken: stri
 }
 
 // GET /api/image — проверка доступности роута; генерация — POST /api/image (без слеша в конце)
-imageRoutes.get("/", (c) => c.json({ ok: true, message: "Image API. Use POST to generate images." }))
+imageRoutes.get("/", (c) => {
+  const url = new URL(c.req.url)
+  console.log(`[Image Routes] GET / called - pathname: ${url.pathname}, method: ${c.req.method}`)
+  return c.json({ ok: true, message: "Image API. Use POST to generate images." })
+})
+
 imageRoutes.post("/", async (c) => {
+  const url = new URL(c.req.url)
+  console.log(`[Image Routes] POST / called - pathname: ${url.pathname}, method: ${c.req.method}, full URL: ${c.req.url}`)
+  
   // Declare variables outside try block for use in catch block
   let engine: string | undefined = undefined
   let mode: string | undefined = undefined
