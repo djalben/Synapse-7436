@@ -28,10 +28,10 @@ interface ChatRequest {
 }
 
 // Model mapping from frontend IDs to OpenRouter model IDs
-// Только модели из тарифной сетки Synapse
+// Только модели из тарифной сетки Synapse - актуальные ID 2026 года
 const MODEL_MAP: Record<string, string> = {
   // START tier
-  "deepseek-r1": "deepseek/deepseek-r1",
+  "deepseek-r1": "deepseek/deepseek-v3.2", // Обновлено на v3.2 (2026)
   "gpt-4o-mini": "openai/gpt-4o-mini",
   
   // CREATOR tier
@@ -39,7 +39,8 @@ const MODEL_MAP: Record<string, string> = {
   "claude-3.5-sonnet": "anthropic/claude-3.5-sonnet",
   
   // PRO_STUDIO tier
-  "gpt-5-o1": "openai/o1",
+  "gpt-5-o1": "openai/gpt-5-pro", // Обновлено на GPT-5 Pro (2026)
+  "claude-opus": "anthropic/claude-opus-4.6", // Новый Claude Opus 4.6 (2026)
 }
 
 // Credit costs per model
@@ -77,8 +78,8 @@ chatRoutes.post("/", async (c) => {
       return c.json({ error: "Invalid model selected. Please choose a valid model." }, 400)
     }
 
-    // Map the model ID to OpenRouter format (default to DeepSeek R1)
-    const modelId = MODEL_MAP[model] || "deepseek/deepseek-r1"
+    // Map the model ID to OpenRouter format (default to DeepSeek v3.2, 2026)
+    const modelId = MODEL_MAP[model] || "deepseek/deepseek-v3.2"
     
     // ВРЕМЕННО ОТКЛЮЧЕНО: Проверка доступа по тарифу (режим тестирования)
     // const userPlan = c.req.header("X-User-Plan") || "free"

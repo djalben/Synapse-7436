@@ -26,22 +26,18 @@ export const PLAN_TO_TIER: Record<string, SynapseTier> = {
  * Формат: backendId -> требуемый тариф
  */
 export const CHAT_MODEL_TIERS: Record<string, SynapseTier> = {
-  // START (390 ₽)
-  "deepseek/deepseek-r1": "START",
+  // START (390 ₽) - актуальные ID 2026 года
+  "deepseek/deepseek-v3.2": "START", // Обновлено на v3.2 (2026)
   "openai/gpt-4o-mini": "START",
-  "black-forest-labs/flux-schnell": "START",
   "openrouter/free": "START",
   
   // CREATOR (990 ₽)
   "openai/gpt-4o": "CREATOR",
   "anthropic/claude-3.5-sonnet": "CREATOR",
-  "google/gemini-flash-1.5": "CREATOR",
-  "google/gemini-2.0-flash-exp:free": "CREATOR", // Nana Banana
   
-  // PRO STUDIO (2 990 ₽)
-  "openai/o1": "PRO_STUDIO",
-  "google/gemini-pro-1.5": "PRO_STUDIO",
-  "black-forest-labs/flux-pro": "PRO_STUDIO",
+  // PRO STUDIO (2 990 ₽) - актуальные ID 2026 года
+  "openai/gpt-5-pro": "PRO_STUDIO", // Обновлено на GPT-5 Pro (2026)
+  "anthropic/claude-opus-4.6": "PRO_STUDIO", // Новый Claude Opus 4.6 (2026)
   
   // MAXIMAL (8 990 ₽) - полный доступ ко всем моделям
 };
@@ -50,18 +46,15 @@ export const CHAT_MODEL_TIERS: Record<string, SynapseTier> = {
  * Распределение моделей Image по тарифам
  */
 export const IMAGE_MODEL_TIERS: Record<string, SynapseTier> = {
-  // START (390 ₽)
-  "black-forest-labs/flux-schnell": "START",
-  "black-forest-labs/flux-dev": "START",
+  // START (390 ₽) - актуальные ID 2026 года
+  "black-forest-labs/flux.2-klein": "START", // Flux 2 Klein (быстро/дешево, 2026)
   "openrouter/free": "START",
   
-  // CREATOR (990 ₽)
-  "openai/dall-e-3": "CREATOR",
-  "google/gemini-2.0-flash-exp:free": "CREATOR", // Nana Banana
+  // CREATOR (990 ₽) - актуальные ID 2026 года
+  "google/gemini-2.5-flash-image": "CREATOR", // Gemini 2.5 Flash для изображений (2026)
   
-  // PRO STUDIO (2 990 ₽)
-  "black-forest-labs/flux-pro": "PRO_STUDIO",
-  "black-forest-labs/flux-2-pro": "PRO_STUDIO",
+  // PRO STUDIO (2 990 ₽) - актуальные ID 2026 года
+  "black-forest-labs/flux.2-pro": "PRO_STUDIO", // Flux 2 Pro (премиум, 2026)
   
   // MAXIMAL (8 990 ₽)
   "openai/gpt-4o": "MAXIMAL", // image-generation
@@ -71,19 +64,18 @@ export const IMAGE_MODEL_TIERS: Record<string, SynapseTier> = {
  * Маппинг frontend ID на backend ID для проверки
  */
 export const FRONTEND_TO_BACKEND: Record<string, string> = {
-  // Chat models
-  "deepseek-r1": "deepseek/deepseek-r1",
+  // Chat models - актуальные ID 2026 года
+  "deepseek-r1": "deepseek/deepseek-v3.2",
   "gpt-4o-mini": "openai/gpt-4o-mini",
   "gpt-4o": "openai/gpt-4o",
   "claude-3.5-sonnet": "anthropic/claude-3.5-sonnet",
-  "gpt-5-o1": "openai/o1",
-  "nana-banana": "google/gemini-2.0-flash-exp:free",
+  "gpt-5-o1": "openai/gpt-5-pro",
+  "claude-opus": "anthropic/claude-opus-4.6",
   
-  // Image models
-  "flux-schnell": "black-forest-labs/flux-schnell",
-  "flux-dev": "black-forest-labs/flux-dev",
-  "dall-e-3": "openai/dall-e-3",
-  "flux-pro": "black-forest-labs/flux-pro",
+  // Image models - актуальные ID 2026 года
+  "flux-schnell": "black-forest-labs/flux.2-klein",
+  "nana-banana": "google/gemini-2.5-flash-image",
+  "flux-pro": "black-forest-labs/flux.2-pro",
 };
 
 /**

@@ -85,9 +85,8 @@ interface EnhancedResult {
 
 // ===== CONSTANTS =====
 
-// Image engine (model) for generation — только модели из тарифной сетки Synapse
-// Включает альтернативные модели для тестирования
-type ImageEngineId = "flux-schnell" | "dall-e-3" | "nana-banana" | "flux-pro" | "gemini-pro" | "gpt-4o-latest";
+// Image engine (model) for generation — актуальные модели 2026 года
+type ImageEngineId = "flux-schnell" | "nana-banana" | "flux-pro";
 
 interface ImageEngineOption {
   id: ImageEngineId;
@@ -99,13 +98,9 @@ interface ImageEngineOption {
 }
 
 const imageEngineOptions: ImageEngineOption[] = [
-  { id: "flux-schnell", label: "Flux Schnell", subtitle: "START", creditCost: 0, requiredPlan: "free" },
-  { id: "dall-e-3", label: "DALL-E 3", subtitle: "CREATOR", creditCost: 1, requiredPlan: "standard" },
-  { id: "nana-banana", label: "Nana Banana", subtitle: "CREATOR", creditCost: 1, requiredPlan: "standard" },
-  { id: "flux-pro", label: "Flux Pro", subtitle: "PRO STUDIO", creditCost: 2, requiredPlan: "ultra", isLocked: false }, // Разблокировано для тестирования
-  // Альтернативные модели для тестирования (все открыты)
-  { id: "gemini-pro", label: "Gemini 2.0 Pro", subtitle: "TESTING", creditCost: 1, requiredPlan: "free" },
-  { id: "gpt-4o-latest", label: "GPT-4o Latest", subtitle: "TESTING", creditCost: 1, requiredPlan: "free" },
+  { id: "flux-schnell", label: "Flux 2 Klein", subtitle: "START", creditCost: 0, requiredPlan: "free" }, // 2026: flux.2-klein
+  { id: "nana-banana", label: "Gemini 2.5 Flash", subtitle: "CREATOR", creditCost: 1, requiredPlan: "standard" }, // 2026: gemini-2.5-flash-image
+  { id: "flux-pro", label: "Flux 2 Pro", subtitle: "PRO STUDIO", creditCost: 2, requiredPlan: "ultra", isLocked: false }, // 2026: flux.2-pro
 ];
 
 const styleOptions: StyleOption[] = [

@@ -3,6 +3,8 @@ import { Hono } from "hono"
 // Environment variables type for Hono context
 type Env = {
   REPLICATE_API_TOKEN?: string
+  LUMA_API_KEY?: string // Для прямого доступа к Luma Labs API
+  KLING_API_KEY?: string // Для прямого доступа к Kling AI API
 }
 
 export const videoRoutes = new Hono<{ Bindings: Env }>()
@@ -15,17 +17,26 @@ const PRESET_PROMPTS: Record<string, string> = {
   "old-film": "vintage film effect, sepia tones, film grain, slow deliberate movement, nostalgic aesthetic",
 }
 
-// Video model configurations for Replicate
+// Video model configurations - готовы к прямому подключению Luma/Kling API
+// OpenRouter не поддерживает генерацию видео, поэтому используем прямые API
 const VIDEO_MODELS = {
   standard: {
-    // Luma Dream Machine via Replicate
-    model: "luma/ray",
-    version: "478f3f66f8ce6ebe0ceeea8d8eb64ff8f38ebed5f8dddfae1f4e72b0ea229a5b",
+    // Luma Labs API (прямое подключение)
+    provider: "luma",
+    apiUrl: "https://api.lumalabs.ai/v1/generations",
+    model: "luma-dream-machine",
+    // Fallback через Replicate если API ключ не настроен
+    replicateModel: "luma/ray",
+    replicateVersion: "478f3f66f8ce6ebe0ceeea8d8eb64ff8f38ebed5f8dddfae1f4e72b0ea229a5b",
   },
   premium: {
-    // Kling AI for premium tier
-    model: "kling-ai/kling-v1",
-    version: "f7a86ae5f2d0c2cc3dd3ece46e2e8c5e8b7b8c8d9e0f1a2b3c4d5e6f7a8b9c0d",
+    // Kling AI API (прямое подключение)
+    provider: "kling",
+    apiUrl: "https://api.klingai.com/v1/generations",
+    model: "kling-v1",
+    // Fallback через Replicate если API ключ не настроен
+    replicateModel: "kling-ai/kling-v1",
+    replicateVersion: "f7a86ae5f2d0c2cc3dd3ece46e2e8c5e8b7b8c8d9e0f1a2b3c4d5e6f7a8b9c0d",
   },
 }
 

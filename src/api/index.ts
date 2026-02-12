@@ -215,22 +215,17 @@ app.post('/image', async (c) => {
   // Model mapping: только модели из тарифной сетки Synapse
   // Обновлено на основе реальных ID моделей от OpenRouter
   const MODEL_MAP: Record<string, string> = {
-    // START tier (390 ₽) - официальный ID модели OpenRouter
-    "flux-schnell": "black-forest-labs/flux-schnell", // Официальный стандарт OpenRouter (без "1")
+    // START tier (390 ₽) - актуальные ID моделей 2026 года
+    "flux-schnell": "black-forest-labs/flux.2-klein", // Быстро/дешево (2026)
     
     // CREATOR tier (990 ₽)
-    "dall-e-3": "openai/dall-e-3",
-    "nana-banana": "google/gemini-2.0-flash-exp:free", // Nana Banana для CREATOR
+    "nana-banana": "google/gemini-2.5-flash-image", // Gemini для изображений (2026)
     
     // PRO_STUDIO tier (2 990 ₽)
-    "flux-pro": "black-forest-labs/flux-pro",
-    
-    // Альтернативные модели для тестирования (все открыты в режиме тестирования)
-    "gemini-pro": "google/gemini-2.0-pro-exp-02-05:free", // Для тестирования лучших моделей
-    "gpt-4o-latest": "openai/gpt-4o-2024-11-20", // Последняя версия GPT-4o
+    "flux-pro": "black-forest-labs/flux.2-pro", // Премиум (2026)
   }
-  // Fallback на рабочий ID модели (официальный стандарт OpenRouter)
-  const openRouterModel = engine && MODEL_MAP[engine] ? MODEL_MAP[engine] : "black-forest-labs/flux-schnell"
+  // Fallback на рабочий ID модели (актуальный стандарт 2026)
+  const openRouterModel = engine && MODEL_MAP[engine] ? MODEL_MAP[engine] : "black-forest-labs/flux.2-klein"
   const replicateModel = "black-forest-labs/flux-schnell" // Для Replicate (использует другой формат)
   
   // ВРЕМЕННО ОТКЛЮЧЕНО: Проверка доступа к модели по тарифу
@@ -325,21 +320,27 @@ app.post('/image', async (c) => {
     keyPreview: openRouterKey.substring(0, 8) + "...",
   })
   
-  // Формат chat/completions для генерации изображений с Flux моделями
+  // Определяем modalities в зависимости от модели
+  // Flux модели используют только ["image"], Gemini использует ["image", "text"]
+  const isGeminiModel = openRouterModel.includes("gemini")
+  const modalities = isGeminiModel ? ["image", "text"] : ["image"]
+  
+  // Формат chat/completions для генерации изображений
   const openRouterPayload = {
-    model: openRouterModel, // Официальный ID модели OpenRouter
+    model: openRouterModel, // Актуальный ID модели OpenRouter 2026
     messages: [
       {
         role: "user",
         content: enhancedPrompt,
       },
     ],
-    modalities: ["image"], // Обязательно для всех моделей генерации изображений
+    modalities: modalities, // Flux: ["image"], Gemini: ["image", "text"]
   }
   
+  console.log(`[DEBUG] Model type:`, isGeminiModel ? "Gemini (image+text)" : "Flux (image only)")
   console.log(`[DEBUG] Final model ID sent to OpenRouter:`, openRouterPayload.model)
+  console.log(`[DEBUG] Modalities:`, modalities)
   console.log(`[DEBUG] Full payload:`, JSON.stringify(openRouterPayload, null, 2))
-  console.log(`[DEBUG] Modalities check:`, openRouterPayload.modalities)
   
   // Обязательные заголовки для OpenRouter
   const openRouterHeaders = {
