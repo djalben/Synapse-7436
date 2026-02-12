@@ -572,6 +572,13 @@ const ImageEngineSelector = ({ selected, onChange, userPlan, onPremiumClick }: I
           // const accessCheck = checkTierAccess(userTier, requiredTier);
           // const isLocked = !accessCheck.allowed || engine.isLocked;
           const isLocked = false; // Все модели доступны для тестирования
+          
+          // Определяем requiredTier из engine.subtitle для отображения цвета метки
+          // Преобразуем "PRO STUDIO" -> "PRO_STUDIO" для совместимости с типом SynapseTier
+          const requiredTier: SynapseTier = engine.subtitle === "START" ? "START" :
+            engine.subtitle === "CREATOR" ? "CREATOR" :
+            engine.subtitle === "PRO STUDIO" ? "PRO_STUDIO" :
+            engine.subtitle === "MAXIMAL" ? "MAXIMAL" : "START";
 
           return (
             <button
