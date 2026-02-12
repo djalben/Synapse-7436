@@ -223,18 +223,18 @@ app.post('/image', async (c) => {
     // START tier (390 ₽) - актуальные ID моделей 2026 года
     "flux-schnell": "black-forest-labs/flux.2-klein", // Быстро/дешево (2026)
     
-    // CREATOR tier (990 ₽)
-    "nana-banana": "google/gemini-2.5-flash-image", // Gemini для изображений (2026)
+    // CREATOR tier (990 ₽) — специализированная модель для генерации изображений
+    "nana-banana": "google/gemini-3-pro-image-preview",
     
     // PRO_STUDIO tier (2 990 ₽)
     "flux-pro": "black-forest-labs/flux.2-pro", // Премиум (2026)
   }
-  // КОНТРОЛЬНЫЙ ТЕСТ: Используем Flux.2 Max (самая мощная модель)
-  const modelToUse = "black-forest-labs/flux.2-max"
-  const openRouterModel = modelToUse // Принудительно используем Flux.2 Max для теста
-  const replicateModel = "black-forest-labs/flux-schnell" // Для Replicate (использует другой формат)
+  // АКТИВНАЯ МОДЕЛЬ: Gemini 3 Pro Image Preview для генерации изображений
+  const modelToUse = "google/gemini-3-pro-image-preview"
+  const openRouterModel = modelToUse
+  const replicateModel = "black-forest-labs/flux-schnell" // Для Replicate (fallback)
   
-  console.log(`[DEBUG] FLUX.2 MAX MODE: Using Flux.2 Max for all requests`)
+  console.log(`[DEBUG] GEMINI 3 PRO IMAGE MODE: Using google/gemini-3-pro-image-preview`)
   
   // ВРЕМЕННО ОТКЛЮЧЕНО: Проверка доступа к модели по тарифу
   // const requiredTier = getRequiredTierForImageModel(openRouterModel)
@@ -318,50 +318,42 @@ app.post('/image', async (c) => {
     return c.json({ error: "API key is missing" }, 503 as const)
   }
   
-  // Используем chat/completions эндпоинт для Flux моделей (стандарт OpenRouter)
+  // Полный URL OpenRouter (без относительных путей — исключает ошибки 550 / Invalid URL)
   const openRouterUrl = "https://openrouter.ai/api/v1/chat/completions"
   
-  console.log(`[DEBUG] Final URL for OpenRouter:`, openRouterUrl)
+  console.log(`[DEBUG] Final URL for OpenRouter (absolute):`, openRouterUrl)
+  console.log(`[DEBUG] URL is absolute:`, openRouterUrl.startsWith("http"))
   console.log(`[DEBUG] OpenRouter API key check:`, {
     hasKey: !!openRouterKey,
     keyLength: openRouterKey.length,
     keyPreview: openRouterKey.substring(0, 8) + "...",
   })
   
-  // Определяем modalities в зависимости от модели
-  // Flux модели используют только ["image"], Gemini использует ["image", "text"]
-  const isGeminiModel = openRouterModel.includes("gemini")
-  const isGemini3 = openRouterModel.includes("gemini-3") || openRouterModel.includes("gemini-3-pro")
-  const isFluxModel = openRouterModel.includes("flux")
+  // Gemini 3 Pro Image Preview — специализированная модель, только ["image"]
+  const isGemini3Image = openRouterModel.includes("gemini-3-pro-image-preview")
+  const modalities: ("image" | "text")[] = isGemini3Image ? ["image"] : ["image"]
   
-  // Flux.2 Max требует строго ["image"] по стандарту OpenRouter
-  const modalities = isGemini3 ? ["image", "text"] : (isGeminiModel ? ["image", "text"] : ["image"])
+  console.log(`[DEBUG] Model: Gemini 3 Pro Image Preview, modalities:`, modalities)
   
-  console.log(`[DEBUG] Model type:`, isFluxModel ? "Flux (image only)" : isGeminiModel ? "Gemini (image+text)" : "Other")
-  console.log(`[DEBUG] Flux.2 Max detected:`, isFluxModel && openRouterModel.includes("flux.2-max"))
-  console.log(`[DEBUG] Required modalities:`, modalities)
-  
-  // Формат chat/completions для генерации изображений (строго по стандарту)
+  // Формат chat/completions для генерации изображений
   const openRouterPayload = {
-    model: openRouterModel, // Flux.2 Max: "black-forest-labs/flux.2-max"
+    model: openRouterModel, // "google/gemini-3-pro-image-preview"
     messages: [
       {
         role: "user",
         content: enhancedPrompt,
       },
     ],
-    modalities: modalities, // Flux.2 Max: ["image"]
+    modalities: modalities, // только изображение
   }
   
-  console.log(`[DEBUG] FLUX.2 MAX REQUEST: Sending to Flux.2 Max:`, {
+  console.log(`[DEBUG] GEMINI 3 PRO IMAGE REQUEST:`, {
     model: openRouterPayload.model,
     modalities: openRouterPayload.modalities,
     promptLength: enhancedPrompt.length,
     promptPreview: enhancedPrompt.substring(0, 200),
   })
   
-  console.log(`[DEBUG] Model type:`, isFluxModel ? "Flux (image only)" : isGeminiModel ? "Gemini (image+text)" : "Other")
-  console.log(`[DEBUG] Flux.2 Max detected:`, isFluxModel && openRouterModel.includes("flux.2-max"))
   console.log(`[DEBUG] Final model ID sent to OpenRouter:`, openRouterPayload.model)
   console.log(`[DEBUG] Modalities:`, modalities)
   console.log(`[DEBUG] Full payload:`, JSON.stringify(openRouterPayload, null, 2))
@@ -383,7 +375,7 @@ app.post('/image', async (c) => {
   })
   
   const openRouterAbort = new AbortController()
-  // Таймаут 60 секунд для тяжёлых моделей (Flux.2 Max и др.)
+  // Таймаут 60 секунд для тяжёлых моделей (Gemini 3 Pro Image и др.)
   const OPENROUTER_TIMEOUT_MS = 60000
   const openRouterTimeout = setTimeout(() => openRouterAbort.abort(), OPENROUTER_TIMEOUT_MS)
   console.log(`[DEBUG] OpenRouter fetch timeout set to ${OPENROUTER_TIMEOUT_MS / 1000}s`)
@@ -398,7 +390,7 @@ app.post('/image', async (c) => {
       body: JSON.stringify(openRouterPayload),
     })
     
-    console.log(`[DEBUG] NITRO REQUEST: Sending to Gemini 3 Pro:`, {
+    console.log(`[DEBUG] GEMINI 3 PRO IMAGE REQUEST (sending):`, {
       url: openRouterUrl,
       model: openRouterPayload.model,
       modalities: openRouterPayload.modalities,
@@ -467,8 +459,8 @@ app.post('/image', async (c) => {
       }>
     }
     
-    // Детальное логирование ответа от Flux.2 Max
-    console.log(`[DEBUG] FLUX.2 MAX RESPONSE: Full response from Flux.2 Max:`, {
+    // Детальное логирование ответа от Gemini 3 Pro Image Preview
+    console.log(`[DEBUG] GEMINI 3 PRO IMAGE RESPONSE:`, {
       model: openRouterPayload.model,
       modalities: openRouterPayload.modalities,
       hasChoices: !!data.choices,
@@ -479,8 +471,7 @@ app.post('/image', async (c) => {
       responsePreview: JSON.stringify(data).substring(0, 1000),
     })
     
-    // Выводим полный ответ для анализа
-    console.log(`[DEBUG] FLUX.2 MAX FULL RESPONSE BODY:`, JSON.stringify(data, null, 2))
+    console.log(`[DEBUG] GEMINI 3 PRO IMAGE FULL RESPONSE BODY:`, JSON.stringify(data, null, 2))
     
     const message = data.choices?.[0]?.message
     if (message?.images && message.images.length > 0) {
