@@ -284,8 +284,8 @@ imageRoutes.post("/", async (c) => {
             console.log("[Image API] Creating Replicate prediction for Nana Banana")
             
             // Replicate model format: owner/model or owner/model:version
-            // Для flux-1-schnell используем полный путь Replicate
-            const replicateModel = "black-forest-labs/flux-1-schnell"
+            // Правильное имя модели для Replicate: black-forest-labs/flux-schnell (без "1")
+            const replicateModel = "black-forest-labs/flux-schnell"
             const replicateUrl = "https://api.replicate.com/v1/predictions"
             
             console.log(`[FETCH START] URL: ${replicateUrl} | Model: ${replicateModel} | Provider: replicate | Engine: ${engine}`)
