@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { cors } from "hono/cors"
 import { prettyJSON } from "hono/pretty-json"
 import { trimTrailingSlash } from "hono/trailing-slash"
+import { env as getRuntimeEnv } from "hono/adapter"
 import { chatRoutes } from './routes/chat.js'
 import { imageRoutes } from './routes/image.js'
 import { videoRoutes } from './routes/video.js'
@@ -9,6 +10,13 @@ import { enhanceRoutes } from './routes/enhance.js'
 import { audioRoutes } from './routes/audio.js'
 import { avatarRoutes } from './routes/avatar.js'
 import { webhookRoutes } from './routes/webhook.js'
+
+// Environment variables type for Hono context
+type Env = {
+  OPENROUTER_API_KEY?: string
+  REPLICATE_API_TOKEN?: string
+  VITE_BASE_URL?: string
+}
 
 // basePath('/api') — все роуты доступны как /api/... (фронт должен слать /api/image без слеша в конце)
 const app = new Hono().basePath('/api')
@@ -53,6 +61,221 @@ app.get('/debug', (c) => {
 // Роуты: /api/chat, /api/image, ... (без лишних слешей)
 // Порядок важен: более специфичные роуты должны быть выше
 app.route('/chat', chatRoutes);
+
+// Прямой роут POST /api/image для упрощения маршрутизации Vercel Edge
+app.post('/image', async (c) => {
+  console.log(`[DEBUG] POST /image handler called`)
+  const requestStartTime = Date.now()
+  
+  // Получение env переменных через getRuntimeEnv (стандарт Vercel Edge)
+  const runtimeEnv = getRuntimeEnv<Env>(c)
+  const openRouterKey = runtimeEnv?.OPENROUTER_API_KEY
+  const replicateToken = runtimeEnv?.REPLICATE_API_TOKEN
+  
+  console.log(`[DEBUG] Environment check:`, {
+    hasOpenRouterKey: !!openRouterKey,
+    hasReplicateToken: !!replicateToken,
+  })
+  
+  if (!openRouterKey) {
+    console.error(`[DEBUG] OPENROUTER_API_KEY missing`)
+    return c.json({ error: "Image generation service is not available. Please check API configuration." }, 503)
+  }
+  
+  // Стандартизация JSON: парсинг тела запроса с обработкой ошибок
+  let body: {
+    prompt?: string
+    aspectRatio?: string
+    numImages?: number
+    style?: string
+    mode?: string
+    referenceImage?: string
+    specializedEngine?: string
+    engine?: string
+  }
+  
+  try {
+    body = await c.req.json() as typeof body
+    console.log(`[DEBUG] Request body parsed:`, {
+      hasPrompt: !!body.prompt,
+      engine: body.engine || "default",
+      mode: body.mode || "text-to-image",
+    })
+  } catch (jsonError) {
+    console.error(`[DEBUG] JSON parse error:`, jsonError)
+    return c.json({ error: "Invalid JSON in request body" }, 400)
+  }
+  
+  const { prompt, aspectRatio, numImages, style, referenceImage, specializedEngine, engine, mode } = body
+  
+  if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+    return c.json({ error: "Please enter a prompt to generate an image." }, 400)
+  }
+  
+  // Aspect ratio mapping
+  const ASPECT_RATIO_MAP: Record<string, { width: number; height: number }> = {
+    "1:1": { width: 1024, height: 1024 },
+    "16:9": { width: 1344, height: 768 },
+    "9:16": { width: 768, height: 1344 },
+  }
+  const size = ASPECT_RATIO_MAP[aspectRatio || "1:1"] || ASPECT_RATIO_MAP["1:1"]
+  
+  // Prompt enhancement
+  let enhancedPrompt = prompt.trim()
+  if (specializedEngine === "niji-v6") {
+    enhancedPrompt += ", anime masterpiece, niji style, vibrant colors, high quality anime art"
+  } else if (style && style !== "none") {
+    const stylePrompts: Record<string, string> = {
+      photorealistic: ", photorealistic, 8k, ultra detailed",
+      anime: ", anime style, manga art, vibrant colors",
+      "3d": ", 3D render, Pixar style, CGI",
+      cyberpunk: ", cyberpunk, neon lights, futuristic",
+    }
+    enhancedPrompt += stylePrompts[style] || ""
+  }
+  
+  // Model mapping: для nana-banana используем разные модели для Replicate и OpenRouter
+  const MODEL_MAP: Record<string, string> = {
+    "kandinsky-3.1": "black-forest-labs/flux-1-schnell",
+    "flux-schnell": "black-forest-labs/flux-1-schnell",
+    "dall-e-3": "openai/dall-e-3",
+    "midjourney-v7": "black-forest-labs/flux-1-schnell",
+    "nana-banana": "black-forest-labs/flux-1-schnell", // Для OpenRouter
+  }
+  const openRouterModel = engine && MODEL_MAP[engine] ? MODEL_MAP[engine] : "black-forest-labs/flux-1-schnell"
+  const replicateModel = "black-forest-labs/flux-schnell" // Для Replicate (без "1")
+  
+  console.log(`[DEBUG] Model selection:`, {
+    engine: engine || "default",
+    openRouterModel,
+    replicateModel,
+    willUseReplicate: engine === "nana-banana" && !!replicateToken,
+  })
+  
+  // Для nana-banana пробуем Replicate сначала
+  if (engine === "nana-banana" && replicateToken) {
+    try {
+      console.log(`[DEBUG] Attempting Replicate for nana-banana`)
+      const replicateUrl = "https://api.replicate.com/v1/predictions"
+      const replicatePayload = {
+        model: replicateModel,
+        input: {
+          prompt: enhancedPrompt,
+          aspect_ratio: aspectRatio === "16:9" ? "16:9" : aspectRatio === "9:16" ? "9:16" : "1:1",
+          output_format: "png",
+        },
+      }
+      
+      const replicateResponse = await fetch(replicateUrl, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${replicateToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(replicatePayload),
+      })
+      
+      console.log(`[DEBUG] Replicate response:`, {
+        status: replicateResponse.status,
+        ok: replicateResponse.ok,
+      })
+      
+      if (replicateResponse.ok) {
+        const prediction = await replicateResponse.json() as { id: string; status: string }
+        console.log(`[DEBUG] Replicate prediction created:`, prediction.id)
+        return c.json({
+          id: prediction.id,
+          status: prediction.status,
+          provider: "replicate",
+          engine: engine,
+          prompt: prompt.trim(),
+          aspectRatio,
+          style: specializedEngine === "niji-v6" ? "nana-banana" : style,
+          mode: mode || "text-to-image",
+        }, 201)
+      }
+    } catch (replicateError) {
+      console.warn(`[DEBUG] Replicate failed, falling back to OpenRouter:`, replicateError)
+    }
+  }
+  
+  // OpenRouter fallback или основной путь
+  console.log(`[DEBUG] Using OpenRouter with model:`, openRouterModel)
+  const openRouterUrl = "https://openrouter.ai/api/v1/images/generations"
+  const openRouterPayload = {
+    model: openRouterModel,
+    prompt: enhancedPrompt,
+    n: Math.min(Math.max(numImages || 1, 1), 4),
+    size: `${size.width}x${size.height}`,
+  }
+  
+  const openRouterAbort = new AbortController()
+  const openRouterTimeout = setTimeout(() => openRouterAbort.abort(), 8000)
+  
+  try {
+    const response = await fetch(openRouterUrl, {
+      method: "POST",
+      signal: openRouterAbort.signal,
+      headers: {
+        "Authorization": `Bearer ${openRouterKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://synapse-7436.vercel.app",
+        "X-Title": "Synapse AI",
+      },
+      body: JSON.stringify(openRouterPayload),
+    })
+    
+    console.log(`[DEBUG] OpenRouter response:`, {
+      status: response.status,
+      ok: response.ok,
+      elapsedTime: Date.now() - requestStartTime,
+    })
+    
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "Unknown error")
+      console.error(`[DEBUG] OpenRouter error:`, {
+        status: response.status,
+        errorPreview: errorText.substring(0, 200),
+      })
+      return c.json({ error: "Failed to generate image. Please try again." }, response.status >= 500 ? 500 : response.status)
+    }
+    
+    const data = await response.json() as {
+      data?: Array<{ url?: string; b64_json?: string }>
+    }
+    
+    if (data.data && data.data.length > 0) {
+      const images = data.data.map((img, idx) => ({
+        id: `${Date.now()}-${idx}`,
+        url: img.url || (img.b64_json ? `data:image/png;base64,${img.b64_json}` : null),
+        prompt: prompt.trim(),
+        aspectRatio: aspectRatio || "1:1",
+        style: specializedEngine === "niji-v6" ? "nana-banana" : style || "photorealistic",
+        mode: mode || "text-to-image",
+        createdAt: new Date().toISOString(),
+        creditCost: (engine === "kandinsky-3.1" || engine === "flux-schnell" || !engine) ? 0 : 1,
+      })).filter(img => img.url)
+      
+      console.log(`[DEBUG] Successfully generated ${images.length} images`)
+      return c.json({ images, totalCreditCost: images.length }, 201)
+    }
+    
+    return c.json({ error: "No images generated" }, 500)
+  } catch (fetchError) {
+    console.error(`[DEBUG] Fetch error:`, fetchError)
+    return c.json({ error: "Network error. Please try again." }, 503)
+  } finally {
+    clearTimeout(openRouterTimeout)
+  }
+})
+
+// GET /api/image для проверки доступности
+app.get('/image', (c) => {
+  console.log(`[DEBUG] GET /image called`)
+  return c.json({ ok: true, message: "Image API. Use POST to generate images." })
+})
+
+// Остальные роуты через imageRoutes (для статуса и других методов)
 app.route('/image', imageRoutes);
 app.route('/video', videoRoutes);
 app.route('/enhance', enhanceRoutes);
