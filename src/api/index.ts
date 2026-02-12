@@ -47,6 +47,7 @@ app.get('/debug', (c) => {
     registeredRoutes: [
       '/api/ping',
       '/api/debug',
+      '/api/models-debug',
       '/api/chat',
       '/api/image',
       '/api/video',
@@ -56,6 +57,65 @@ app.get('/debug', (c) => {
       '/api/webhook',
     ],
   });
+});
+
+// Диагностика: получение списка доступных моделей OpenRouter
+app.get('/models-debug', async (c) => {
+  console.log(`[DEBUG] /models-debug called`)
+  try {
+    const runtimeEnv = getRuntimeEnv<Env>(c)
+    const openRouterKey = runtimeEnv?.OPENROUTER_API_KEY
+    
+    if (!openRouterKey) {
+      return c.json({ error: "OPENROUTER_API_KEY not found" }, 503 as const)
+    }
+    
+    console.log(`[DEBUG] Fetching models from OpenRouter`)
+    const response = await fetch('https://openrouter.ai/api/v1/models', {
+      headers: { 
+        'Authorization': `Bearer ${openRouterKey}`,
+        'HTTP-Referer': 'https://synapse-7436.vercel.app',
+        'X-Title': 'Synapse AI Studio',
+      }
+    })
+    
+    console.log(`[DEBUG] Models API response:`, {
+      status: response.status,
+      ok: response.ok,
+    })
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      return c.json({ 
+        error: "Failed to fetch models",
+        status: response.status,
+        errorText: errorText.substring(0, 500),
+      }, response.status >= 500 ? 500 as const : response.status as 400 | 401 | 403)
+    }
+    
+    const data = await response.json()
+    
+    // Фильтруем только Flux модели для удобства
+    const fluxModels = Array.isArray(data.data) 
+      ? data.data.filter((m: any) => m.id && m.id.includes('flux'))
+      : []
+    
+    return c.json({
+      total: Array.isArray(data.data) ? data.data.length : 0,
+      fluxModels: fluxModels.map((m: any) => ({
+        id: m.id,
+        name: m.name,
+        context_length: m.context_length,
+      })),
+      allModels: Array.isArray(data.data) ? data.data.map((m: any) => m.id) : [],
+    })
+  } catch (error) {
+    console.error(`[DEBUG] Models debug error:`, error)
+    return c.json({ 
+      error: "Failed to fetch models",
+      debug_error: error instanceof Error ? error.message : String(error),
+    }, 500 as const)
+  }
 });
 
 // Роуты: /api/chat, /api/image, ... (без лишних слешей)
@@ -135,13 +195,13 @@ app.post('/image', async (c) => {
   }
   
   // Model mapping: для nana-banana используем разные модели для Replicate и OpenRouter
-  // OpenRouter использует формат black-forest-labs/flux-schnell (без "1")
+  // Временно пробуем альтернативные модели для диагностики
   const MODEL_MAP: Record<string, string> = {
     "kandinsky-3.1": "black-forest-labs/flux-schnell",
     "flux-schnell": "black-forest-labs/flux-schnell",
     "dall-e-3": "openai/dall-e-3",
     "midjourney-v7": "black-forest-labs/flux-schnell",
-    "nana-banana": "black-forest-labs/flux-schnell", // Для OpenRouter (без "1")
+    "nana-banana": "black-forest-labs/flux-dev", // Временно пробуем flux-dev вместо flux-schnell
   }
   const openRouterModel = engine && MODEL_MAP[engine] ? MODEL_MAP[engine] : "black-forest-labs/flux-schnell"
   const replicateModel = "black-forest-labs/flux-schnell" // Для Replicate (без "1")
