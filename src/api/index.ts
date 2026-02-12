@@ -215,8 +215,8 @@ app.post('/image', async (c) => {
   // Model mapping: только модели из тарифной сетки Synapse
   // Обновлено на основе реальных ID моделей от OpenRouter
   const MODEL_MAP: Record<string, string> = {
-    // START tier (390 ₽) - исправлен ID модели
-    "flux-schnell": "black-forest-labs/flux-1-schnell", // Правильный ID для OpenRouter
+    // START tier (390 ₽) - официальный ID модели OpenRouter
+    "flux-schnell": "black-forest-labs/flux-schnell", // Официальный стандарт OpenRouter (без "1")
     
     // CREATOR tier (990 ₽)
     "dall-e-3": "openai/dall-e-3",
@@ -229,8 +229,8 @@ app.post('/image', async (c) => {
     "gemini-pro": "google/gemini-2.0-pro-exp-02-05:free", // Для тестирования лучших моделей
     "gpt-4o-latest": "openai/gpt-4o-2024-11-20", // Последняя версия GPT-4o
   }
-  // Fallback на рабочий ID модели
-  const openRouterModel = engine && MODEL_MAP[engine] ? MODEL_MAP[engine] : "black-forest-labs/flux-1-schnell"
+  // Fallback на рабочий ID модели (официальный стандарт OpenRouter)
+  const openRouterModel = engine && MODEL_MAP[engine] ? MODEL_MAP[engine] : "black-forest-labs/flux-schnell"
   const replicateModel = "black-forest-labs/flux-schnell" // Для Replicate (использует другой формат)
   
   // ВРЕМЕННО ОТКЛЮЧЕНО: Проверка доступа к модели по тарифу
@@ -327,18 +327,19 @@ app.post('/image', async (c) => {
   
   // Формат chat/completions для генерации изображений с Flux моделями
   const openRouterPayload = {
-    model: openRouterModel, // Важно: оставить правильный ID модели (например, "black-forest-labs/flux-1-schnell")
+    model: openRouterModel, // Официальный ID модели OpenRouter
     messages: [
       {
         role: "user",
         content: enhancedPrompt,
       },
     ],
-    modalities: ["image"], // Для Flux моделей - только изображения
+    modalities: ["image"], // Обязательно для всех моделей генерации изображений
   }
   
-  console.log(`[DEBUG] Sending model ID:`, openRouterPayload.model)
-  console.log(`[DEBUG] Payload:`, JSON.stringify(openRouterPayload, null, 2))
+  console.log(`[DEBUG] Final model ID sent to OpenRouter:`, openRouterPayload.model)
+  console.log(`[DEBUG] Full payload:`, JSON.stringify(openRouterPayload, null, 2))
+  console.log(`[DEBUG] Modalities check:`, openRouterPayload.modalities)
   
   // Обязательные заголовки для OpenRouter
   const openRouterHeaders = {
