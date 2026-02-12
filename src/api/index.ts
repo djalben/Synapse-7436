@@ -1,3 +1,7 @@
+// Переключаем с 'edge' на 'nodejs' и увеличиваем время (дублируем в api/index.ts для ясности)
+export const runtime = 'nodejs';
+export const maxDuration = 60; // Даем функции 60 секунд на работу
+
 import { Hono } from 'hono';
 import { cors } from "hono/cors"
 import { prettyJSON } from "hono/pretty-json"
