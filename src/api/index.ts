@@ -202,14 +202,14 @@ app.post('/image', async (c) => {
   // OpenRouter fallback или основной путь
   console.log(`[DEBUG] Using OpenRouter with model:`, openRouterModel)
   
-  // Жестко заданный абсолютный URL для OpenRouter (без относительных путей)
-  const openRouterUrl = "https://openrouter.ai/api/v1/images/generations"
-  
   // Проверка ключа перед использованием
   if (!openRouterKey || openRouterKey === "") {
     console.error(`[DEBUG] OPENROUTER_API_KEY is undefined or empty before fetch`)
     return c.json({ error: "API key is missing" }, 503 as const)
   }
+  
+  // Используем chat/completions эндпоинт для Flux моделей (стандарт OpenRouter)
+  const openRouterUrl = "https://openrouter.ai/api/v1/chat/completions"
   
   console.log(`[DEBUG] Final URL for OpenRouter:`, openRouterUrl)
   console.log(`[DEBUG] OpenRouter API key check:`, {
@@ -218,27 +218,50 @@ app.post('/image', async (c) => {
     keyPreview: openRouterKey.substring(0, 8) + "...",
   })
   
+  // Формат chat/completions для генерации изображений
   const openRouterPayload = {
     model: openRouterModel,
-    prompt: enhancedPrompt,
-    n: Math.min(Math.max(numImages || 1, 1), 4),
-    size: `${size.width}x${size.height}`,
+    messages: [
+      {
+        role: "user",
+        content: enhancedPrompt,
+      },
+    ],
+    modalities: ["image"], // Для Flux моделей - только изображения
   }
+  
+  // Обязательные заголовки для OpenRouter
+  const openRouterHeaders = {
+    "Authorization": `Bearer ${openRouterKey}`,
+    "Content-Type": "application/json",
+    "HTTP-Referer": "https://synapse-7436.vercel.app",
+    "X-Title": "Synapse AI Studio",
+  }
+  
+  console.log(`[DEBUG] Headers sent:`, {
+    hasAuthorization: !!openRouterHeaders.Authorization,
+    authorizationPreview: openRouterHeaders.Authorization.substring(0, 20) + "...",
+    httpReferer: openRouterHeaders["HTTP-Referer"],
+    xTitle: openRouterHeaders["X-Title"],
+    contentType: openRouterHeaders["Content-Type"],
+  })
   
   const openRouterAbort = new AbortController()
   const openRouterTimeout = setTimeout(() => openRouterAbort.abort(), 8000)
   
   try {
     console.log(`[DEBUG] Sending fetch request to:`, openRouterUrl)
+    console.log(`[DEBUG] Payload:`, {
+      model: openRouterPayload.model,
+      messagesCount: openRouterPayload.messages.length,
+      modalities: openRouterPayload.modalities,
+      promptLength: enhancedPrompt.length,
+    })
+    
     const response = await fetch(openRouterUrl, {
       method: "POST",
       signal: openRouterAbort.signal,
-      headers: {
-        "Authorization": `Bearer ${openRouterKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://synapse-7436.vercel.app",
-        "X-Title": "Synapse AI",
-      },
+      headers: openRouterHeaders,
       body: JSON.stringify(openRouterPayload),
     })
     
@@ -264,21 +287,40 @@ app.post('/image', async (c) => {
       return c.json({ error: "Failed to generate image. Please try again." }, statusCode)
     }
     
+    // Формат ответа chat/completions: images в choices[0].message.images
     const data = await response.json() as {
-      data?: Array<{ url?: string; b64_json?: string }>
+      choices?: Array<{
+        message?: {
+          images?: Array<{
+            image_url?: { url: string }
+            imageUrl?: { url: string }
+          }>
+        }
+      }>
     }
     
-    if (data.data && data.data.length > 0) {
-      const images = data.data.map((img, idx) => ({
-        id: `${Date.now()}-${idx}`,
-        url: img.url || (img.b64_json ? `data:image/png;base64,${img.b64_json}` : null),
-        prompt: prompt.trim(),
-        aspectRatio: aspectRatio || "1:1",
-        style: specializedEngine === "niji-v6" ? "nana-banana" : style || "photorealistic",
-        mode: mode || "text-to-image",
-        createdAt: new Date().toISOString(),
-        creditCost: (engine === "kandinsky-3.1" || engine === "flux-schnell" || !engine) ? 0 : 1,
-      })).filter(img => img.url)
+    console.log(`[DEBUG] Parsed response data:`, {
+      hasChoices: !!data.choices,
+      choicesCount: data.choices?.length || 0,
+      hasImages: !!data.choices?.[0]?.message?.images,
+      imagesCount: data.choices?.[0]?.message?.images?.length || 0,
+    })
+    
+    const message = data.choices?.[0]?.message
+    if (message?.images && message.images.length > 0) {
+      const images = message.images.map((img, idx) => {
+        const imageUrl = img.image_url?.url || img.imageUrl?.url
+        return {
+          id: `${Date.now()}-${idx}`,
+          url: imageUrl,
+          prompt: prompt.trim(),
+          aspectRatio: aspectRatio || "1:1",
+          style: specializedEngine === "niji-v6" ? "nana-banana" : style || "photorealistic",
+          mode: mode || "text-to-image",
+          createdAt: new Date().toISOString(),
+          creditCost: (engine === "kandinsky-3.1" || engine === "flux-schnell" || !engine) ? 0 : 1,
+        }
+      }).filter(img => img.url)
       
       console.log(`[DEBUG] Successfully generated ${images.length} images`)
       return c.json({ images, totalCreditCost: images.length }, 201 as const)
