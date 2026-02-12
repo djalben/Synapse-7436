@@ -43,11 +43,6 @@ export const CHAT_MODEL_TIERS: Record<string, SynapseTier> = {
   "google/gemini-pro-1.5": "PRO_STUDIO",
   "black-forest-labs/flux-pro": "PRO_STUDIO",
   
-  // PRO STUDIO (2 990 ₽)
-  "openai/o1": "PRO_STUDIO",
-  "google/gemini-pro-1.5": "PRO_STUDIO",
-  "black-forest-labs/flux-pro": "PRO_STUDIO",
-  
   // MAXIMAL (8 990 ₽) - полный доступ ко всем моделям
 };
 

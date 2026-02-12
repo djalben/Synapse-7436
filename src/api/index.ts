@@ -99,7 +99,7 @@ app.get('/models-debug', async (c) => {
       }, response.status >= 500 ? 500 as const : response.status as 400 | 401 | 403)
     }
     
-    const data = await response.json()
+    const data = (await response.json()) as any
     
     // Фильтруем только Flux модели для удобства
     const fluxModels = Array.isArray(data.data) 
