@@ -28,13 +28,22 @@ type Env = {
   VITE_BASE_URL?: string
 }
 
+/** Строит полный URL из запроса (Node.js может передавать относительный path — исправляем ERR_INVALID_URL) */
+function getRequestUrl(c: { req: { url: string; header: (n: string) => string | undefined } }): URL {
+  const raw = c.req.url
+  if (raw.startsWith("http://") || raw.startsWith("https://")) return new URL(raw)
+  const host = c.req.header("host") || "localhost"
+  const protocol = c.req.header("x-forwarded-proto") || "https"
+  return new URL(raw, `${protocol}://${host}`)
+}
+
 // basePath('/api') — все роуты доступны как /api/... (фронт должен слать /api/image без слеша в конце)
 const app = new Hono().basePath('/api')
 
 // Глобальное логирование всех входящих запросов
 app.use('*', async (c, next) => {
-  const url = new URL(c.req.url)
-  console.log(`[DEBUG] ${c.req.method} ${url.pathname} (full URL: ${c.req.url})`)
+  const url = getRequestUrl(c)
+  console.log(`[DEBUG] ${c.req.method} ${url.pathname} (full URL: ${url.toString()})`)
   await next()
 })
 
@@ -49,11 +58,11 @@ app.use('*', cors({
 // Debug: /api/ping, /api/debug
 app.get('/ping', (c) => c.json({ message: `Pong! ${Date.now()}` }));
 app.get('/debug', (c) => {
-  const url = new URL(c.req.url)
+  const url = getRequestUrl(c)
   return c.json({
     path: url.pathname,
     method: c.req.method,
-    url: c.req.url,
+    url: url.toString(),
     registeredRoutes: [
       '/api/ping',
       '/api/debug',
@@ -136,8 +145,9 @@ app.route('/chat', chatRoutes);
 app.post('/image', async (c) => {
   const requestStartTime = Date.now()
   console.log(`[DEBUG] Image generation request START at ${new Date().toISOString()} (elapsed 0ms)`)
-  console.log(`[DEBUG] Request URL:`, c.req.url)
-  console.log(`[DEBUG] Request path:`, new URL(c.req.url).pathname)
+  const requestUrl = getRequestUrl(c)
+  console.log(`[DEBUG] Request URL:`, requestUrl.toString())
+  console.log(`[DEBUG] Request path:`, requestUrl.pathname)
   console.log(`[DEBUG] POST /image handler called`)
   
   // Получение env переменных через getRuntimeEnv (стандарт Vercel Edge)
@@ -381,9 +391,11 @@ app.post('/image', async (c) => {
   console.log(`[DEBUG] OpenRouter fetch timeout set to ${OPENROUTER_TIMEOUT_MS / 1000}s`)
   
   try {
-    console.log(`[DEBUG] Sending fetch request to:`, openRouterUrl)
+    const fullUrl = openRouterUrl
+    console.log("[DEBUG] Final request URL:", fullUrl)
+    console.log(`[DEBUG] Sending fetch request to:`, fullUrl)
     
-    const response = await fetch(openRouterUrl, {
+    const response = await fetch(fullUrl, {
       method: "POST",
       signal: openRouterAbort.signal,
       headers: openRouterHeaders,
@@ -538,18 +550,19 @@ app.route('/webhook', webhookRoutes);
 
 // Fallback для несуществующих роутов
 app.notFound((c) => {
-  const url = new URL(c.req.url)
+  const url = getRequestUrl(c)
   const pathname = url.pathname
+  const fullUrl = url.toString()
   console.error("[API] Route not found:", {
     path: pathname,
     method: c.req.method,
-    url: c.req.url,
+    url: fullUrl,
   });
   
   return c.json({ 
     error: `Route not found: ${pathname}`,
     method: c.req.method,
-    url: c.req.url,
+    url: fullUrl,
     availableRoutes: ['/api/ping', '/api/debug', '/api/chat', '/api/image', '/api/video', '/api/enhance', '/api/audio', '/api/avatar', '/api/webhook']
   }, 404);
 });
