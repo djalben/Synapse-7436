@@ -28,13 +28,26 @@ type Env = {
   VITE_BASE_URL?: string
 }
 
-/** Строит полный URL из запроса (Node.js может передавать относительный path — исправляем ERR_INVALID_URL) */
-function getRequestUrl(c: { req: { url: string; header: (n: string) => string | undefined } }): URL {
+const FALLBACK_BASE = "https://synapse-7436.vercel.app"
+
+/** Строит полный URL из запроса. Устойчиво к Hono/Node.js/Vercel (без c.req.header, через raw.headers). */
+function getRequestUrl(c: { req: { url: string; raw: { headers: Headers | Record<string, string | string[] | undefined> } } }): URL {
   const raw = c.req.url
   if (raw.startsWith("http://") || raw.startsWith("https://")) return new URL(raw)
-  const host = c.req.header("host") || "localhost"
-  const protocol = c.req.header("x-forwarded-proto") || "https"
-  return new URL(raw, `${protocol}://${host}`)
+  const headers = c.req.raw.headers
+  const host =
+    (typeof (headers as Headers).get === "function"
+      ? (headers as Headers).get?.("host")
+      : (headers as Record<string, string | string[] | undefined>)["host"]) ?? null
+  const hostStr = (Array.isArray(host) ? host[0] : host)?.trim() || ""
+  const protocol =
+    (typeof (headers as Headers).get === "function"
+      ? (headers as Headers).get?.("x-forwarded-proto")
+      : (headers as Record<string, string | string[] | undefined>)["x-forwarded-proto"]) ?? null
+  const protocolStr = (Array.isArray(protocol) ? protocol[0] : protocol) || "https"
+  const base =
+    hostStr && hostStr !== "localhost" ? `${protocolStr}://${hostStr}` : FALLBACK_BASE
+  return new URL(raw, base)
 }
 
 // basePath('/api') — все роуты доступны как /api/... (фронт должен слать /api/image без слеша в конце)
