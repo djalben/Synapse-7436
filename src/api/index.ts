@@ -10,6 +10,12 @@ import { enhanceRoutes } from './routes/enhance.js'
 import { audioRoutes } from './routes/audio.js'
 import { avatarRoutes } from './routes/avatar.js'
 import { webhookRoutes } from './routes/webhook.js'
+import { 
+  type SynapseTier, 
+  getRequiredTierForImageModel, 
+  checkTierAccess, 
+  planToTier 
+} from '../config/tiers.js'
 
 // Environment variables type for Hono context
 type Env = {
@@ -194,24 +200,64 @@ app.post('/image', async (c) => {
     enhancedPrompt += stylePrompts[style] || ""
   }
   
-  // Model mapping: для nana-banana используем разные модели для Replicate и OpenRouter
-  // Временно пробуем альтернативные модели для диагностики
+  // Получение tier пользователя из заголовка или дефолт START
+  const userPlan = c.req.header("X-User-Plan") || "free"
+  const userTier: SynapseTier = planToTier(userPlan)
+  
+  console.log(`[DEBUG] User tier check:`, {
+    userPlan,
+    userTier,
+    tierHeader: c.req.header("X-User-Tier"),
+  })
+  
+  // Model mapping: только модели из тарифной сетки Synapse
   const MODEL_MAP: Record<string, string> = {
-    "kandinsky-3.1": "black-forest-labs/flux-schnell",
+    // START tier (390 ₽)
     "flux-schnell": "black-forest-labs/flux-schnell",
+    
+    // CREATOR tier (990 ₽)
     "dall-e-3": "openai/dall-e-3",
-    "midjourney-v7": "black-forest-labs/flux-schnell",
-    "nana-banana": "black-forest-labs/flux-dev", // Временно пробуем flux-dev вместо flux-schnell
+    "nana-banana": "google/gemini-2.0-flash-exp:free", // Nana Banana для CREATOR
+    
+    // PRO_STUDIO tier (2 990 ₽)
+    "flux-pro": "black-forest-labs/flux-pro",
   }
   const openRouterModel = engine && MODEL_MAP[engine] ? MODEL_MAP[engine] : "black-forest-labs/flux-schnell"
-  const replicateModel = "black-forest-labs/flux-schnell" // Для Replicate (без "1")
+  const replicateModel = "black-forest-labs/flux-schnell" // Для Replicate
+  
+  // Проверка доступа к модели по тарифу
+  const requiredTier = getRequiredTierForImageModel(openRouterModel)
+  const accessCheck = checkTierAccess(userTier, requiredTier)
   
   console.log(`[DEBUG] Model selection:`, {
     engine: engine || "default",
     openRouterModel,
     replicateModel,
+    requiredTier,
+    userTier,
+    accessAllowed: accessCheck.allowed,
     willUseReplicate: engine === "nana-banana" && !!replicateToken,
   })
+  
+  if (!accessCheck.allowed) {
+    console.warn(`[DEBUG] Image access denied:`, {
+      userTier,
+      requiredTier,
+      model: openRouterModel,
+      message: accessCheck.message,
+    })
+    return c.json({ 
+      error: accessCheck.message || "Доступно только в PRO STUDIO",
+      requiredTier,
+      userTier,
+    }, 403 as const)
+  }
+    return c.json({ 
+      error: accessCheck.message || "Требуется более высокий тариф для этой модели",
+      requiredTier,
+      userTier,
+    }, 403 as const)
+  }
   
   // Для nana-banana пробуем Replicate сначала
   if (engine === "nana-banana" && replicateToken) {

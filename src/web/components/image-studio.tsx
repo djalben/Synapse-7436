@@ -21,6 +21,13 @@ import {
 } from "lucide-react";
 import { useUsage, MAX_FREE_IMAGE_PER_DAY } from "./usage-context";
 import { type UserPlan, canAccessModel } from "./model-selector";
+import { 
+  type SynapseTier, 
+  getRequiredTierForImageModel, 
+  checkTierAccess, 
+  planToTier,
+  FRONTEND_TO_BACKEND,
+} from "../../config/tiers";
 import { addToHistory } from "./placeholder-pages";
 
 // ===== TYPES & INTERFACES =====
@@ -78,23 +85,23 @@ interface EnhancedResult {
 
 // ===== CONSTANTS =====
 
-// Image engine (model) for generation — requiredPlan как в чате
-type ImageEngineId = "kandinsky-3.1" | "flux-schnell" | "dall-e-3" | "midjourney-v7" | "nana-banana";
+// Image engine (model) for generation — только модели из тарифной сетки Synapse
+type ImageEngineId = "flux-schnell" | "dall-e-3" | "nana-banana" | "flux-pro";
 
 interface ImageEngineOption {
   id: ImageEngineId;
   label: string;
+  subtitle?: string; // Метка тарифа (START, CREATOR, PRO STUDIO)
   creditCost: number;
   requiredPlan: UserPlan;
-  isExclusive?: boolean; // Nana Banana — Star/Pro
+  isLocked?: boolean; // Показывать замок 🔒
 }
 
 const imageEngineOptions: ImageEngineOption[] = [
-  { id: "kandinsky-3.1", label: "Kandinsky 3.1", creditCost: 0, requiredPlan: "free" },
-  { id: "flux-schnell", label: "Flux.1 [schnell]", creditCost: 0, requiredPlan: "free" },
-  { id: "dall-e-3", label: "DALL-E 3", creditCost: 1, requiredPlan: "free" },
-  { id: "midjourney-v7", label: "Midjourney v7", creditCost: 1, requiredPlan: "free" },
-  { id: "nana-banana", label: "Nana Banana", creditCost: 1, requiredPlan: "free", isExclusive: true },
+  { id: "flux-schnell", label: "Flux Schnell", subtitle: "START", creditCost: 0, requiredPlan: "free" },
+  { id: "dall-e-3", label: "DALL-E 3", subtitle: "CREATOR", creditCost: 1, requiredPlan: "standard" },
+  { id: "nana-banana", label: "Nana Banana", subtitle: "CREATOR", creditCost: 1, requiredPlan: "standard" },
+  { id: "flux-pro", label: "Flux Pro", subtitle: "PRO STUDIO", creditCost: 2, requiredPlan: "ultra", isLocked: true },
 ];
 
 const styleOptions: StyleOption[] = [
@@ -551,13 +558,19 @@ interface ImageEngineSelectorProps {
 }
 
 const ImageEngineSelector = ({ selected, onChange, userPlan, onPremiumClick }: ImageEngineSelectorProps) => {
+  const userTier = planToTier(userPlan);
+  
   return (
     <div className="space-y-1.5">
       <label className="text-xs font-medium text-[#888]">Модель</label>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
         {imageEngineOptions.map((engine) => {
           const isSelected = selected === engine.id;
-          const isLocked = !canAccessModel(userPlan, engine.requiredPlan);
+          // Конвертируем frontend ID в backend ID для проверки тарифа
+          const backendId = FRONTEND_TO_BACKEND[engine.id] || engine.id;
+          const requiredTier = getRequiredTierForImageModel(backendId);
+          const accessCheck = checkTierAccess(userTier, requiredTier);
+          const isLocked = !accessCheck.allowed || engine.isLocked;
 
           return (
             <button
@@ -584,20 +597,21 @@ const ImageEngineSelector = ({ selected, onChange, userPlan, onPremiumClick }: I
                 }
               `}
             >
-              {engine.isExclusive && !isLocked && (
-                <Star className={`w-3.5 h-3.5 absolute top-1.5 right-1.5 ${isSelected ? "text-amber-400" : "text-amber-500/70"}`} aria-hidden />
-              )}
               {isLocked && (
                 <Lock className="w-3.5 h-3.5 absolute top-1.5 right-1.5 text-amber-400" aria-hidden />
               )}
               <span className={`text-xs font-medium truncate w-full text-center ${engine.isExclusive && isSelected ? "text-amber-200" : isSelected ? "text-indigo-200" : "text-white/90"}`}>
                 {engine.label}
               </span>
-              {engine.requiredPlan === "free" && (
-                <span className="text-[9px] text-emerald-400 font-medium">Бесплатно</span>
-              )}
-              {engine.isExclusive && !isLocked && (
-                <span className="text-[9px] text-amber-400 font-medium">Pro</span>
+              {engine.subtitle && (
+                <span className={`text-[9px] font-medium ${
+                  requiredTier === "START" ? "text-emerald-400" :
+                  requiredTier === "CREATOR" ? "text-blue-400" :
+                  requiredTier === "PRO_STUDIO" ? "text-amber-400" :
+                  "text-purple-400"
+                }`}>
+                  {engine.subtitle}
+                </span>
               )}
             </button>
           );
@@ -1644,6 +1658,7 @@ const GeneratePanel = ({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-User-Plan": userPlan,
         },
         body: JSON.stringify({
           prompt: prompt.trim(),

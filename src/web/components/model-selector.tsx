@@ -1,6 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { Lock, ChevronDown } from "lucide-react";
 import { useUsage } from "./usage-context";
+import { 
+  type SynapseTier, 
+  getRequiredTierForChatModel, 
+  checkTierAccess, 
+  planToTier,
+  CHAT_MODEL_TIERS 
+} from "../../config/tiers";
 
 // Provider logos
 const OpenAILogo = () => (
@@ -51,12 +58,13 @@ export interface Model {
 }
 
 /** Chat models with metadata for dropdown cards. */
+/** Только модели из тарифной сетки Synapse */
 export const models: Model[] = [
   {
     id: "deepseek-r1",
     backendId: "deepseek/deepseek-r1",
     name: "DeepSeek R1",
-    subtitle: "Бесплатно",
+    subtitle: "START",
     description: "Рассуждение и логика. Лучший для сложных вычислений.",
     intelligence: 9,
     speed: 6,
@@ -70,7 +78,7 @@ export const models: Model[] = [
     id: "gpt-4o-mini",
     backendId: "openai/gpt-4o-mini",
     name: "GPT-4o mini",
-    subtitle: "Бесплатно",
+    subtitle: "START",
     description: "Быстрый и экономный. Подходит для простых чатов.",
     intelligence: 6,
     speed: 10,
@@ -81,38 +89,10 @@ export const models: Model[] = [
     isPremium: false,
   },
   {
-    id: "mimo-v2-flash",
-    backendId: "xiaomi/mimo-v2-flash",
-    name: "Xiaomi MiMo-V2-Flash",
-    subtitle: "Бесплатно",
-    description: "Рассуждения и код. Открытая модель с большим контекстом.",
-    intelligence: 9,
-    speed: 7,
-    creditCost: 0,
-    dotColor: "bg-orange-400",
-    providerLogo: <XiaomiLogo />,
-    requiredPlan: "free",
-    isPremium: false,
-  },
-  {
-    id: "devstral-2512",
-    backendId: "mistralai/devstral-2512:free",
-    name: "Devstral 2 2512",
-    subtitle: "Бесплатно",
-    description: "Агентное программирование и работа с кодом.",
-    intelligence: 9,
-    speed: 7,
-    creditCost: 0,
-    dotColor: "bg-amber-400",
-    providerLogo: <MistralLogo />,
-    requiredPlan: "free",
-    isPremium: false,
-  },
-  {
     id: "gpt-4o",
     backendId: "openai/gpt-4o",
     name: "GPT-4o",
-    subtitle: "Standard",
+    subtitle: "CREATOR",
     description: "Универсальный флагман. Творчество и анализ.",
     intelligence: 9,
     speed: 8,
@@ -126,7 +106,7 @@ export const models: Model[] = [
     id: "claude-3.5-sonnet",
     backendId: "anthropic/claude-3.5-sonnet",
     name: "Claude 3.5 Sonnet",
-    subtitle: "Standard",
+    subtitle: "CREATOR",
     description: "Мастер текстов и кодинга. Очень человечный.",
     intelligence: 9,
     speed: 8,
@@ -140,7 +120,7 @@ export const models: Model[] = [
     id: "gpt-5-o1",
     backendId: "openai/o1",
     name: "GPT-5 (o1)",
-    subtitle: "Ultra",
+    subtitle: "PRO STUDIO",
     description: "Максимальный интеллект. Решает невозможные задачи.",
     intelligence: 10,
     speed: 4,
@@ -161,6 +141,18 @@ const PLAN_HIERARCHY: Record<UserPlan, number> = {
 
 export const canAccessModel = (userPlan: UserPlan, requiredPlan: UserPlan): boolean => {
   return PLAN_HIERARCHY[userPlan] >= PLAN_HIERARCHY[requiredPlan];
+};
+
+// Новая функция проверки доступа через систему тарифов Synapse
+export const canAccessModelByTier = (
+  userPlan: UserPlan,
+  backendModelId: string
+): { allowed: boolean; requiredTier?: SynapseTier; userTier?: SynapseTier } => {
+  const userTier = planToTier(userPlan);
+  const requiredTier = getRequiredTierForChatModel(backendModelId);
+  const allowed = checkTierAccess(userTier, requiredTier).allowed;
+  
+  return { allowed, requiredTier, userTier };
 };
 
 export const getModelCreditCost = (modelId: string): number => {

@@ -5,6 +5,7 @@ import { MotionLab } from "../components/motion-lab";
 import { ImageStudio } from "../components/image-studio";
 import { AudioStudio } from "../components/audio-studio";
 import { AvatarStudio } from "../components/avatar-studio";
+import { TierGate } from "../components/tier-gate";
 import { HistoryPage } from "../components/placeholder-pages";
 import { SettingsPage } from "../components/settings-page";
 import { ChatInterface } from "../components/chat-interface";
@@ -29,13 +30,25 @@ function Index() {
       case "chat":
         return <ChatInterface />;
       case "motion":
-        return <MotionLab />;
+        return (
+          <TierGate requiredTier="PRO_STUDIO" featureName="Видео">
+            <MotionLab />
+          </TierGate>
+        );
       case "image":
         return <ImageStudio />;
       case "audio":
-        return <AudioStudio />;
+        return (
+          <TierGate requiredTier="PRO_STUDIO" featureName="Аудио">
+            <AudioStudio />
+          </TierGate>
+        );
       case "avatar":
-        return <AvatarStudio />;
+        return (
+          <TierGate requiredTier="PRO_STUDIO" featureName="Аватары">
+            <AvatarStudio />
+          </TierGate>
+        );
       case "history":
         return <HistoryPage onNavigate={setActiveTab} />;
       case "settings":

@@ -463,7 +463,10 @@ export const ChatInterface = () => {
   const { messages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({ 
       api: "/api/chat",
-      body: () => ({ model: selectedModelRef.current })
+      body: () => ({ model: selectedModelRef.current }),
+      headers: () => ({
+        "X-User-Plan": userPlan,
+      }),
     }),
     onFinish: (message) => {
       const modelId = selectedModelRef.current

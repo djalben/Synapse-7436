@@ -1,6 +1,12 @@
 import { Hono } from "hono"
 import { streamText, convertToModelMessages, UIMessage } from "ai"
 import { createOpenAI } from "@ai-sdk/openai"
+import { 
+  type SynapseTier, 
+  getRequiredTierForChatModel, 
+  checkTierAccess, 
+  planToTier 
+} from '../../config/tiers.js'
 
 // Environment variables type for Hono context
 type Env = {
@@ -22,28 +28,27 @@ interface ChatRequest {
 }
 
 // Model mapping from frontend IDs to OpenRouter model IDs
+// Только модели из тарифной сетки Synapse
 const MODEL_MAP: Record<string, string> = {
+  // START tier
   "deepseek-r1": "deepseek/deepseek-r1",
   "gpt-4o-mini": "openai/gpt-4o-mini",
-  "mimo-v2-flash": "xiaomi/mimo-v2-flash",
-  "devstral-2512": "mistralai/devstral-2512:free",
+  
+  // CREATOR tier
   "gpt-4o": "openai/gpt-4o",
   "claude-3.5-sonnet": "anthropic/claude-3.5-sonnet",
+  
+  // PRO_STUDIO tier
   "gpt-5-o1": "openai/o1",
-  // Legacy mappings for backwards compatibility
-  "deepseek-v3": "deepseek/deepseek-chat",
 }
 
-// Credit costs per model (0 = free tier)
+// Credit costs per model
 const CREDIT_COSTS: Record<string, number> = {
   "deepseek-r1": 0.1,
   "gpt-4o-mini": 0.1,
-  "mimo-v2-flash": 0,
-  "devstral-2512": 0,
   "gpt-4o": 1,
   "claude-3.5-sonnet": 1,
   "gpt-5-o1": 5,
-  "deepseek-v3": 0.5,
 }
 
 chatRoutes.post("/", async (c) => {
@@ -74,6 +79,34 @@ chatRoutes.post("/", async (c) => {
 
     // Map the model ID to OpenRouter format (default to DeepSeek R1)
     const modelId = MODEL_MAP[model] || "deepseek/deepseek-r1"
+    
+    // Проверка доступа по тарифу
+    const userPlan = c.req.header("X-User-Plan") || "free"
+    const userTier: SynapseTier = planToTier(userPlan)
+    const requiredTier = getRequiredTierForChatModel(modelId)
+    const accessCheck = checkTierAccess(userTier, requiredTier)
+    
+    console.log(`[DEBUG] Chat tier check:`, {
+      userPlan,
+      userTier,
+      modelId,
+      requiredTier,
+      accessAllowed: accessCheck.allowed,
+    })
+    
+    if (!accessCheck.allowed) {
+      console.warn(`[DEBUG] Chat access denied:`, {
+        userTier,
+        requiredTier,
+        model: modelId,
+        message: accessCheck.message,
+      })
+      return c.json({ 
+        error: accessCheck.message || "Доступно только в PRO STUDIO",
+        requiredTier,
+        userTier,
+      }, 403 as const)
+    }
     
     // Get credit cost for response metadata
     const creditCost = CREDIT_COSTS[model] || 0.1
