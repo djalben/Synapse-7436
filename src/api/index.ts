@@ -315,8 +315,8 @@ app.post('/image', async (c) => {
     return c.json({ error: "API key is missing" }, 503 as const)
   }
   
-  // Используем стандартный эндпоинт генерации изображений для Flux моделей
-  const openRouterUrl = "https://openrouter.ai/api/v1/images/generations"
+  // Используем chat/completions эндпоинт для Flux моделей (стандарт OpenRouter)
+  const openRouterUrl = "https://openrouter.ai/api/v1/chat/completions"
   
   console.log(`[DEBUG] Final URL for OpenRouter:`, openRouterUrl)
   console.log(`[DEBUG] OpenRouter API key check:`, {
@@ -325,11 +325,16 @@ app.post('/image', async (c) => {
     keyPreview: openRouterKey.substring(0, 8) + "...",
   })
   
-  // Формат images/generations для генерации изображений
+  // Формат chat/completions для генерации изображений с Flux моделями
   const openRouterPayload = {
-    model: openRouterModel,
-    prompt: enhancedPrompt,
-    response_format: "url",
+    model: openRouterModel, // Важно: оставить правильный ID модели (например, "black-forest-labs/flux-1-schnell")
+    messages: [
+      {
+        role: "user",
+        content: enhancedPrompt,
+      },
+    ],
+    modalities: ["image"], // Для Flux моделей - только изображения
   }
   
   console.log(`[DEBUG] Sending model ID:`, openRouterPayload.model)
@@ -386,50 +391,43 @@ app.post('/image', async (c) => {
       return c.json({ error: "Failed to generate image. Please try again." }, statusCode)
     }
     
-    // Формат ответа images/generations: data массив с объектами { url: string }
+    // Формат ответа chat/completions: images в choices[0].message.images
     const data = await response.json() as {
-      data?: Array<{ url: string }>
-      url?: string // Альтернативный формат с одним изображением
+      choices?: Array<{
+        message?: {
+          images?: Array<{
+            image_url?: { url: string }
+            imageUrl?: { url: string }
+          }>
+        }
+      }>
     }
     
     console.log(`[DEBUG] Parsed response data:`, {
-      hasData: !!data.data,
-      dataCount: data.data?.length || 0,
-      hasUrl: !!data.url,
+      hasChoices: !!data.choices,
+      choicesCount: data.choices?.length || 0,
+      hasImages: !!data.choices?.[0]?.message?.images,
+      imagesCount: data.choices?.[0]?.message?.images?.length || 0,
       fullResponse: JSON.stringify(data).substring(0, 500),
     })
     
-    // Обработка формата с массивом data
-    if (data.data && data.data.length > 0) {
-      const images = data.data.map((img, idx) => ({
-        id: `${Date.now()}-${idx}`,
-        url: img.url,
-        prompt: prompt.trim(),
-        aspectRatio: aspectRatio || "1:1",
-        style: specializedEngine === "niji-v6" ? "nana-banana" : style || "photorealistic",
-        mode: mode || "text-to-image",
-        createdAt: new Date().toISOString(),
-        creditCost: (engine === "kandinsky-3.1" || engine === "flux-schnell" || !engine) ? 0 : 1,
-      })).filter(img => img.url)
+    const message = data.choices?.[0]?.message
+    if (message?.images && message.images.length > 0) {
+      const images = message.images.map((img, idx) => {
+        const imageUrl = img.image_url?.url || img.imageUrl?.url
+        return {
+          id: `${Date.now()}-${idx}`,
+          url: imageUrl,
+          prompt: prompt.trim(),
+          aspectRatio: aspectRatio || "1:1",
+          style: specializedEngine === "niji-v6" ? "nana-banana" : style || "photorealistic",
+          mode: mode || "text-to-image",
+          createdAt: new Date().toISOString(),
+          creditCost: (engine === "kandinsky-3.1" || engine === "flux-schnell" || !engine) ? 0 : 1,
+        }
+      }).filter(img => img.url)
       
       console.log(`[DEBUG] Successfully generated ${images.length} images`)
-      return c.json({ images, totalCreditCost: images.length }, 201 as const)
-    }
-    
-    // Обработка формата с одним url
-    if (data.url) {
-      const images = [{
-        id: `${Date.now()}-0`,
-        url: data.url,
-        prompt: prompt.trim(),
-        aspectRatio: aspectRatio || "1:1",
-        style: specializedEngine === "niji-v6" ? "nana-banana" : style || "photorealistic",
-        mode: mode || "text-to-image",
-        createdAt: new Date().toISOString(),
-        creditCost: (engine === "kandinsky-3.1" || engine === "flux-schnell" || !engine) ? 0 : 1,
-      }]
-      
-      console.log(`[DEBUG] Successfully generated 1 image`)
       return c.json({ images, totalCreditCost: images.length }, 201 as const)
     }
     
