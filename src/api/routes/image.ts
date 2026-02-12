@@ -38,6 +38,7 @@ const MODEL_MAP: Record<string, string> = {
 }
 
 // Get Replicate prediction status (for frontend polling)
+// Используем абсолютный URL для внешнего API
 async function getReplicatePredictionStatus(predictionId: string, apiToken: string): Promise<{ status: string; output?: string | string[]; error?: string }> {
   const response = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
     headers: {
@@ -182,6 +183,7 @@ imageRoutes.post("/", async (c) => {
       // For text-to-image, use flux-1-schnell
       if (mode === "image-to-image" && referenceImage) {
         // OpenRouter image-to-image; 8s client timeout to avoid Vercel 10s limit
+        // Используем абсолютный URL для внешнего API OpenRouter
         const imageToImageAbort = new AbortController()
         const imageToImageTimeout = setTimeout(() => imageToImageAbort.abort(), 8000)
         let response: Response
@@ -274,7 +276,7 @@ imageRoutes.post("/", async (c) => {
           try {
             console.log("[Image API] Creating Replicate prediction for Nana Banana")
             
-            // Create prediction in Replicate
+            // Create prediction in Replicate - используем абсолютный URL для внешнего API
             const replicateResponse = await fetch("https://api.replicate.com/v1/predictions", {
               method: "POST",
               headers: {
@@ -315,6 +317,7 @@ imageRoutes.post("/", async (c) => {
         }
         
         // Use OpenRouter for other models or as fallback; 8s client timeout to avoid Vercel 10s limit
+        // Используем абсолютный URL для внешнего API OpenRouter
         const openRouterAbort = new AbortController()
         const openRouterTimeout = setTimeout(() => openRouterAbort.abort(), 8000)
         let response: Response
