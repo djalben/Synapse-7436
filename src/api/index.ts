@@ -130,6 +130,8 @@ app.route('/chat', chatRoutes);
 
 // Прямой роут POST /api/image для упрощения маршрутизации Vercel Edge
 app.post('/image', async (c) => {
+  console.log(`[DEBUG] Request URL:`, c.req.url)
+  console.log(`[DEBUG] Request path:`, new URL(c.req.url).pathname)
   console.log(`[DEBUG] POST /image handler called`)
   const requestStartTime = Date.now()
   
@@ -313,8 +315,8 @@ app.post('/image', async (c) => {
     return c.json({ error: "API key is missing" }, 503 as const)
   }
   
-  // Используем chat/completions эндпоинт для Flux моделей (стандарт OpenRouter)
-  const openRouterUrl = "https://openrouter.ai/api/v1/chat/completions"
+  // Используем стандартный эндпоинт генерации изображений для Flux моделей
+  const openRouterUrl = "https://openrouter.ai/api/v1/images/generations"
   
   console.log(`[DEBUG] Final URL for OpenRouter:`, openRouterUrl)
   console.log(`[DEBUG] OpenRouter API key check:`, {
@@ -323,19 +325,15 @@ app.post('/image', async (c) => {
     keyPreview: openRouterKey.substring(0, 8) + "...",
   })
   
-  // Формат chat/completions для генерации изображений
+  // Формат images/generations для генерации изображений
   const openRouterPayload = {
     model: openRouterModel,
-    messages: [
-      {
-        role: "user",
-        content: enhancedPrompt,
-      },
-    ],
-    modalities: ["image"], // Для Flux моделей - только изображения
+    prompt: enhancedPrompt,
+    response_format: "url",
   }
   
   console.log(`[DEBUG] Sending model ID:`, openRouterPayload.model)
+  console.log(`[DEBUG] Payload:`, JSON.stringify(openRouterPayload, null, 2))
   
   // Обязательные заголовки для OpenRouter
   const openRouterHeaders = {
@@ -358,12 +356,6 @@ app.post('/image', async (c) => {
   
   try {
     console.log(`[DEBUG] Sending fetch request to:`, openRouterUrl)
-    console.log(`[DEBUG] Payload:`, {
-      model: openRouterPayload.model,
-      messagesCount: openRouterPayload.messages.length,
-      modalities: openRouterPayload.modalities,
-      promptLength: enhancedPrompt.length,
-    })
     
     const response = await fetch(openRouterUrl, {
       method: "POST",
@@ -394,45 +386,54 @@ app.post('/image', async (c) => {
       return c.json({ error: "Failed to generate image. Please try again." }, statusCode)
     }
     
-    // Формат ответа chat/completions: images в choices[0].message.images
+    // Формат ответа images/generations: data массив с объектами { url: string }
     const data = await response.json() as {
-      choices?: Array<{
-        message?: {
-          images?: Array<{
-            image_url?: { url: string }
-            imageUrl?: { url: string }
-          }>
-        }
-      }>
+      data?: Array<{ url: string }>
+      url?: string // Альтернативный формат с одним изображением
     }
     
     console.log(`[DEBUG] Parsed response data:`, {
-      hasChoices: !!data.choices,
-      choicesCount: data.choices?.length || 0,
-      hasImages: !!data.choices?.[0]?.message?.images,
-      imagesCount: data.choices?.[0]?.message?.images?.length || 0,
+      hasData: !!data.data,
+      dataCount: data.data?.length || 0,
+      hasUrl: !!data.url,
+      fullResponse: JSON.stringify(data).substring(0, 500),
     })
     
-    const message = data.choices?.[0]?.message
-    if (message?.images && message.images.length > 0) {
-      const images = message.images.map((img, idx) => {
-        const imageUrl = img.image_url?.url || img.imageUrl?.url
-        return {
-          id: `${Date.now()}-${idx}`,
-          url: imageUrl,
-          prompt: prompt.trim(),
-          aspectRatio: aspectRatio || "1:1",
-          style: specializedEngine === "niji-v6" ? "nana-banana" : style || "photorealistic",
-          mode: mode || "text-to-image",
-          createdAt: new Date().toISOString(),
-          creditCost: (engine === "kandinsky-3.1" || engine === "flux-schnell" || !engine) ? 0 : 1,
-        }
-      }).filter(img => img.url)
+    // Обработка формата с массивом data
+    if (data.data && data.data.length > 0) {
+      const images = data.data.map((img, idx) => ({
+        id: `${Date.now()}-${idx}`,
+        url: img.url,
+        prompt: prompt.trim(),
+        aspectRatio: aspectRatio || "1:1",
+        style: specializedEngine === "niji-v6" ? "nana-banana" : style || "photorealistic",
+        mode: mode || "text-to-image",
+        createdAt: new Date().toISOString(),
+        creditCost: (engine === "kandinsky-3.1" || engine === "flux-schnell" || !engine) ? 0 : 1,
+      })).filter(img => img.url)
       
       console.log(`[DEBUG] Successfully generated ${images.length} images`)
       return c.json({ images, totalCreditCost: images.length }, 201 as const)
     }
     
+    // Обработка формата с одним url
+    if (data.url) {
+      const images = [{
+        id: `${Date.now()}-0`,
+        url: data.url,
+        prompt: prompt.trim(),
+        aspectRatio: aspectRatio || "1:1",
+        style: specializedEngine === "niji-v6" ? "nana-banana" : style || "photorealistic",
+        mode: mode || "text-to-image",
+        createdAt: new Date().toISOString(),
+        creditCost: (engine === "kandinsky-3.1" || engine === "flux-schnell" || !engine) ? 0 : 1,
+      }]
+      
+      console.log(`[DEBUG] Successfully generated 1 image`)
+      return c.json({ images, totalCreditCost: images.length }, 201 as const)
+    }
+    
+    console.error(`[DEBUG] No images found in response:`, JSON.stringify(data))
     return c.json({ error: "No images generated" }, 500 as const)
   } catch (fetchError) {
     console.error(`[DEBUG] Fetch error:`, fetchError)
