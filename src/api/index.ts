@@ -79,7 +79,7 @@ app.post('/image', async (c) => {
   
   if (!openRouterKey) {
     console.error(`[DEBUG] OPENROUTER_API_KEY missing`)
-    return c.json({ error: "Image generation service is not available. Please check API configuration." }, 503)
+    return c.json({ error: "Image generation service is not available. Please check API configuration." }, 503 as const)
   }
   
   // Стандартизация JSON: парсинг тела запроса с обработкой ошибок
@@ -103,13 +103,13 @@ app.post('/image', async (c) => {
     })
   } catch (jsonError) {
     console.error(`[DEBUG] JSON parse error:`, jsonError)
-    return c.json({ error: "Invalid JSON in request body" }, 400)
+    return c.json({ error: "Invalid JSON in request body" }, 400 as const)
   }
   
   const { prompt, aspectRatio, numImages, style, referenceImage, specializedEngine, engine, mode } = body
   
   if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
-    return c.json({ error: "Please enter a prompt to generate an image." }, 400)
+    return c.json({ error: "Please enter a prompt to generate an image." }, 400 as const)
   }
   
   // Aspect ratio mapping
@@ -192,7 +192,7 @@ app.post('/image', async (c) => {
           aspectRatio,
           style: specializedEngine === "niji-v6" ? "nana-banana" : style,
           mode: mode || "text-to-image",
-        }, 201)
+        }, 201 as const)
       }
     } catch (replicateError) {
       console.warn(`[DEBUG] Replicate failed, falling back to OpenRouter:`, replicateError)
@@ -237,7 +237,8 @@ app.post('/image', async (c) => {
         status: response.status,
         errorPreview: errorText.substring(0, 200),
       })
-      return c.json({ error: "Failed to generate image. Please try again." }, response.status >= 500 ? 500 : response.status)
+      const statusCode = response.status >= 500 ? (500 as const) : (response.status >= 400 ? (response.status as 400 | 401 | 403 | 404 | 429) : (500 as const))
+      return c.json({ error: "Failed to generate image. Please try again." }, statusCode)
     }
     
     const data = await response.json() as {
@@ -257,13 +258,13 @@ app.post('/image', async (c) => {
       })).filter(img => img.url)
       
       console.log(`[DEBUG] Successfully generated ${images.length} images`)
-      return c.json({ images, totalCreditCost: images.length }, 201)
+      return c.json({ images, totalCreditCost: images.length }, 201 as const)
     }
     
-    return c.json({ error: "No images generated" }, 500)
+    return c.json({ error: "No images generated" }, 500 as const)
   } catch (fetchError) {
     console.error(`[DEBUG] Fetch error:`, fetchError)
-    return c.json({ error: "Network error. Please try again." }, 503)
+    return c.json({ error: "Network error. Please try again." }, 503 as const)
   } finally {
     clearTimeout(openRouterTimeout)
   }
