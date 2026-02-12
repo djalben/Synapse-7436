@@ -135,14 +135,15 @@ app.post('/image', async (c) => {
   }
   
   // Model mapping: для nana-banana используем разные модели для Replicate и OpenRouter
+  // OpenRouter использует формат black-forest-labs/flux-schnell (без "1")
   const MODEL_MAP: Record<string, string> = {
-    "kandinsky-3.1": "black-forest-labs/flux-1-schnell",
-    "flux-schnell": "black-forest-labs/flux-1-schnell",
+    "kandinsky-3.1": "black-forest-labs/flux-schnell",
+    "flux-schnell": "black-forest-labs/flux-schnell",
     "dall-e-3": "openai/dall-e-3",
-    "midjourney-v7": "black-forest-labs/flux-1-schnell",
-    "nana-banana": "black-forest-labs/flux-1-schnell", // Для OpenRouter
+    "midjourney-v7": "black-forest-labs/flux-schnell",
+    "nana-banana": "black-forest-labs/flux-schnell", // Для OpenRouter (без "1")
   }
-  const openRouterModel = engine && MODEL_MAP[engine] ? MODEL_MAP[engine] : "black-forest-labs/flux-1-schnell"
+  const openRouterModel = engine && MODEL_MAP[engine] ? MODEL_MAP[engine] : "black-forest-labs/flux-schnell"
   const replicateModel = "black-forest-labs/flux-schnell" // Для Replicate (без "1")
   
   console.log(`[DEBUG] Model selection:`, {
@@ -229,6 +230,8 @@ app.post('/image', async (c) => {
     ],
     modalities: ["image"], // Для Flux моделей - только изображения
   }
+  
+  console.log(`[DEBUG] Sending model ID:`, openRouterPayload.model)
   
   // Обязательные заголовки для OpenRouter
   const openRouterHeaders = {
