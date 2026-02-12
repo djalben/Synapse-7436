@@ -201,7 +201,23 @@ app.post('/image', async (c) => {
   
   // OpenRouter fallback или основной путь
   console.log(`[DEBUG] Using OpenRouter with model:`, openRouterModel)
+  
+  // Жестко заданный абсолютный URL для OpenRouter (без относительных путей)
   const openRouterUrl = "https://openrouter.ai/api/v1/images/generations"
+  
+  // Проверка ключа перед использованием
+  if (!openRouterKey || openRouterKey === "") {
+    console.error(`[DEBUG] OPENROUTER_API_KEY is undefined or empty before fetch`)
+    return c.json({ error: "API key is missing" }, 503 as const)
+  }
+  
+  console.log(`[DEBUG] Final URL for OpenRouter:`, openRouterUrl)
+  console.log(`[DEBUG] OpenRouter API key check:`, {
+    hasKey: !!openRouterKey,
+    keyLength: openRouterKey.length,
+    keyPreview: openRouterKey.substring(0, 8) + "...",
+  })
+  
   const openRouterPayload = {
     model: openRouterModel,
     prompt: enhancedPrompt,
@@ -213,6 +229,7 @@ app.post('/image', async (c) => {
   const openRouterTimeout = setTimeout(() => openRouterAbort.abort(), 8000)
   
   try {
+    console.log(`[DEBUG] Sending fetch request to:`, openRouterUrl)
     const response = await fetch(openRouterUrl, {
       method: "POST",
       signal: openRouterAbort.signal,
@@ -225,9 +242,11 @@ app.post('/image', async (c) => {
       body: JSON.stringify(openRouterPayload),
     })
     
-    console.log(`[DEBUG] OpenRouter response:`, {
+    console.log(`[DEBUG] OpenRouter response received:`, {
       status: response.status,
+      statusText: response.statusText,
       ok: response.ok,
+      url: response.url,
       elapsedTime: Date.now() - requestStartTime,
     })
     
@@ -235,7 +254,11 @@ app.post('/image', async (c) => {
       const errorText = await response.text().catch(() => "Unknown error")
       console.error(`[DEBUG] OpenRouter error:`, {
         status: response.status,
-        errorPreview: errorText.substring(0, 200),
+        statusText: response.statusText,
+        url: response.url,
+        responseUrl: response.url, // Проверка, не редирект ли это на Vercel
+        errorPreview: errorText.substring(0, 500),
+        isHtml: errorText.includes("<!DOCTYPE") || errorText.includes("<html"),
       })
       const statusCode = response.status >= 500 ? (500 as const) : (response.status >= 400 ? (response.status as 400 | 401 | 403 | 404 | 429) : (500 as const))
       return c.json({ error: "Failed to generate image. Please try again." }, statusCode)
