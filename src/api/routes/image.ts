@@ -221,3 +221,58 @@ imageRoutes.post("/", async (c) => {
     return c.json({ error: "Internal error. Please try again." }, 500)
   }
 })
+
+// POST /image/magic-prompt — expand a short prompt into a detailed image generation prompt
+imageRoutes.post("/magic-prompt", async (c) => {
+  const t0 = Date.now()
+  try {
+    const apiKey = process.env.OPENROUTER_API_KEY
+    if (!apiKey) return c.json({ error: "Service not configured" }, 503)
+
+    const { prompt } = await c.req.json() as { prompt?: string }
+    if (!prompt?.trim()) return c.json({ error: "Empty prompt" }, 400)
+
+    console.log(`[MagicPrompt] Expanding: "${prompt.trim().substring(0, 60)}"`)
+
+    const res = await fetchWithTimeout(OPENROUTER_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://synapse-7436.vercel.app",
+        "X-Title": "Synapse",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.0-flash-lite-001",
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert image prompt engineer. Given a short description, expand it into a detailed, vivid prompt for an AI image generator. Add specific details about lighting, composition, style, colors, mood, and quality. Keep it under 200 words. Output ONLY the expanded prompt, nothing else."
+          },
+          { role: "user", content: prompt.trim() }
+        ],
+        max_tokens: 300,
+        temperature: 0.8,
+      }),
+    }, 12000)
+
+    if (!res.ok) {
+      const errText = await res.text()
+      console.error(`[MagicPrompt] Error ${res.status}: ${errText.slice(0, 200)}`)
+      return c.json({ error: "Failed to enhance prompt" }, 500)
+    }
+
+    const data = await res.json() as {
+      choices?: Array<{ message?: { content?: string } }>
+    }
+
+    const expanded = data.choices?.[0]?.message?.content?.trim()
+    if (!expanded) return c.json({ error: "Empty response from LLM" }, 500)
+
+    console.log(`[MagicPrompt] Done in ${Date.now() - t0}ms, length=${expanded.length}`)
+    return c.json({ prompt: expanded })
+  } catch (err) {
+    console.error(`[MagicPrompt] Error after ${Date.now() - t0}ms:`, err)
+    return c.json({ error: "Failed to enhance prompt" }, 500)
+  }
+})

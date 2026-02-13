@@ -1614,9 +1614,11 @@ const GeneratePanel = ({
   const [aspectRatio, setAspectRatio] = useState("1:1");
   const [imageCount, setImageCount] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isEnhancingPrompt, setIsEnhancingPrompt] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const tipRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
@@ -1628,6 +1630,50 @@ const GeneratePanel = ({
 
   // Check if image-to-image mode is ready
   const isImg2ImgReady = mode === "text-to-image" || (mode === "image-to-image" && referenceImage);
+
+  // Prompt tips shown during generation
+  const PROMPT_TIPS = [
+    "Добавляйте детали об освещении: golden hour, neon glow, soft shadows",
+    "Укажите стиль камеры: 85mm lens, wide angle, macro photography",
+    "Описывайте настроение: dreamy, dramatic, peaceful, mysterious",
+    "Добавьте текстуры: wet surface, glossy, matte, translucent",
+    "Используйте цвета: warm tones, cool palette, monochromatic",
+    "Уточните композицию: rule of thirds, centered, symmetrical",
+    "Добавьте атмосферу: fog, rain, dust particles, bokeh",
+    "Укажите время суток: sunrise, blue hour, midnight, twilight",
+  ];
+
+  const startTipRotation = () => {
+    let tipIdx = Math.floor(Math.random() * PROMPT_TIPS.length);
+    setStatusMessage(PROMPT_TIPS[tipIdx]);
+    if (tipRef.current) clearInterval(tipRef.current);
+    tipRef.current = setInterval(() => {
+      tipIdx = (tipIdx + 1) % PROMPT_TIPS.length;
+      setStatusMessage(PROMPT_TIPS[tipIdx]);
+    }, 3000);
+  };
+
+  const handleMagicPrompt = async () => {
+    if (!prompt.trim() || isEnhancingPrompt || isGenerating) return;
+    setIsEnhancingPrompt(true);
+    try {
+      const res = await fetch("/api/image/magic-prompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: prompt.trim() }),
+      });
+      const data = await res.json() as { prompt?: string; error?: string };
+      if (res.ok && data.prompt) {
+        setPrompt(data.prompt);
+      } else {
+        setError(data.error || "Failed to enhance prompt");
+      }
+    } catch {
+      setError("Failed to connect to Magic Prompt service");
+    } finally {
+      setIsEnhancingPrompt(false);
+    }
+  };
 
   const handleGenerate = async () => {
     if (!prompt.trim() || isGenerating) return;
@@ -1650,7 +1696,7 @@ const GeneratePanel = ({
     setElapsedTime(0);
     setStatusMessage("Подключаемся к серверу...");
 
-    // Start elapsed time counter
+    // Start elapsed time counter + tip rotation
     const generationStartTime = Date.now();
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
@@ -1668,7 +1714,7 @@ const GeneratePanel = ({
         engine: selectedEngine,
       });
       
-      setStatusMessage("Генерируем изображение...");
+      startTipRotation();
 
       const response = await fetch(apiUrl, {
         method: "POST",
@@ -1850,6 +1896,7 @@ const GeneratePanel = ({
       setError(err instanceof Error ? err.message : "Failed to generate images");
     } finally {
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      if (tipRef.current) { clearInterval(tipRef.current); tipRef.current = null; }
       setIsGenerating(false);
       setStatusMessage(null);
     }
@@ -1933,7 +1980,29 @@ const GeneratePanel = ({
 
           {/* Prompt Area */}
           <div className="space-y-1.5" data-tour="image-prompt">
-            <label className="text-xs font-medium text-[#888]">Промпт</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-[#888]">Промпт</label>
+              <button
+                onClick={handleMagicPrompt}
+                disabled={!prompt.trim() || isEnhancingPrompt || isGenerating}
+                title="Magic Prompt — ИИ расширит ваш промпт"
+                className={`
+                  flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
+                  transition-all duration-300
+                  ${prompt.trim() && !isEnhancingPrompt && !isGenerating
+                    ? "bg-gradient-to-r from-purple-500/20 to-indigo-500/20 border border-purple-500/40 text-purple-300 hover:border-purple-400/60 hover:shadow-lg hover:shadow-purple-500/10 active:scale-95"
+                    : "bg-white/[0.03] border border-[#333] text-[#555] cursor-not-allowed"
+                  }
+                `}
+              >
+                {isEnhancingPrompt ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Wand2 className="w-3.5 h-3.5" />
+                )}
+                <span>{isEnhancingPrompt ? "Улучшаю..." : "Magic Prompt"}</span>
+              </button>
+            </div>
             <div className="relative">
               <textarea
                 value={prompt}
@@ -1951,7 +2020,7 @@ const GeneratePanel = ({
                   transition-all duration-300
                   disabled:opacity-50
                 "
-                style={{ fontSize: '16px' }} /* Prevent iOS zoom */
+                style={{ fontSize: '16px' }}
               />
               <div className="absolute bottom-3 right-3 text-xs text-[#555]">
                 {prompt.length}/500
