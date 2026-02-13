@@ -10,12 +10,8 @@ const STYLE_PROMPTS: Record<string, string> = {
   cyberpunk: ", cyberpunk, neon lights, futuristic, blade runner aesthetic, dark sci-fi, neon city",
 }
 
-// Aspect ratio to size mapping
-const ASPECT_RATIO_MAP: Record<string, { width: number; height: number }> = {
-  "1:1": { width: 1024, height: 1024 },
-  "16:9": { width: 1344, height: 768 },
-  "9:16": { width: 768, height: 1344 },
-}
+// Supported aspect ratios (OpenRouter handles sizing via image_config.aspect_ratio)
+const VALID_ASPECT_RATIOS = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"]
 
 // GET /api/image — health check
 imageRoutes.get("/", (c) => {
@@ -60,14 +56,15 @@ imageRoutes.post("/", async (c) => {
       enhancedPrompt += STYLE_PROMPTS[body.style]
     }
 
-    const size = ASPECT_RATIO_MAP[body.aspectRatio || "1:1"] || ASPECT_RATIO_MAP["1:1"]
     const numToGenerate = Math.min(Math.max(body.numImages || 1, 1), 4)
 
     console.log(`[Image] model=black-forest-labs/flux-1-schnell, prompt="${enhancedPrompt.substring(0, 80)}...", n=${numToGenerate}`)
 
-    // OpenRouter image generation endpoint (OpenAI-compatible)
+    // OpenRouter: image generation via /chat/completions + modalities: ["image"]
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 50000)
+
+    const aspectRatio = VALID_ASPECT_RATIOS.includes(body.aspectRatio || "") ? body.aspectRatio! : "1:1"
 
     const generatedImages: Array<{
       id: string; url: string; prompt: string; aspectRatio: string;
@@ -76,7 +73,7 @@ imageRoutes.post("/", async (c) => {
 
     for (let i = 0; i < numToGenerate; i++) {
       try {
-        const response = await fetch("https://openrouter.ai/api/v1/images/generations", {
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           signal: controller.signal,
           headers: {
@@ -87,9 +84,14 @@ imageRoutes.post("/", async (c) => {
           },
           body: JSON.stringify({
             model: "black-forest-labs/flux-1-schnell",
-            prompt: enhancedPrompt,
-            n: 1,
-            size: `${size.width}x${size.height}`,
+            messages: [
+              { role: "user", content: enhancedPrompt }
+            ],
+            modalities: ["image"],
+            stream: false,
+            image_config: {
+              aspect_ratio: aspectRatio,
+            },
           }),
         })
 
@@ -110,22 +112,34 @@ imageRoutes.post("/", async (c) => {
           return c.json({ error: "Failed to generate image. Please try again." }, 500)
         }
 
-        const data = await response.json() as { data?: Array<{ url?: string; b64_json?: string }> }
+        const data = await response.json() as {
+          choices?: Array<{
+            message?: {
+              images?: Array<{
+                type?: string;
+                image_url?: { url?: string };
+              }>;
+            };
+          }>;
+        }
 
-        if (data.data && data.data.length > 0) {
-          for (const image of data.data) {
-            const imageUrl = image.url || (image.b64_json ? `data:image/png;base64,${image.b64_json}` : null)
-            if (imageUrl) {
-              generatedImages.push({
-                id: `${Date.now()}-${generatedImages.length}`,
-                url: imageUrl,
-                prompt: prompt,
-                aspectRatio: body.aspectRatio || "1:1",
-                style: body.style || "photorealistic",
-                mode: body.mode || "text-to-image",
-                createdAt: new Date().toISOString(),
-                creditCost: 1,
-              })
+        if (data.choices && data.choices.length > 0) {
+          const images = data.choices[0]?.message?.images
+          if (images) {
+            for (const image of images) {
+              const imageUrl = image.image_url?.url
+              if (imageUrl) {
+                generatedImages.push({
+                  id: `${Date.now()}-${generatedImages.length}`,
+                  url: imageUrl,
+                  prompt: prompt,
+                  aspectRatio: aspectRatio,
+                  style: body.style || "photorealistic",
+                  mode: body.mode || "text-to-image",
+                  createdAt: new Date().toISOString(),
+                  creditCost: 1,
+                })
+              }
             }
           }
         }
