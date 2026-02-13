@@ -15,10 +15,10 @@ const VALID_ASPECT_RATIOS = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9
 
 // GET /api/image — health check
 imageRoutes.get("/", (c) => {
-  return c.json({ ok: true, message: "Image API (OpenRouter). Use POST to generate images.", model: "black-forest-labs/flux-1-schnell" })
+  return c.json({ ok: true, message: "Image API (OpenRouter). Use POST to generate images.", model: "black-forest-labs/flux.2-klein-4b" })
 })
 
-// POST /api/image — generate image via OpenRouter (black-forest-labs/flux-1-schnell)
+// POST /api/image — generate image via OpenRouter (black-forest-labs/flux.2-klein-4b)
 imageRoutes.post("/", async (c) => {
   const startTime = Date.now()
   console.log(`[Image] POST /api/image start`)
@@ -58,7 +58,7 @@ imageRoutes.post("/", async (c) => {
 
     const numToGenerate = Math.min(Math.max(body.numImages || 1, 1), 4)
 
-    console.log(`[Image] model=black-forest-labs/flux-1-schnell, prompt="${enhancedPrompt.substring(0, 80)}...", n=${numToGenerate}`)
+    console.log(`[Image] model=black-forest-labs/flux.2-klein-4b, prompt="${enhancedPrompt.substring(0, 80)}...", n=${numToGenerate}`)
 
     // OpenRouter: image generation via /chat/completions + modalities: ["image"]
     const controller = new AbortController()
@@ -83,7 +83,7 @@ imageRoutes.post("/", async (c) => {
             "X-Title": "Synapse",
           },
           body: JSON.stringify({
-            model: "black-forest-labs/flux-1-schnell",
+            model: "black-forest-labs/flux.2-klein-4b",
             messages: [
               { role: "user", content: enhancedPrompt }
             ],
