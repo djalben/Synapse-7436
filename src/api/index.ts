@@ -8,7 +8,7 @@ import { avatarRoutes } from './routes/avatar.js';
 import { webhookRoutes } from './routes/webhook.js';
 import { monitoringRoutes } from './monitoring.js';
 
-const app = new Hono();
+const app = new Hono().basePath('/api');
 
 // ─── Only basic logging (all other MW disabled for isolation test)
 app.use('*', async (c, next) => {
@@ -25,12 +25,12 @@ app.onError((err, c) => {
 });
 
 // ─── Health / Debug
-app.get('/ping', (c) => c.json({ pong: Date.now(), runtime: 'edge' }));
+app.get('/ping', (c) => c.json({ pong: Date.now(), runtime: 'nodejs' }));
 app.get('/debug', (c) => c.json({
   path: c.req.path,
   method: c.req.method,
   url: c.req.url,
-  runtime: 'edge',
+  runtime: 'nodejs',
   hasApiKey: !!process.env.OPENROUTER_API_KEY,
 }));
 
