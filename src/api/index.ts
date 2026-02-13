@@ -3,7 +3,6 @@ export const runtime = 'nodejs';
 export const maxDuration = 60; // Даем функции 60 секунд на работу
 
 import { Hono } from 'hono';
-import { cors } from "hono/cors"
 import { prettyJSON } from "hono/pretty-json"
 import { trimTrailingSlash } from "hono/trailing-slash"
 import { env as getRuntimeEnv } from "hono/adapter"
@@ -44,11 +43,28 @@ app.use('*', async (c, next) => {
 
 app.use('*', trimTrailingSlash())
 app.use('*', prettyJSON())
-app.use('*', cors({
-  origin: "*",
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization'],
-}))
+
+// CORS без c.req.header(): на Vercel Node.js raw.headers может быть объектом без .get()
+function safeCors() {
+  return async (c: { req: { method: string; raw: { headers: Headers | Record<string, string | string[] | undefined> } }; header: (name: string, value: string) => void; next: () => Promise<void> }, next: () => Promise<void>) => {
+    if (c.req.method === 'OPTIONS') {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+          'Access-Control-Max-Age': '86400',
+        },
+      })
+    }
+    await next()
+    c.header('Access-Control-Allow-Origin', '*')
+    c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+    c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  }
+}
+app.use('*', safeCors())
 
 // Глобальный обработчик ошибок — сразу возвращаем JSON, чтобы Vercel не висел 60 сек при сбоях
 app.onError((err, c) => {
