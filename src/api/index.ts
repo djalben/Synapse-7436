@@ -32,7 +32,7 @@ type Env = {
 
 const AIMLAPI_BASE_URL = "https://api.aimlapi.com/v1"
 
-// Без basePath: на Vercel путь приходит уже без /api (path: '/image', url: '/api/image'), иначе Route not found
+// Роутинг без basePath: Vercel передаёт path /image, /ping. safeCors() без .headers.get() — совместимость с Node.js.
 const app = new Hono()
 
 // Глобальное логирование всех входящих запросов (стандартные пути Hono)
