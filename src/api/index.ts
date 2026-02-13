@@ -33,8 +33,8 @@ type Env = {
 
 const AIMLAPI_BASE_URL = "https://api.aimlapi.com/v1"
 
-// basePath('/api') гарантирует, что app.post('/image', ...) распознаётся как /api/image (совместимость Vercel Node.js)
-const app = new Hono().basePath('/api')
+// Без basePath: на Vercel путь приходит уже без /api (path: '/image', url: '/api/image'), иначе Route not found
+const app = new Hono()
 
 // Глобальное логирование всех входящих запросов (стандартные пути Hono)
 app.use('*', async (c, next) => {
