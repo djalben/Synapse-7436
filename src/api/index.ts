@@ -30,23 +30,16 @@ type Env = {
 
 const FALLBACK_BASE = "https://synapse-7436.vercel.app"
 
-/** Строит полный URL из запроса. Устойчиво к Hono/Node.js/Vercel (без c.req.header, через raw.headers). */
-function getRequestUrl(c: { req: { url: string; raw: { headers: Headers | Record<string, string | string[] | undefined> } } }): URL {
+/** Строит полный URL из запроса. Без c.req.header — только raw.headers (избегаем this.raw.headers.get is not a function). */
+function getRequestUrl(c: { req: { url: string; raw: { headers: { get?: (name: string) => string | null; [key: string]: string | string[] | undefined } } } }): URL {
   const raw = c.req.url
   if (raw.startsWith("http://") || raw.startsWith("https://")) return new URL(raw)
   const headers = c.req.raw.headers
-  const host =
-    (typeof (headers as Headers).get === "function"
-      ? (headers as Headers).get?.("host")
-      : (headers as Record<string, string | string[] | undefined>)["host"]) ?? null
+  const host = headers.get?.("host") || (headers as Record<string, string | string[] | undefined>)["host"] || "localhost"
   const hostStr = (Array.isArray(host) ? host[0] : host)?.trim() || ""
-  const protocol =
-    (typeof (headers as Headers).get === "function"
-      ? (headers as Headers).get?.("x-forwarded-proto")
-      : (headers as Record<string, string | string[] | undefined>)["x-forwarded-proto"]) ?? null
+  const protocol = headers.get?.("x-forwarded-proto") || (headers as Record<string, string | string[] | undefined>)["x-forwarded-proto"] || "https"
   const protocolStr = (Array.isArray(protocol) ? protocol[0] : protocol) || "https"
-  const base =
-    hostStr && hostStr !== "localhost" ? `${protocolStr}://${hostStr}` : FALLBACK_BASE
+  const base = hostStr && hostStr !== "localhost" ? `${protocolStr}://${hostStr}` : FALLBACK_BASE
   return new URL(raw, base)
 }
 
