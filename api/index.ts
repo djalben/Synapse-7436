@@ -1,7 +1,8 @@
-// Force Edge Runtime — do NOT use Node.js adapter
 export const runtime = 'edge';
 
-import { handle } from 'hono/vercel';
 import app from '../src/api/index.js';
 
-export default handle(app);
+// Bypass hono/vercel handle() — call app.fetch() directly on Edge
+export default async function handler(req: Request): Promise<Response> {
+  return app.fetch(req);
+}
