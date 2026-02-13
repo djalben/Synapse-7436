@@ -1,25 +1,16 @@
 import { Hono } from "hono"
-import { env as getRuntimeEnv } from "hono/adapter"
 
-// Environment variables type for Hono context
-type Env = {
-  AIMLAPI_KEY?: string
-  TELEGRAM_BOT_TOKEN?: string
-  TELEGRAM_CHAT_ID?: string
-}
-
-export const monitoringRoutes = new Hono<{ Bindings: Env }>()
+export const monitoringRoutes = new Hono()
 
 /**
- * Проверяет баланс AIMLAPI через эндпоинт /billing/balance
+ * Проверяет баланс OpenRouter через /api/v1/auth/key
  */
-async function checkAimlapiBalance(apiKey: string): Promise<{ balance?: number; error?: string }> {
+async function checkOpenRouterBalance(apiKey: string): Promise<{ balance?: number; error?: string }> {
   try {
-    const response = await fetch("https://api.aimlapi.com/v1/billing/balance", {
+    const response = await fetch("https://openrouter.ai/api/v1/auth/key", {
       method: "GET",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
       },
     })
 
@@ -28,12 +19,10 @@ async function checkAimlapiBalance(apiKey: string): Promise<{ balance?: number; 
       return { error: `HTTP ${response.status}: ${errorText.substring(0, 200)}` }
     }
 
-    const data = await response.json() as { balance?: number; credits?: number; amount?: number }
+    const data = await response.json() as { data?: { limit?: number; usage?: number; limit_remaining?: number } }
+    const remaining = data.data?.limit_remaining
     
-    // Поддержка разных форматов ответа
-    const balance = data.balance ?? data.credits ?? data.amount
-    
-    return { balance: typeof balance === "number" ? balance : undefined }
+    return { balance: typeof remaining === "number" ? remaining : undefined }
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) }
   }
@@ -77,17 +66,15 @@ async function sendTelegramMessage(
  */
 monitoringRoutes.get("/check-balance", async (c) => {
   try {
-    const runtimeEnv = getRuntimeEnv<Env>(c)
-    const aimlapiKey = runtimeEnv?.AIMLAPI_KEY
-    const telegramBotToken = runtimeEnv?.TELEGRAM_BOT_TOKEN
-    const telegramChatId = runtimeEnv?.TELEGRAM_CHAT_ID
+    const apiKey = process.env.OPENROUTER_API_KEY
+    const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN
+    const telegramChatId = process.env.TELEGRAM_CHAT_ID
 
-    if (!aimlapiKey) {
-      return c.json({ error: "AIMLAPI_KEY is not configured" }, 400)
+    if (!apiKey) {
+      return c.json({ error: "OPENROUTER_API_KEY is not configured" }, 400)
     }
 
-    // Проверяем баланс
-    const balanceResult = await checkAimlapiBalance(aimlapiKey)
+    const balanceResult = await checkOpenRouterBalance(apiKey)
 
     if (balanceResult.error) {
       return c.json({
@@ -99,11 +86,10 @@ monitoringRoutes.get("/check-balance", async (c) => {
     }
 
     const balance = balanceResult.balance ?? 0
-    const balanceMessage = `💰 <b>AIMLAPI Balance Check</b>\n\n` +
-      `Balance: <b>${balance.toFixed(2)}</b> credits\n` +
+    const balanceMessage = `💰 <b>OpenRouter Balance Check</b>\n\n` +
+      `Remaining: <b>$${balance.toFixed(2)}</b>\n` +
       `Checked at: ${new Date().toISOString()}`
 
-    // Отправляем в Telegram, если настроено
     let telegramSent = false
     let telegramError: string | undefined
 
@@ -137,13 +123,12 @@ monitoringRoutes.get("/check-balance", async (c) => {
  */
 monitoringRoutes.post("/daily-check", async (c) => {
   try {
-    const runtimeEnv = getRuntimeEnv<Env>(c)
-    const aimlapiKey = runtimeEnv?.AIMLAPI_KEY
-    const telegramBotToken = runtimeEnv?.TELEGRAM_BOT_TOKEN
-    const telegramChatId = runtimeEnv?.TELEGRAM_CHAT_ID
+    const apiKey = process.env.OPENROUTER_API_KEY
+    const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN
+    const telegramChatId = process.env.TELEGRAM_CHAT_ID
 
-    if (!aimlapiKey) {
-      return c.json({ error: "AIMLAPI_KEY is not configured" }, 400)
+    if (!apiKey) {
+      return c.json({ error: "OPENROUTER_API_KEY is not configured" }, 400)
     }
 
     if (!telegramBotToken || !telegramChatId) {
@@ -153,11 +138,10 @@ monitoringRoutes.post("/daily-check", async (c) => {
       }, 400)
     }
 
-    // Проверяем баланс
-    const balanceResult = await checkAimlapiBalance(aimlapiKey)
+    const balanceResult = await checkOpenRouterBalance(apiKey)
 
     if (balanceResult.error) {
-      const errorMessage = `❌ <b>AIMLAPI Balance Check Failed</b>\n\n` +
+      const errorMessage = `❌ <b>OpenRouter Balance Check Failed</b>\n\n` +
         `Error: ${balanceResult.error}\n` +
         `Checked at: ${new Date().toISOString()}`
       
@@ -172,16 +156,14 @@ monitoringRoutes.post("/daily-check", async (c) => {
 
     const balance = balanceResult.balance ?? 0
     
-    // Предупреждение, если баланс низкий (менее 10 кредитов)
-    const isLowBalance = balance < 10
+    const isLowBalance = balance < 2
     const emoji = isLowBalance ? "⚠️" : "✅"
     const warning = isLowBalance ? "\n\n⚠️ <b>Warning: Low balance!</b>" : ""
 
-    const balanceMessage = `${emoji} <b>Daily AIMLAPI Balance Check</b>\n\n` +
-      `Balance: <b>${balance.toFixed(2)}</b> credits${warning}\n` +
+    const balanceMessage = `${emoji} <b>Daily OpenRouter Balance Check</b>\n\n` +
+      `Remaining: <b>$${balance.toFixed(2)}</b>${warning}\n` +
       `Checked at: ${new Date().toISOString()}`
 
-    // Отправляем в Telegram
     const telegramResult = await sendTelegramMessage(telegramBotToken, telegramChatId, balanceMessage)
 
     return c.json({

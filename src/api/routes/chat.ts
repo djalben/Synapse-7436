@@ -1,44 +1,16 @@
 import { Hono } from "hono"
 import { streamText, convertToModelMessages, UIMessage } from "ai"
 import { createOpenAI } from "@ai-sdk/openai"
-import { 
-  type SynapseTier, 
-  getRequiredTierForChatModel, 
-  checkTierAccess, 
-  planToTier 
-} from '../../config/tiers.js'
 
-// Environment variables type for Hono context
-type Env = {
-  AIMLAPI_KEY?: string
-  REPLICATE_API_TOKEN?: string
-  HUGGINGFACE_API_KEY?: string
-  HF_API_TOKEN?: string
-  VITE_BASE_URL?: string
-}
+export const chatRoutes = new Hono()
 
-export const chatRoutes = new Hono<{ Bindings: Env }>()
-
-// Interface for incoming chat request
-interface ChatRequest {
-  messages: UIMessage[]
-  model?: string
-}
-
-// Model mapping from frontend IDs to AIMLAPI model IDs
-// Только модели из тарифной сетки Synapse - актуальные ID 2026 года
+// OpenRouter model mapping (frontend ID → OpenRouter model ID)
 const MODEL_MAP: Record<string, string> = {
-  // START tier
-  "deepseek-r1": "deepseek/deepseek-v3.2", // Обновлено на v3.2 (2026)
+  "deepseek-r1": "deepseek/deepseek-r1",
   "gpt-4o-mini": "openai/gpt-4o-mini",
-  
-  // CREATOR tier
   "gpt-4o": "openai/gpt-4o",
   "claude-3.5-sonnet": "anthropic/claude-3.5-sonnet",
-  
-  // PRO_STUDIO tier
-  "gpt-5-o1": "openai/gpt-5-pro", // Обновлено на GPT-5 Pro (2026)
-  "claude-opus": "anthropic/claude-opus-4.6", // Новый Claude Opus 4.6 (2026)
+  "gpt-5-o1": "openai/o1",
 }
 
 // Credit costs per model
@@ -52,111 +24,53 @@ const CREDIT_COSTS: Record<string, number> = {
 
 chatRoutes.post("/", async (c) => {
   try {
-    // Check for required API key (AIMLAPI — единая платформа)
-    if (!c.env.AIMLAPI_KEY) {
-      console.warn("AIMLAPI_KEY not configured")
+    const apiKey = process.env.OPENROUTER_API_KEY
+    if (!apiKey) {
+      console.warn("[Chat] OPENROUTER_API_KEY not configured")
       return c.json({ error: "Chat service is not available. Please try again later." }, 503)
     }
 
     const body = await c.req.json<{ messages: UIMessage[], model?: string }>()
     const { messages, model } = body
 
-    // Validate messages
-    if (!messages || !Array.isArray(messages)) {
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return c.json({ error: "Please enter a message to continue." }, 400)
     }
 
-    if (messages.length === 0) {
-      return c.json({ error: "Please enter a message to continue." }, 400)
-    }
+    // Default model: anthropic/claude-3.5-sonnet
+    const modelId = MODEL_MAP[model ?? ""] || "anthropic/claude-3.5-sonnet"
+    const creditCost = CREDIT_COSTS[model ?? ""] || 1
 
-    // Validate model is recognized
-    const validModels = Object.keys(MODEL_MAP)
-    if (model && !validModels.includes(model)) {
-      return c.json({ error: "Invalid model selected. Please choose a valid model." }, 400)
-    }
+    console.log(`[Chat] model=${modelId}, messages=${messages.length}`)
 
-    // Map the model ID to AIMLAPI format (default to DeepSeek v3.2, 2026)
-    const modelId = MODEL_MAP[model] || "deepseek/deepseek-v3.2"
-    
-    // ВРЕМЕННО ОТКЛЮЧЕНО: Проверка доступа по тарифу (режим тестирования)
-    // const userPlan = c.req.header("X-User-Plan") || "free"
-    // const userTier: SynapseTier = planToTier(userPlan)
-    // const requiredTier = getRequiredTierForChatModel(modelId)
-    // const accessCheck = checkTierAccess(userTier, requiredTier)
-    
-    // console.log(`[DEBUG] Chat tier check:`, {
-    //   userPlan,
-    //   userTier,
-    //   modelId,
-    //   requiredTier,
-    //   accessAllowed: accessCheck.allowed,
-    // })
-    
-    // if (!accessCheck.allowed) {
-    //   console.warn(`[DEBUG] Chat access denied:`, {
-    //     userTier,
-    //     requiredTier,
-    //     model: modelId,
-    //     message: accessCheck.message,
-    //   })
-    //   return c.json({ 
-    //     error: accessCheck.message || "Доступно только в PRO STUDIO",
-    //     requiredTier,
-    //     userTier,
-    //   }, 403 as const)
-    // }
-    
-    console.log(`[DEBUG] Chat tier check: DISABLED (testing mode)`)
-    
-    // Get credit cost for response metadata
-    const creditCost = CREDIT_COSTS[model] || 0.1
-
-    // OpenAI-совместимый клиент — базовый URL AIMLAPI
-    const openai = createOpenAI({
-      baseURL: "https://api.aimlapi.com/v1",
-      apiKey: c.env.AIMLAPI_KEY!,
+    const openrouter = createOpenAI({
+      baseURL: "https://openrouter.ai/api/v1",
+      apiKey,
     })
 
-    // Convert UI messages to model messages
     const modelMessages = await convertToModelMessages(messages as UIMessage[])
 
     const result = streamText({
-      model: openai.chat(modelId),
+      model: openrouter.chat(modelId),
       messages: modelMessages,
     })
 
-    // Return streaming response with credit cost in headers
     const response = result.toUIMessageStreamResponse()
-    
-    // Add credit cost header for frontend consumption
     response.headers.set("X-Credit-Cost", creditCost.toString())
-    
     return response
   } catch (error) {
-    // Log errors
-    console.error("Chat API error:", error)
-    
-    // Return user-friendly error messages
-    // Never expose internal details, API keys, or payment info
-    const errorMessage = error instanceof Error ? error.message : ""
-    
-    // Check for rate limit
-    if (errorMessage.includes("rate") || errorMessage.includes("429")) {
+    console.error("[Chat] API error:", error)
+    const msg = error instanceof Error ? error.message : ""
+
+    if (msg.includes("rate") || msg.includes("429")) {
       return c.json({ error: "High demand right now. Please wait a moment and try again." }, 429)
     }
-    
-    // Check for payment/billing issues (hide the real reason)
-    if (errorMessage.includes("402") || errorMessage.includes("payment") || errorMessage.includes("billing") || errorMessage.includes("fund")) {
+    if (msg.includes("402") || msg.includes("payment") || msg.includes("billing") || msg.includes("fund")) {
       return c.json({ error: "High load on GPU servers, please try again later." }, 500)
     }
-    
-    // Check for model unavailable
-    if (errorMessage.includes("model") || errorMessage.includes("unavailable")) {
+    if (msg.includes("model") || msg.includes("unavailable")) {
       return c.json({ error: "This model is temporarily unavailable. Try a different option." }, 500)
     }
-    
-    // Generic fallback
     return c.json({ error: "Connection issue. Please check your internet and try again." }, 500)
   }
 })
