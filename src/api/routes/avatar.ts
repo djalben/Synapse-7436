@@ -146,12 +146,18 @@ avatarRoutes.post("/", async (c) => {
       }, 400)
     }
     
-    // Convert files to base64 for API call
+    // Convert files to base64 for API call (Edge-compatible, no Buffer)
+    const toBase64 = (buf: ArrayBuffer): string => {
+      const bytes = new Uint8Array(buf)
+      let binary = ''
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+      return btoa(binary)
+    }
     const targetImageBuffer = await targetImageFile.arrayBuffer()
-    const targetImageBase64 = `data:${targetImageFile.type};base64,${Buffer.from(targetImageBuffer).toString("base64")}`
+    const targetImageBase64 = `data:${targetImageFile.type};base64,${toBase64(targetImageBuffer)}`
     
     const drivingVideoBuffer = await drivingVideoFile.arrayBuffer()
-    const drivingVideoBase64 = `data:${drivingVideoFile.type};base64,${Buffer.from(drivingVideoBuffer).toString("base64")}`
+    const drivingVideoBase64 = `data:${drivingVideoFile.type};base64,${toBase64(drivingVideoBuffer)}`
     
     // Try Replicate for actual avatar generation
     const apiToken = c.env.REPLICATE_API_TOKEN

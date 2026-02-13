@@ -1,7 +1,3 @@
-// Vercel Node.js runtime — 60 seconds max
-export const runtime = 'nodejs';
-export const maxDuration = 60;
-
 import { Hono } from 'hono';
 import { chatRoutes } from './routes/chat.js'
 import { imageRoutes } from './routes/image.js'
