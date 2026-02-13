@@ -165,11 +165,10 @@ app.post('/image', async (c) => {
     
     console.log(`[IMAGE] Key found, parsing body, elapsed: ${Date.now() - startTime}ms`)
     
-    // Читаем тело напрямую из raw Request (совместимость с Vercel Node.js)
+    // Читаем тело через c.req.text() (метод Hono, совместим с Vercel)
     let body: { prompt?: string; aspectRatio?: string; numImages?: number; style?: string; engine?: string }
     try {
-      const rawRequest = c.req.raw as Request
-      const bodyText = await rawRequest.text()
+      const bodyText = await c.req.text()
       body = JSON.parse(bodyText) as typeof body
       console.log(`[IMAGE] Body parsed, elapsed: ${Date.now() - startTime}ms`)
     } catch (jsonErr) {
