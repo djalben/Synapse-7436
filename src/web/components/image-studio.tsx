@@ -91,16 +91,18 @@ type ImageEngineId = "flux-schnell" | "nana-banana" | "flux-pro";
 interface ImageEngineOption {
   id: ImageEngineId;
   label: string;
-  subtitle?: string; // Метка тарифа (START, CREATOR, PRO STUDIO)
+  subtitle?: string;
   creditCost: number;
   requiredPlan: UserPlan;
-  isLocked?: boolean; // Показывать замок 🔒
+  isLocked?: boolean;
+  isExclusive?: boolean;
+  speed?: string;
 }
 
 const imageEngineOptions: ImageEngineOption[] = [
-  { id: "flux-schnell", label: "Flux 2 Klein", subtitle: "START", creditCost: 0, requiredPlan: "free" }, // 2026: flux.2-klein
-  { id: "nana-banana", label: "Gemini 2.5 Flash", subtitle: "CREATOR", creditCost: 1, requiredPlan: "standard" }, // 2026: gemini-2.5-flash-image
-  { id: "flux-pro", label: "Flux 2 Pro", subtitle: "PRO STUDIO", creditCost: 2, requiredPlan: "ultra", isLocked: false }, // 2026: flux.2-pro
+  { id: "flux-schnell", label: "Flux 2 Klein", subtitle: "START", creditCost: 0, requiredPlan: "free", speed: "~8с" },
+  { id: "nana-banana", label: "Imagen 3", subtitle: "CREATOR", creditCost: 1, requiredPlan: "standard", speed: "~5с" },
+  { id: "flux-pro", label: "Flux.1 [dev]", subtitle: "PRO STUDIO", creditCost: 2, requiredPlan: "ultra", isLocked: false, speed: "~12с" },
 ];
 
 const styleOptions: StyleOption[] = [
@@ -1612,12 +1614,15 @@ const GeneratePanel = ({
   const [aspectRatio, setAspectRatio] = useState("1:1");
   const [imageCount, setImageCount] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
 
   const isNanaBanana = selectedEngine === "nana-banana";
-  const isFreeEngine = selectedEngine === "kandinsky-3.1" || selectedEngine === "flux-schnell";
+  const isFreeEngine = selectedEngine === "flux-schnell";
   const atFreeDailyLimit = isFreeEngine && freeImageCountToday >= MAX_FREE_IMAGE_PER_DAY;
   const effectiveAtLimit = isNanaBanana ? atLimit : (isFreeEngine ? atFreeDailyLimit : atLimit);
 
@@ -1642,27 +1647,29 @@ const GeneratePanel = ({
 
     setIsGenerating(true);
     setError(null);
+    setElapsedTime(0);
+    setStatusMessage("Подключаемся к серверу...");
 
-    // Log generation start time
+    // Start elapsed time counter
     const generationStartTime = Date.now();
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setElapsedTime(Math.floor((Date.now() - generationStartTime) / 1000));
+    }, 1000);
 
     try {
-      // Диагностика: сначала проверяем доступность API
-      const debugResponse = await fetch("/api/debug").catch(() => null);
-      if (debugResponse) {
-        const debugData = await debugResponse.json().catch(() => null);
-        console.log("[Image Studio] API Debug Info:", debugData);
-      }
+      setStatusMessage("Отправляем запрос...");
       
       const apiUrl = "/api/image";
       console.log("[Image Studio] Sending request to:", apiUrl, {
-        method: "POST",
         prompt: prompt.trim().substring(0, 50) + "...",
         aspectRatio,
         numImages: imageCount,
-        startTime: new Date(generationStartTime).toISOString(),
+        engine: selectedEngine,
       });
       
+      setStatusMessage("Генерируем изображение...");
+
       const response = await fetch(apiUrl, {
         method: "POST",
         headers: {
@@ -1680,11 +1687,11 @@ const GeneratePanel = ({
           engine: selectedEngine,
         }),
       });
+
+      setStatusMessage("Обрабатываем ответ...");
       
       console.log("[Image Studio] Response received:", {
         status: response.status,
-        statusText: response.statusText,
-        url: response.url,
         ok: response.ok,
         elapsedTime: Date.now() - generationStartTime,
       });
@@ -1842,7 +1849,9 @@ const GeneratePanel = ({
       console.error("Generation error:", err);
       setError(err instanceof Error ? err.message : "Failed to generate images");
     } finally {
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
       setIsGenerating(false);
+      setStatusMessage(null);
     }
   };
 
@@ -2008,6 +2017,19 @@ const GeneratePanel = ({
                 )}
               </span>
             </button>
+
+            {/* Live status indicator */}
+            {isGenerating && statusMessage && (
+              <div className="flex items-center justify-center gap-3 py-2 animate-in fade-in duration-300">
+                <div className="flex gap-1">
+                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+                </div>
+                <span className="text-xs text-indigo-300/80 font-medium">{statusMessage}</span>
+                <span className="text-xs text-[#555] tabular-nums">{elapsedTime}с</span>
+              </div>
+            )}
           </div>
           </div>
         </div>
@@ -2164,6 +2186,19 @@ const GeneratePanel = ({
             )}
           </span>
         </button>
+
+        {/* Mobile status indicator */}
+        {isGenerating && statusMessage && (
+          <div className="flex items-center justify-center gap-3 pt-2 animate-in fade-in duration-300">
+            <div className="flex gap-1">
+              <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: "0ms" }} />
+              <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+              <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+            </div>
+            <span className="text-xs text-indigo-300/80 font-medium">{statusMessage}</span>
+            <span className="text-xs text-[#555] tabular-nums">{elapsedTime}с</span>
+          </div>
+        )}
       </div>
 
       {/* Right Panel - Gallery */}
@@ -2197,12 +2232,17 @@ const GeneratePanel = ({
         {/* Masonry Grid */}
         {generatedImages.length > 0 && (
           <div className="columns-1 sm:columns-2 lg:columns-3 gap-4">
-            {generatedImages.map((image) => (
-              <ImageCard
+            {generatedImages.map((image, idx) => (
+              <div
                 key={image.id}
-                image={image}
-                onImageClick={setSelectedImage}
-              />
+                className="animate-in fade-in slide-in-from-bottom-4 duration-500"
+                style={{ animationDelay: `${idx * 80}ms`, animationFillMode: "both" }}
+              >
+                <ImageCard
+                  image={image}
+                  onImageClick={setSelectedImage}
+                />
+              </div>
             ))}
           </div>
         )}

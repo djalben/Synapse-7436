@@ -2,9 +2,16 @@ import { Hono } from "hono"
 
 export const imageRoutes = new Hono()
 
-const IMAGE_MODEL = "black-forest-labs/flux.2-klein-4b"
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 const TIMEOUT_MS = 45000 // 45s — safely under Vercel's 60s limit
+
+// Model routing by engine ID
+const ENGINE_MODELS: Record<string, string> = {
+  "flux-schnell": "black-forest-labs/flux.2-klein-4b",      // Free, fast
+  "nana-banana": "google/imagen-3",                          // Imagen 3, fast + quality
+  "flux-pro": "black-forest-labs/flux-1-dev",                // Flux.1 dev, high quality
+}
+const DEFAULT_MODEL = "black-forest-labs/flux.2-klein-4b"
 
 // Style prompt enhancements
 const STYLE_PROMPTS: Record<string, string> = {
@@ -28,7 +35,7 @@ function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<R
 
 // GET /image — health check
 imageRoutes.get("/", (c) => {
-  return c.json({ ok: true, model: IMAGE_MODEL, timeout: TIMEOUT_MS })
+  return c.json({ ok: true, models: Object.keys(ENGINE_MODELS), timeout: TIMEOUT_MS })
 })
 
 // GET /image/test — diagnostic: fire a minimal request to OpenRouter and report raw result
@@ -40,7 +47,7 @@ imageRoutes.get("/test", async (c) => {
   console.log("[Image/test] Starting diagnostic call...")
 
   const requestBody = {
-    model: IMAGE_MODEL,
+    model: DEFAULT_MODEL,
     messages: [{ role: "user", content: "A red circle on white background" }],
     modalities: ["image"],
     stream: false,
@@ -94,6 +101,7 @@ imageRoutes.post("/", async (c) => {
     let body: {
       prompt?: string; aspectRatio?: string; numImages?: number;
       style?: string; mode?: string; engine?: string; specializedEngine?: string;
+      referenceImage?: string;
     }
     try {
       body = await c.req.json() as typeof body
@@ -114,7 +122,8 @@ imageRoutes.post("/", async (c) => {
     const aspectRatio = VALID_ASPECT_RATIOS.includes(body.aspectRatio || "") ? body.aspectRatio! : "1:1"
     const numToGenerate = Math.min(Math.max(body.numImages || 1, 1), 4)
 
-    console.log(`[Image] model=${IMAGE_MODEL}, ar=${aspectRatio}, n=${numToGenerate}, prompt="${enhancedPrompt.substring(0, 60)}"`)
+    const selectedModel = ENGINE_MODELS[body.engine || ""] || DEFAULT_MODEL
+    console.log(`[Image] model=${selectedModel}, engine=${body.engine}, ar=${aspectRatio}, n=${numToGenerate}, prompt="${enhancedPrompt.substring(0, 60)}"`)
 
     const generatedImages: Array<{
       id: string; url: string; prompt: string; aspectRatio: string;
@@ -127,7 +136,7 @@ imageRoutes.post("/", async (c) => {
 
       try {
         const requestBody = {
-          model: IMAGE_MODEL,
+          model: selectedModel,
           messages: [{ role: "user", content: enhancedPrompt }],
           modalities: ["image"],
           stream: false,
