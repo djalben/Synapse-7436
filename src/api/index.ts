@@ -147,17 +147,22 @@ app.get('/models-debug', async (c) => {
 // Порядок важен: более специфичные роуты должны быть выше
 app.route('/chat', chatRoutes);
 
-// Прямой вызов AIMLAPI: POST /api/image → https://api.aimlapi.com/v1/images/generations
+// Прямой вызов AIMLAPI: POST /image → https://api.aimlapi.com/v1/images/generations
 app.post('/image', async (c) => {
+  const startTime = Date.now()
+  console.log(`[IMAGE] Request start at ${new Date().toISOString()}`)
+  
   const aimlapiKey = getRuntimeEnv<Env>(c)?.AIMLAPI_KEY ?? (typeof process !== "undefined" ? process.env.AIMLAPI_KEY : undefined)
   
   if (!aimlapiKey) {
+    console.error(`[IMAGE] AIMLAPI_KEY missing`)
     return c.json({ error: "Image generation service is not available. Please check API configuration." }, 503 as const)
   }
   
   let body: { prompt?: string; aspectRatio?: string; numImages?: number; style?: string; engine?: string }
   try {
     body = await c.req.json() as typeof body
+    console.log(`[IMAGE] Body parsed, elapsed: ${Date.now() - startTime}ms`)
   } catch {
     return c.json({ error: "Invalid JSON in request body" }, 400 as const)
   }
@@ -170,15 +175,21 @@ app.post('/image', async (c) => {
   const sizeMap: Record<string, string> = { "1:1": "1024x1024", "16:9": "1344x768", "9:16": "768x1344" }
   const size = sizeMap[body.aspectRatio || "1:1"] ?? "1024x1024"
   
-  // Прямой запрос к AIMLAPI: URL, Bearer, тело { model, prompt, n, size }
   const url = "https://api.aimlapi.com/v1/images/generations"
   const payload = { model: "flux/schnell", prompt, n: body.numImages || 1, size }
   const headers = { "Authorization": `Bearer ${aimlapiKey}`, "Content-Type": "application/json" }
   
+  console.log(`[IMAGE] Starting fetch to AIMLAPI, elapsed: ${Date.now() - startTime}ms`)
+  
+  // Таймаут 30 секунд — запас до 60-секундного лимита Vercel
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 55000)
+  const timeout = setTimeout(() => {
+    console.error(`[IMAGE] Timeout after ${Date.now() - startTime}ms, aborting`)
+    controller.abort()
+  }, 30000)
   
   try {
+    const fetchStart = Date.now()
     const response = await fetch(url, {
       method: "POST",
       signal: controller.signal,
@@ -186,15 +197,19 @@ app.post('/image', async (c) => {
       body: JSON.stringify(payload),
     })
     
+    console.log(`[IMAGE] Fetch completed, status: ${response.status}, elapsed: ${Date.now() - fetchStart}ms`)
+    
     if (!response.ok) {
       const errorText = await response.text().catch(() => "Unknown error")
-      console.error(`[API] AIMLAPI error: ${response.status}`, errorText.slice(0, 500))
+      console.error(`[IMAGE] AIMLAPI error ${response.status}:`, errorText.slice(0, 500))
+      clearTimeout(timeout)
       const code = response.status >= 500 ? 500 : (response.status >= 400 ? response.status : 500)
       return c.json({ error: "Failed to generate image. Please try again.", status: response.status }, code as 400 | 401 | 403 | 429 | 500)
     }
     
-    // AIMLAPI: стандартный OpenAI-формат, картинка в response.data[0].url
+    const jsonStart = Date.now()
     const data = await response.json() as { data?: Array<{ url?: string; b64_json?: string }> }
+    console.log(`[IMAGE] JSON parsed, elapsed: ${Date.now() - jsonStart}ms`)
     
     if (data.data?.length) {
       const images = data.data.map((img, idx) => {
@@ -211,15 +226,19 @@ app.post('/image', async (c) => {
         } : null
       }).filter(Boolean) as Array<{ id: string; url: string; prompt: string; aspectRatio: string; style: string; mode: string; createdAt: string; creditCost: number }>
       
+      clearTimeout(timeout)
+      console.log(`[IMAGE] Success, total elapsed: ${Date.now() - startTime}ms`)
       return c.json({ images, totalCreditCost: images.length }, 201 as const)
     }
     
+    clearTimeout(timeout)
     return c.json({ error: "No images generated" }, 500 as const)
   } catch (fetchError) {
-    console.error("[API] Image fetch error:", fetchError)
-    return c.json({ error: "Network error. Please try again." }, 503 as const)
-  } finally {
     clearTimeout(timeout)
+    const elapsed = Date.now() - startTime
+    const isAbort = fetchError instanceof Error && fetchError.name === 'AbortError'
+    console.error(`[IMAGE] Error after ${elapsed}ms:`, isAbort ? 'TIMEOUT' : fetchError)
+    return c.json({ error: isAbort ? "Request timeout. Please try again." : "Network error. Please try again." }, 503 as const)
   }
 })
 
