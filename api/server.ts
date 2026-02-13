@@ -15,16 +15,17 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       if (val) headers.set(key, Array.isArray(val) ? val.join(', ') : val);
     }
 
-    let body: Buffer | undefined;
+    let body: Uint8Array | undefined;
     if (req.method !== 'GET' && req.method !== 'HEAD') {
-      body = await new Promise<Buffer>((resolve) => {
+      const buf = await new Promise<Buffer>((resolve) => {
         const chunks: Buffer[] = [];
         req.on('data', (c) => chunks.push(c));
         req.on('end', () => resolve(Buffer.concat(chunks)));
       });
+      body = new Uint8Array(buf);
     }
 
-    const webReq = new Request(url, { method: req.method, headers, body });
+    const webReq = new Request(url, { method: req.method, headers, body: body as BodyInit | undefined });
     const webRes = await app.fetch(webReq);
 
     // Pipe Web Response back to Node.js ServerResponse
