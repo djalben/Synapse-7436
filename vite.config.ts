@@ -1,21 +1,27 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { cloudflare } from "@cloudflare/vite-plugin";
 import tailwind from "@tailwindcss/vite"
 import path from "path";
 
-// On Vercel: skip cloudflare plugin (it overrides Edge function detection)
-// Locally: include cloudflare plugin for Workers dev
-const isVercel = process.env.VERCEL === '1';
+// On Vercel: skip cloudflare plugin entirely (it overrides Edge function detection)
+// Locally: dynamically import cloudflare plugin for Workers dev
+export default defineConfig(async ({ mode }) => {
+	const plugins = [react(), tailwind()];
 
-export default defineConfig({
-	plugins: [react(), ...(!isVercel ? [cloudflare()] : []), tailwind()],
-	resolve: {
-		alias: {
-			"@": path.resolve(__dirname, "./src/web"),
-		},
-	},
-	server: {
-		allowedHosts: true,
+	if (process.env.VERCEL !== '1') {
+		const { cloudflare } = await import("@cloudflare/vite-plugin");
+		plugins.splice(1, 0, cloudflare());
 	}
+
+	return {
+		plugins,
+		resolve: {
+			alias: {
+				"@": path.resolve(import.meta.dirname, "./src/web"),
+			},
+		},
+		server: {
+			allowedHosts: true,
+		}
+	};
 });
