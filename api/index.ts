@@ -1,3 +1,4 @@
+// Force Edge Runtime — do NOT use Node.js adapter
 export const runtime = 'edge';
 
 import { handle } from 'hono/vercel';
