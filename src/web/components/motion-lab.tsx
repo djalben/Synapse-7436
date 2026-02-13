@@ -817,12 +817,12 @@ export const MotionLab = () => {
   };
 
   // Poll for video generation status
-  const pollForVideo = async (taskId: string, promptText: string): Promise<string> => {
+  const pollForVideo = async (taskId: string, endpoint: string = "text2video"): Promise<string> => {
     const maxAttempts = 60; // 5 minutes max (every 5s)
     for (let i = 0; i < maxAttempts; i++) {
       await new Promise(r => setTimeout(r, 5000));
       try {
-        const res = await fetch(`/api/video/status/${encodeURIComponent(taskId)}`);
+        const res = await fetch(`/api/video/status/${encodeURIComponent(taskId)}?endpoint=${endpoint}`);
         const data = await res.json() as { status: string; url?: string; error?: string };
         
         if (data.status === "completed" && data.url) {
@@ -863,7 +863,7 @@ export const MotionLab = () => {
       const hasImageAndPreset = uploadedImage && selectedPreset;
       const textPrompt = prompt.trim();
 
-      let data: { id?: string; status?: string; url?: string; error?: string; prompt?: string; duration?: number };
+      let data: { id?: string; status?: string; url?: string; error?: string; prompt?: string; duration?: number; endpoint?: string };
 
       if (textPrompt && !hasImageAndPreset) {
         // Text-to-video → POST /api/video/generate
@@ -899,7 +899,7 @@ export const MotionLab = () => {
 
       // If still processing — poll for result
       if (!videoUrl && data.id && data.status === "processing") {
-        videoUrl = await pollForVideo(data.id, textPrompt || "animation");
+        videoUrl = await pollForVideo(data.id, data.endpoint || "text2video");
       }
 
       if (!videoUrl) throw new Error("No video URL received.");
