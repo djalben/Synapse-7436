@@ -1,11 +1,11 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { cloudflare } from "@cloudflare/vite-plugin";
 import tailwind from "@tailwindcss/vite"
 import path from "path";
 
+// cloudflare() plugin removed — it overrides Vercel Edge function detection
 export default defineConfig({
-	plugins: [react(), cloudflare(), tailwind()],
+	plugins: [react(), tailwind()],
 	resolve: {
 		alias: {
 			"@": path.resolve(__dirname, "./src/web"),
