@@ -10,9 +10,7 @@ import {
 
 // Environment variables type for Hono context
 type Env = {
-  AI_GATEWAY_API_KEY?: string
-  AI_GATEWAY_BASE_URL?: string
-  OPENROUTER_API_KEY?: string
+  AIMLAPI_KEY?: string
   REPLICATE_API_TOKEN?: string
   HUGGINGFACE_API_KEY?: string
   HF_API_TOKEN?: string
@@ -27,7 +25,7 @@ interface ChatRequest {
   model?: string
 }
 
-// Model mapping from frontend IDs to OpenRouter model IDs
+// Model mapping from frontend IDs to AIMLAPI model IDs
 // Только модели из тарифной сетки Synapse - актуальные ID 2026 года
 const MODEL_MAP: Record<string, string> = {
   // START tier
@@ -54,9 +52,9 @@ const CREDIT_COSTS: Record<string, number> = {
 
 chatRoutes.post("/", async (c) => {
   try {
-    // Check for required API key
-    if (!c.env.AI_GATEWAY_API_KEY || !c.env.AI_GATEWAY_BASE_URL) {
-      console.warn("AI Gateway not configured")
+    // Check for required API key (AIMLAPI — единая платформа)
+    if (!c.env.AIMLAPI_KEY) {
+      console.warn("AIMLAPI_KEY not configured")
       return c.json({ error: "Chat service is not available. Please try again later." }, 503)
     }
 
@@ -78,7 +76,7 @@ chatRoutes.post("/", async (c) => {
       return c.json({ error: "Invalid model selected. Please choose a valid model." }, 400)
     }
 
-    // Map the model ID to OpenRouter format (default to DeepSeek v3.2, 2026)
+    // Map the model ID to AIMLAPI format (default to DeepSeek v3.2, 2026)
     const modelId = MODEL_MAP[model] || "deepseek/deepseek-v3.2"
     
     // ВРЕМЕННО ОТКЛЮЧЕНО: Проверка доступа по тарифу (режим тестирования)
@@ -114,10 +112,10 @@ chatRoutes.post("/", async (c) => {
     // Get credit cost for response metadata
     const creditCost = CREDIT_COSTS[model] || 0.1
 
-    // Create OpenAI-compatible client pointing to the AI Gateway
+    // OpenAI-совместимый клиент — базовый URL AIMLAPI
     const openai = createOpenAI({
-      baseURL: c.env.AI_GATEWAY_BASE_URL!,
-      apiKey: c.env.AI_GATEWAY_API_KEY!,
+      baseURL: "https://api.aimlapi.com/v1",
+      apiKey: c.env.AIMLAPI_KEY!,
     })
 
     // Convert UI messages to model messages

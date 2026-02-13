@@ -3,7 +3,7 @@ import { Hono } from "hono"
 // Environment variables type for Hono context
 type Env = {
   REPLICATE_API_TOKEN?: string
-  OPENROUTER_API_KEY?: string
+  AIMLAPI_KEY?: string
   VITE_BASE_URL?: string
 }
 
@@ -45,7 +45,7 @@ const REPLICATE_MODELS: Record<EnhancementTool, { version: string; prepareInput:
   },
 }
 
-// Fallback prompts for OpenRouter if Replicate unavailable
+// Fallback prompts for AIMLAPI if Replicate unavailable
 const FALLBACK_PROMPTS: Record<EnhancementTool, string> = {
   "face-restore": `Enhance and restore this photo with focus on:
 - Fix any blur or noise in facial features
@@ -130,7 +130,7 @@ async function tryReplicateEnhancement(image: string, tool: EnhancementTool, api
     })
     
     if (!response.ok) {
-      return null // Fall back to OpenRouter
+      return null // Fall back to AIMLAPI
     }
     
     const prediction = await response.json() as { id: string }
@@ -151,19 +151,17 @@ async function tryReplicateEnhancement(image: string, tool: EnhancementTool, api
   }
 }
 
-// Fallback to OpenRouter
-async function fallbackOpenRouterEnhancement(image: string, tool: EnhancementTool, openRouterKey: string | undefined, baseUrl: string | undefined): Promise<string | null> {
-  if (!openRouterKey) {
+// Fallback to AIMLAPI (OpenAI-compatible chat/completions)
+async function fallbackAimlapiEnhancement(image: string, tool: EnhancementTool, aimlapiKey: string | undefined): Promise<string | null> {
+  if (!aimlapiKey) {
     return null
   }
   
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  const response = await fetch("https://api.aimlapi.com/v1/chat/completions", {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${openRouterKey}`,
+      "Authorization": `Bearer ${aimlapiKey}`,
       "Content-Type": "application/json",
-      "HTTP-Referer": baseUrl || "https://synapse.app",
-      "X-Title": "Synapse Photo Enhancement",
     },
     body: JSON.stringify({
       model: "google/gemini-2.0-flash-exp:free",
@@ -240,10 +238,10 @@ enhanceRoutes.post("/", async (c) => {
     console.log(`[Enhance API] Attempting Replicate enhancement for tool: ${tool}`)
     enhancedUrl = await tryReplicateEnhancement(image, tool as EnhancementTool, c.env.REPLICATE_API_TOKEN)
     
-    // Fall back to OpenRouter if Replicate unavailable or failed
+    // Fall back to AIMLAPI if Replicate unavailable or failed
     if (!enhancedUrl) {
-      console.warn("[Enhance API] Replicate failed, falling back to OpenRouter")
-      enhancedUrl = await fallbackOpenRouterEnhancement(image, tool as EnhancementTool, c.env.OPENROUTER_API_KEY, c.env.VITE_BASE_URL)
+      console.warn("[Enhance API] Replicate failed, falling back to AIMLAPI")
+      enhancedUrl = await fallbackAimlapiEnhancement(image, tool as EnhancementTool, c.env.AIMLAPI_KEY)
     } else {
       console.log("[Enhance API] Successfully enhanced via Replicate")
     }
@@ -262,7 +260,7 @@ enhanceRoutes.post("/", async (c) => {
     }
 
     // If no image was returned, return user-friendly error
-    console.error("[Enhance API] Both Replicate and OpenRouter failed")
+    console.error("[Enhance API] Both Replicate and AIMLAPI failed")
     return c.json({ error: "High load on GPU servers, please try again later." }, 500)
   } catch (error) {
     // Log errors

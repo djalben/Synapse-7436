@@ -14,6 +14,7 @@ import { enhanceRoutes } from './routes/enhance.js'
 import { audioRoutes } from './routes/audio.js'
 import { avatarRoutes } from './routes/avatar.js'
 import { webhookRoutes } from './routes/webhook.js'
+import { monitoringRoutes } from './monitoring.js'
 import { 
   type SynapseTier, 
   getRequiredTierForImageModel, 
@@ -23,33 +24,21 @@ import {
 
 // Environment variables type for Hono context
 type Env = {
-  OPENROUTER_API_KEY?: string
+  AIMLAPI_KEY?: string
   REPLICATE_API_TOKEN?: string
   VITE_BASE_URL?: string
+  TELEGRAM_BOT_TOKEN?: string
+  TELEGRAM_CHAT_ID?: string
 }
 
-const FALLBACK_BASE = "https://synapse-7436.vercel.app"
-
-/** Строит полный URL из запроса. Без c.req.header — только raw.headers (избегаем this.raw.headers.get is not a function). */
-function getRequestUrl(c: { req: { url: string; raw: { headers: { get?: (name: string) => string | null; [key: string]: string | string[] | undefined } } } }): URL {
-  const raw = c.req.url
-  if (raw.startsWith("http://") || raw.startsWith("https://")) return new URL(raw)
-  const headers = c.req.raw.headers
-  const host = headers.get?.("host") || (headers as Record<string, string | string[] | undefined>)["host"] || "localhost"
-  const hostStr = (Array.isArray(host) ? host[0] : host)?.trim() || ""
-  const protocol = headers.get?.("x-forwarded-proto") || (headers as Record<string, string | string[] | undefined>)["x-forwarded-proto"] || "https"
-  const protocolStr = (Array.isArray(protocol) ? protocol[0] : protocol) || "https"
-  const base = hostStr && hostStr !== "localhost" ? `${protocolStr}://${hostStr}` : FALLBACK_BASE
-  return new URL(raw, base)
-}
+const AIMLAPI_BASE_URL = "https://api.aimlapi.com/v1"
 
 // basePath('/api') — все роуты доступны как /api/... (фронт должен слать /api/image без слеша в конце)
 const app = new Hono().basePath('/api')
 
-// Глобальное логирование всех входящих запросов
+// Глобальное логирование всех входящих запросов (стандартные пути Hono)
 app.use('*', async (c, next) => {
-  const url = getRequestUrl(c)
-  console.log(`[DEBUG] ${c.req.method} ${url.pathname} (full URL: ${url.toString()})`)
+  console.log(`[DEBUG] ${c.req.method} ${c.req.path} (url: ${c.req.url})`)
   await next()
 })
 
@@ -64,11 +53,10 @@ app.use('*', cors({
 // Debug: /api/ping, /api/debug
 app.get('/ping', (c) => c.json({ message: `Pong! ${Date.now()}` }));
 app.get('/debug', (c) => {
-  const url = getRequestUrl(c)
   return c.json({
-    path: url.pathname,
+    path: c.req.path,
     method: c.req.method,
-    url: url.toString(),
+    url: c.req.url,
     registeredRoutes: [
       '/api/ping',
       '/api/debug',
@@ -80,34 +68,31 @@ app.get('/debug', (c) => {
       '/api/audio',
       '/api/avatar',
       '/api/webhook',
+      '/api/monitoring',
     ],
   });
 });
 
-// Диагностика: получение списка доступных моделей OpenRouter
+// Диагностика: получение списка доступных моделей AIMLAPI
 app.get('/models-debug', async (c) => {
   console.log(`[DEBUG] /models-debug called`)
   try {
     const runtimeEnv = getRuntimeEnv<Env>(c)
-    const openRouterKey = runtimeEnv?.OPENROUTER_API_KEY
+    const aimlapiKey = runtimeEnv?.AIMLAPI_KEY
     
-    if (!openRouterKey) {
-      return c.json({ error: "OPENROUTER_API_KEY not found" }, 503 as const)
+    if (!aimlapiKey) {
+      return c.json({ error: "AIMLAPI_KEY not found" }, 503 as const)
     }
     
-    console.log(`[DEBUG] Fetching models from OpenRouter`)
-    const response = await fetch('https://openrouter.ai/api/v1/models', {
+    console.log(`[DEBUG] Fetching models from AIMLAPI`)
+    const response = await fetch(`${AIMLAPI_BASE_URL}/models`, {
       headers: { 
-        'Authorization': `Bearer ${openRouterKey}`,
-        'HTTP-Referer': 'https://synapse-7436.vercel.app',
-        'X-Title': 'Synapse AI Studio',
+        'Authorization': `Bearer ${aimlapiKey}`,
+        'Content-Type': 'application/json',
       }
     })
     
-    console.log(`[DEBUG] Models API response:`, {
-      status: response.status,
-      ok: response.ok,
-    })
+    console.log(`[DEBUG] Models API response:`, { status: response.status, ok: response.ok })
     
     if (!response.ok) {
       const errorText = await response.text()
@@ -118,21 +103,14 @@ app.get('/models-debug', async (c) => {
       }, response.status >= 500 ? 500 as const : response.status as 400 | 401 | 403)
     }
     
-    const data = (await response.json()) as any
-    
-    // Фильтруем только Flux модели для удобства
-    const fluxModels = Array.isArray(data.data) 
-      ? data.data.filter((m: any) => m.id && m.id.includes('flux'))
-      : []
+    const data = (await response.json()) as { data?: Array<{ id: string; name?: string; context_length?: number }> }
+    const list = Array.isArray(data.data) ? data.data : []
+    const fluxModels = list.filter((m) => m.id && m.id.includes('flux'))
     
     return c.json({
-      total: Array.isArray(data.data) ? data.data.length : 0,
-      fluxModels: fluxModels.map((m: any) => ({
-        id: m.id,
-        name: m.name,
-        context_length: m.context_length,
-      })),
-      allModels: Array.isArray(data.data) ? data.data.map((m: any) => m.id) : [],
+      total: list.length,
+      fluxModels: fluxModels.map((m) => ({ id: m.id, name: m.name, context_length: m.context_length })),
+      allModels: list.map((m) => m.id),
     })
   } catch (error) {
     console.error(`[DEBUG] Models debug error:`, error)
@@ -147,27 +125,20 @@ app.get('/models-debug', async (c) => {
 // Порядок важен: более специфичные роуты должны быть выше
 app.route('/chat', chatRoutes);
 
-// Прямой роут POST /api/image для упрощения маршрутизации Vercel Edge
+// Прямой роут POST /api/image
 app.post('/image', async (c) => {
   const requestStartTime = Date.now()
-  console.log(`[DEBUG] Image generation request START at ${new Date().toISOString()} (elapsed 0ms)`)
-  const requestUrl = getRequestUrl(c)
-  console.log(`[DEBUG] Request URL:`, requestUrl.toString())
-  console.log(`[DEBUG] Request path:`, requestUrl.pathname)
-  console.log(`[DEBUG] POST /image handler called`)
+  console.log(`[DEBUG] POST /image ${c.req.path} at ${new Date().toISOString()}`)
   
-  // Получение env переменных через getRuntimeEnv (стандарт Vercel Edge)
   const runtimeEnv = getRuntimeEnv<Env>(c)
-  const openRouterKey = runtimeEnv?.OPENROUTER_API_KEY
+  // Ключ из Vercel env или process.env.AIMLAPI_KEY (Node.js)
+  const aimlapiKey = runtimeEnv?.AIMLAPI_KEY ?? (typeof process !== "undefined" && process.env?.AIMLAPI_KEY)
   const replicateToken = runtimeEnv?.REPLICATE_API_TOKEN
   
-  console.log(`[DEBUG] Environment check:`, {
-    hasOpenRouterKey: !!openRouterKey,
-    hasReplicateToken: !!replicateToken,
-  })
+  console.log(`[DEBUG] Environment check:`, { hasAimlapiKey: !!aimlapiKey, hasReplicateToken: !!replicateToken })
   
-  if (!openRouterKey) {
-    console.error(`[DEBUG] OPENROUTER_API_KEY missing`)
+  if (!aimlapiKey) {
+    console.error(`[DEBUG] AIMLAPI_KEY missing`)
     return c.json({ error: "Image generation service is not available. Please check API configuration." }, 503 as const)
   }
   
@@ -233,32 +204,25 @@ app.post('/image', async (c) => {
   //   tierHeader: c.req.header("X-User-Tier"),
   // })
   
-  // Model mapping: только модели из тарифной сетки Synapse
-  // Обновлено на основе реальных ID моделей от OpenRouter
+  // Model mapping: модели AIMLAPI для генерации изображений
   const MODEL_MAP: Record<string, string> = {
-    // START tier (390 ₽) - актуальные ID моделей 2026 года
-    "flux-schnell": "black-forest-labs/flux.2-klein", // Быстро/дешево (2026)
-    
-    // CREATOR tier (990 ₽) — специализированная модель для генерации изображений
-    "nana-banana": "google/gemini-3-pro-image-preview",
-    
-    // PRO_STUDIO tier (2 990 ₽)
-    "flux-pro": "black-forest-labs/flux.2-pro", // Премиум (2026)
+    "flux-schnell": "flux/schnell", // Быстрая модель для фото
+    "flux-pro": "flux/2-pro", // Премиум модель для фото
   }
-  // АКТИВНАЯ МОДЕЛЬ: Gemini 3 Pro Image Preview для генерации изображений
-  const modelToUse = "google/gemini-3-pro-image-preview"
-  const openRouterModel = modelToUse
-  const replicateModel = "black-forest-labs/flux-schnell" // Для Replicate (fallback)
+  // Модель по умолчанию: flux/schnell (быстрая и дешёвая для тестов)
+  const modelToUse = engine && MODEL_MAP[engine] ? MODEL_MAP[engine] : "flux/schnell"
+  const aimlapiModel = modelToUse
+  const replicateModel = "black-forest-labs/flux-schnell" // Replicate fallback
   
-  console.log(`[DEBUG] GEMINI 3 PRO IMAGE MODE: Using google/gemini-3-pro-image-preview`)
+  console.log(`[DEBUG] AIMLAPI IMAGE: model=${aimlapiModel}`)
   
   // ВРЕМЕННО ОТКЛЮЧЕНО: Проверка доступа к модели по тарифу
-  // const requiredTier = getRequiredTierForImageModel(openRouterModel)
+  // const requiredTier = getRequiredTierForImageModel(aimlapiModel)
   // const accessCheck = checkTierAccess(userTier, requiredTier)
   
   console.log(`[DEBUG] Model selection (testing mode - no tier restrictions):`, {
     engine: engine || "default",
-    openRouterModel,
+    aimlapiModel,
     replicateModel,
     willUseReplicate: engine === "nana-banana" && !!replicateToken,
   })
@@ -268,7 +232,7 @@ app.post('/image', async (c) => {
   //   console.warn(`[DEBUG] Image access denied:`, {
   //     userTier,
   //     requiredTier,
-  //     model: openRouterModel,
+  //     model: aimlapiModel,
   //     message: accessCheck.message,
   //   })
   //   return c.json({ 
@@ -321,131 +285,109 @@ app.post('/image', async (c) => {
         }, 201 as const)
       }
     } catch (replicateError) {
-      console.warn(`[DEBUG] Replicate failed, falling back to OpenRouter:`, replicateError)
+      console.warn(`[DEBUG] Replicate failed, falling back to AIMLAPI:`, replicateError)
     }
   }
   
-  // OpenRouter fallback или основной путь
-  console.log(`[DEBUG] Using OpenRouter with model:`, openRouterModel)
-  
-  // Проверка ключа перед использованием
-  if (!openRouterKey || openRouterKey === "") {
-    console.error(`[DEBUG] OPENROUTER_API_KEY is undefined or empty before fetch`)
+  // AIMLAPI — основной путь для генерации изображений
+  if (!aimlapiKey || aimlapiKey === "") {
+    console.error(`[DEBUG] AIMLAPI_KEY is undefined or empty before fetch`)
     return c.json({ error: "API key is missing" }, 503 as const)
   }
   
-  // Полный URL OpenRouter (без относительных путей — исключает ошибки 550 / Invalid URL)
-  const openRouterUrl = "https://openrouter.ai/api/v1/chat/completions"
+  // Базовый URL AIMLAPI (без относительных путей для Node.js)
+  const aimlapiUrl = `${AIMLAPI_BASE_URL}/images/generations`
   
-  console.log(`[DEBUG] Final URL for OpenRouter (absolute):`, openRouterUrl)
-  console.log(`[DEBUG] URL is absolute:`, openRouterUrl.startsWith("http"))
-  console.log(`[DEBUG] OpenRouter API key check:`, {
-    hasKey: !!openRouterKey,
-    keyLength: openRouterKey.length,
-    keyPreview: openRouterKey.substring(0, 8) + "...",
-  })
+  console.log(`[DEBUG] Final URL for AIMLAPI (absolute):`, aimlapiUrl)
+  console.log(`[DEBUG] AIMLAPI key check:`, { hasKey: !!aimlapiKey, keyPreview: aimlapiKey.substring(0, 8) + "..." })
   
-  // Gemini 3 Pro Image Preview — специализированная модель, только ["image"]
-  const isGemini3Image = openRouterModel.includes("gemini-3-pro-image-preview")
-  const modalities: ("image" | "text")[] = isGemini3Image ? ["image"] : ["image"]
-  
-  console.log(`[DEBUG] Model: Gemini 3 Pro Image Preview, modalities:`, modalities)
-  
-  // Формат chat/completions для генерации изображений
-  const openRouterPayload = {
-    model: openRouterModel, // "google/gemini-3-pro-image-preview"
-    messages: [
-      {
-        role: "user",
-        content: enhancedPrompt,
-      },
-    ],
-    modalities: modalities, // только изображение
+  // Бесплатный тест: POST /images/generations, Authorization: Bearer AIMLAPI_KEY
+  // Тело: { model: "flux/schnell", prompt, n: 1, size: "1024x1024" }. Ответ: OpenAI-формат, картинка в response.data[0].url
+  const sizeStr = `${size.width}x${size.height}` // по умолчанию 1:1 → "1024x1024"
+  const aimlapiPayload = {
+    model: aimlapiModel, // по умолчанию flux/schnell — самая быстрая для теста
+    prompt: enhancedPrompt,
+    n: numImages || 1,
+    size: sizeStr,
   }
   
-  console.log(`[DEBUG] GEMINI 3 PRO IMAGE REQUEST:`, {
-    model: openRouterPayload.model,
-    modalities: openRouterPayload.modalities,
+  console.log(`[DEBUG] AIMLAPI IMAGE REQUEST:`, {
+    model: aimlapiPayload.model,
     promptLength: enhancedPrompt.length,
     promptPreview: enhancedPrompt.substring(0, 200),
+    size: aimlapiPayload.size,
+    n: aimlapiPayload.n,
   })
   
-  console.log(`[DEBUG] Final model ID sent to OpenRouter:`, openRouterPayload.model)
-  console.log(`[DEBUG] Modalities:`, modalities)
-  console.log(`[DEBUG] Full payload:`, JSON.stringify(openRouterPayload, null, 2))
+  console.log(`[DEBUG] Final model ID sent to AIMLAPI:`, aimlapiPayload.model)
+  console.log(`[DEBUG] Full payload:`, JSON.stringify(aimlapiPayload, null, 2))
   
-  // Обязательные заголовки для OpenRouter
-  const openRouterHeaders = {
-    "Authorization": `Bearer ${openRouterKey}`,
+  // Обязательные заголовки для AIMLAPI
+  const aimlapiHeaders = {
+    "Authorization": `Bearer ${aimlapiKey}`,
     "Content-Type": "application/json",
-    "HTTP-Referer": "https://synapse-7436.vercel.app",
-    "X-Title": "Synapse AI Studio",
   }
   
   console.log(`[DEBUG] Headers sent:`, {
-    hasAuthorization: !!openRouterHeaders.Authorization,
-    authorizationPreview: openRouterHeaders.Authorization.substring(0, 20) + "...",
-    httpReferer: openRouterHeaders["HTTP-Referer"],
-    xTitle: openRouterHeaders["X-Title"],
-    contentType: openRouterHeaders["Content-Type"],
+    hasAuthorization: !!aimlapiHeaders.Authorization,
+    authorizationPreview: aimlapiHeaders.Authorization.substring(0, 20) + "...",
+    contentType: aimlapiHeaders["Content-Type"],
   })
   
-  const openRouterAbort = new AbortController()
-  // Таймаут 60 секунд для тяжёлых моделей (Gemini 3 Pro Image и др.)
-  const OPENROUTER_TIMEOUT_MS = 60000
-  const openRouterTimeout = setTimeout(() => openRouterAbort.abort(), OPENROUTER_TIMEOUT_MS)
-  console.log(`[DEBUG] OpenRouter fetch timeout set to ${OPENROUTER_TIMEOUT_MS / 1000}s`)
+  const aimlapiAbort = new AbortController()
+  // Таймаут 60 секунд для генерации изображений
+  const AIMLAPI_TIMEOUT_MS = 60000
+  const aimlapiTimeout = setTimeout(() => aimlapiAbort.abort(), AIMLAPI_TIMEOUT_MS)
+  console.log(`[DEBUG] AIMLAPI fetch timeout set to ${AIMLAPI_TIMEOUT_MS / 1000}s`)
   
   try {
-    const fullUrl = openRouterUrl
+    const fullUrl = aimlapiUrl
     console.log("[DEBUG] Final request URL:", fullUrl)
     console.log(`[DEBUG] Sending fetch request to:`, fullUrl)
     
     const response = await fetch(fullUrl, {
       method: "POST",
-      signal: openRouterAbort.signal,
-      headers: openRouterHeaders,
-      body: JSON.stringify(openRouterPayload),
+      signal: aimlapiAbort.signal,
+      headers: aimlapiHeaders,
+      body: JSON.stringify(aimlapiPayload),
     })
     
-    console.log(`[DEBUG] GEMINI 3 PRO IMAGE REQUEST (sending):`, {
-      url: openRouterUrl,
-      model: openRouterPayload.model,
-      modalities: openRouterPayload.modalities,
+    console.log(`[DEBUG] AIMLAPI IMAGE REQUEST (sending):`, {
+      url: aimlapiUrl,
+      model: aimlapiPayload.model,
       promptLength: enhancedPrompt.length,
       promptPreview: enhancedPrompt.substring(0, 200),
     })
     
-    console.log(`[DEBUG] OpenRouter response received:`, {
+    console.log(`[DEBUG] AIMLAPI response received:`, {
       status: response.status,
       statusText: response.statusText,
       ok: response.ok,
       url: response.url,
       elapsedTime: Date.now() - requestStartTime,
-      model: openRouterPayload.model,
+      model: aimlapiPayload.model,
     })
     
     if (!response.ok) {
       const errorText = await response.text().catch(() => "Unknown error")
       const fullError = errorText.length > 2000 ? errorText.substring(0, 2000) + "..." : errorText
       
-      // Детальное логирование для сопоставления с журналами OpenRouter
-      console.error(`[DEBUG] OpenRouter error (FULL):`, {
+      // Детальное логирование для сопоставления с журналами AIMLAPI
+      console.error(`[DEBUG] AIMLAPI error (FULL):`, {
         status: response.status,
         statusText: response.statusText,
         url: response.url,
-        requestUrl: openRouterUrl,
-        model: openRouterPayload.model,
-        modalities: openRouterPayload.modalities,
-        payload: JSON.stringify(openRouterPayload, null, 2),
-        headers: JSON.stringify(openRouterHeaders, null, 2),
+        requestUrl: aimlapiUrl,
+        model: aimlapiPayload.model,
+        payload: JSON.stringify(aimlapiPayload, null, 2),
+        headers: JSON.stringify(aimlapiHeaders, null, 2),
         fullErrorText: fullError,
         errorLength: errorText.length,
         isHtml: errorText.includes("<!DOCTYPE") || errorText.includes("<html"),
         timestamp: new Date().toISOString(),
       })
       
-      // Выводим полную ошибку в консоль для сопоставления с OpenRouter журналами
+      // Выводим полную ошибку в консоль для сопоставления с AIMLAPI журналами
       console.error(`[DEBUG] Full error response body:`, fullError)
       
       const elapsedError = Date.now() - requestStartTime
@@ -456,56 +398,39 @@ app.post('/image', async (c) => {
         error: "Failed to generate image. Please try again.",
         debug: {
           status: response.status,
-          model: openRouterPayload.model,
+          model: aimlapiPayload.model,
           errorPreview: errorText.substring(0, 500),
         }
       }, statusCode)
     }
     
-    // Формат ответа chat/completions: images в choices[0].message.images
-    // OpenRouter может возвращать изображения как URL или base64
+    // AIMLAPI возвращает стандартный OpenAI-формат; путь к картинке: response.data[0].url
     const data = await response.json() as {
-      choices?: Array<{
-        message?: {
-          images?: Array<{
-            image_url?: { url: string; b64_json?: string }
-            imageUrl?: { url: string; b64_json?: string }
-            url?: string // Прямой URL
-            b64_json?: string // Base64 изображение
-          }>
-        }
-      }>
+      data?: Array<{ url?: string; b64_json?: string }>
     }
     
-    // Детальное логирование ответа от Gemini 3 Pro Image Preview
-    console.log(`[DEBUG] GEMINI 3 PRO IMAGE RESPONSE:`, {
-      model: openRouterPayload.model,
-      modalities: openRouterPayload.modalities,
-      hasChoices: !!data.choices,
-      choicesCount: data.choices?.length || 0,
-      hasImages: !!data.choices?.[0]?.message?.images,
-      imagesCount: data.choices?.[0]?.message?.images?.length || 0,
+    // Детальное логирование ответа от AIMLAPI
+    console.log(`[DEBUG] AIMLAPI IMAGE RESPONSE:`, {
+      model: aimlapiPayload.model,
+      hasData: !!data.data,
+      dataCount: data.data?.length || 0,
       fullResponse: JSON.stringify(data, null, 2),
       responsePreview: JSON.stringify(data).substring(0, 1000),
     })
     
-    console.log(`[DEBUG] GEMINI 3 PRO IMAGE FULL RESPONSE BODY:`, JSON.stringify(data, null, 2))
+    console.log(`[DEBUG] AIMLAPI FULL RESPONSE BODY:`, JSON.stringify(data, null, 2))
     
-    const message = data.choices?.[0]?.message
-    if (message?.images && message.images.length > 0) {
-      const images = message.images.map((img, idx) => {
-        // Поддержка разных форматов ответа от OpenRouter
-        // 1. URL через image_url.url
-        // 2. URL через imageUrl.url
-        // 3. Прямой URL
-        // 4. Base64 через image_url.b64_json или imageUrl.b64_json
-        // 5. Прямой base64 через b64_json
-        let imageUrl = img.image_url?.url || img.imageUrl?.url || img.url
+    // Извлекаем изображения из ответа AIMLAPI (формат data[].url или data[].b64_json)
+    if (data.data && data.data.length > 0) {
+      const images = data.data.map((img, idx) => {
+        // Поддержка форматов ответа от AIMLAPI
+        // 1. URL через url
+        // 2. Base64 через b64_json
+        let imageUrl = img.url
         
         // Если есть base64, конвертируем в data URL для фронтенда
-        const base64Data = img.image_url?.b64_json || img.imageUrl?.b64_json || img.b64_json
-        if (base64Data && !imageUrl) {
-          imageUrl = `data:image/png;base64,${base64Data}`
+        if (img.b64_json && !imageUrl) {
+          imageUrl = `data:image/png;base64,${img.b64_json}`
           console.log(`[DEBUG] Converted base64 to data URL for image ${idx}`)
         }
         
@@ -534,7 +459,7 @@ app.post('/image', async (c) => {
     console.error(`[DEBUG] Image generation request END (fetch error): elapsed ${elapsedCatch}ms (${(elapsedCatch / 1000).toFixed(1)}s)`, fetchError)
     return c.json({ error: "Network error. Please try again." }, 503 as const)
   } finally {
-    clearTimeout(openRouterTimeout)
+    clearTimeout(aimlapiTimeout)
     const totalElapsedMs = Date.now() - requestStartTime
     console.log(`[DEBUG] Image generation total elapsed: ${totalElapsedMs}ms (${(totalElapsedMs / 1000).toFixed(1)}s) — exiting handler`)
   }
@@ -553,23 +478,16 @@ app.route('/enhance', enhanceRoutes);
 app.route('/audio', audioRoutes);
 app.route('/avatar', avatarRoutes);
 app.route('/webhook', webhookRoutes);
+app.route('/monitoring', monitoringRoutes);
 
-// Fallback для несуществующих роутов
+// Fallback для несуществующих роутов (стандартные пути Hono)
 app.notFound((c) => {
-  const url = getRequestUrl(c)
-  const pathname = url.pathname
-  const fullUrl = url.toString()
-  console.error("[API] Route not found:", {
-    path: pathname,
-    method: c.req.method,
-    url: fullUrl,
-  });
-  
+  console.error("[API] Route not found:", { path: c.req.path, method: c.req.method, url: c.req.url })
   return c.json({ 
-    error: `Route not found: ${pathname}`,
+    error: `Route not found: ${c.req.path}`,
     method: c.req.method,
-    url: fullUrl,
-    availableRoutes: ['/api/ping', '/api/debug', '/api/chat', '/api/image', '/api/video', '/api/enhance', '/api/audio', '/api/avatar', '/api/webhook']
+    url: c.req.url,
+    availableRoutes: ['/api/ping', '/api/debug', '/api/chat', '/api/image', '/api/video', '/api/enhance', '/api/audio', '/api/avatar', '/api/webhook', '/api/monitoring']
   }, 404);
 });
 

@@ -5,6 +5,7 @@ type Env = {
   REPLICATE_API_TOKEN?: string
   LUMA_API_KEY?: string // Для прямого доступа к Luma Labs API
   KLING_API_KEY?: string // Для прямого доступа к Kling AI API
+  AIMLAPI_KEY?: string // Для доступа к AIMLAPI (kling/v1.5)
 }
 
 export const videoRoutes = new Hono<{ Bindings: Env }>()
@@ -17,8 +18,7 @@ const PRESET_PROMPTS: Record<string, string> = {
   "old-film": "vintage film effect, sepia tones, film grain, slow deliberate movement, nostalgic aesthetic",
 }
 
-// Video model configurations - готовы к прямому подключению Luma/Kling API
-// OpenRouter не поддерживает генерацию видео, поэтому используем прямые API
+// Video model configurations - готовы к прямому подключению Luma/Kling/AIMLAPI
 const VIDEO_MODELS = {
   standard: {
     // Luma Labs API (прямое подключение)
@@ -30,10 +30,10 @@ const VIDEO_MODELS = {
     replicateVersion: "478f3f66f8ce6ebe0ceeea8d8eb64ff8f38ebed5f8dddfae1f4e72b0ea229a5b",
   },
   premium: {
-    // Kling AI API (прямое подключение)
-    provider: "kling",
-    apiUrl: "https://api.klingai.com/v1/generations",
-    model: "kling-v1",
+    // Kling AI через AIMLAPI
+    provider: "aimlapi",
+    apiUrl: "https://api.aimlapi.com/v1/videos/generations",
+    model: "kling/v1.5",
     // Fallback через Replicate если API ключ не настроен
     replicateModel: "kling-ai/kling-v1",
     replicateVersion: "f7a86ae5f2d0c2cc3dd3ece46e2e8c5e8b7b8c8d9e0f1a2b3c4d5e6f7a8b9c0d",
@@ -246,27 +246,67 @@ videoRoutes.post("/", async (c) => {
     // Add cinematic quality
     enhancedPrompt += ", cinematic quality, smooth motion, professional video"
 
-    // Try Replicate for actual video generation
+    // Try AIMLAPI kling/v1.5 first if premium model requested, then Replicate fallback
+    const aimlapiKey = c.env.AIMLAPI_KEY
     const apiToken = c.env.REPLICATE_API_TOKEN
-    let videoUrl = await tryReplicateVideo(
-      enhancedPrompt,
-      finalDuration,
-      finalAspectRatio,
-      apiToken,
-      mode === "image-to-video" ? referenceImage : null
-    )
+    let videoUrl: string | null = null
     
-    // Only use sample video if Replicate is not configured
+    // Try AIMLAPI kling/v1.5 for premium model
+    if (videoModel === "premium" && aimlapiKey) {
+      try {
+        console.log("[Video API] Attempting AIMLAPI kling/v1.5")
+        const aimlapiUrl = VIDEO_MODELS.premium.apiUrl
+        const response = await fetch(aimlapiUrl, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${aimlapiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: VIDEO_MODELS.premium.model, // "kling/v1.5"
+            prompt: enhancedPrompt,
+            duration: finalDuration,
+            aspect_ratio: finalAspectRatio,
+            ...(mode === "image-to-video" && referenceImage ? { image: referenceImage } : {}),
+          }),
+        })
+        
+        if (response.ok) {
+          const data = await response.json() as { video_url?: string; url?: string }
+          videoUrl = data.video_url || data.url || null
+          if (videoUrl) {
+            console.log("[Video API] Successfully generated video via AIMLAPI kling/v1.5")
+          }
+        }
+      } catch (aimlapiError) {
+        console.warn("[Video API] AIMLAPI kling/v1.5 failed, falling back to Replicate:", aimlapiError)
+      }
+    }
+    
+    // Fallback to Replicate if AIMLAPI failed or not configured
     if (!videoUrl) {
-      if (!apiToken) {
-        console.warn("[Video API] REPLICATE_API_TOKEN not configured, using sample video")
+      videoUrl = await tryReplicateVideo(
+        enhancedPrompt,
+        finalDuration,
+        finalAspectRatio,
+        apiToken,
+        mode === "image-to-video" ? referenceImage : null
+      )
+      
+      if (videoUrl) {
+        console.log("[Video API] Successfully generated video via Replicate")
+      }
+    }
+    
+    // Only use sample video if both AIMLAPI and Replicate are not configured
+    if (!videoUrl) {
+      if (!aimlapiKey && !apiToken) {
+        console.warn("[Video API] Neither AIMLAPI_KEY nor REPLICATE_API_TOKEN configured, using sample video")
         videoUrl = SAMPLE_VIDEOS[Math.floor(Math.random() * SAMPLE_VIDEOS.length)]
       } else {
-        // Replicate is configured but generation failed - return error
+        // API is configured but generation failed - return error
         return c.json({ error: "Video generation failed. Please try again later." }, 500)
       }
-    } else {
-      console.log("[Video API] Successfully generated video via Replicate")
     }
 
     return c.json({

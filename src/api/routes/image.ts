@@ -3,7 +3,7 @@ import { env as getRuntimeEnv } from "hono/adapter"
 
 // Environment variables type for Hono context
 type Env = {
-  OPENROUTER_API_KEY?: string
+  AIMLAPI_KEY?: string
   REPLICATE_API_TOKEN?: string
   VITE_BASE_URL?: string
 }
@@ -28,13 +28,14 @@ const STYLE_PROMPTS: Record<string, string> = {
 // Nana Banana (niji-v6) anime enhancement
 const NANA_BANANA_PROMPT = ", anime masterpiece, niji style, vibrant colors, high quality anime art, detailed anime illustration, professional anime artwork, beautiful anime aesthetic"
 
-// Model mapping from frontend engine IDs to OpenRouter/Replicate model IDs
+// Model mapping from frontend engine IDs to AIMLAPI/Replicate model IDs
 const MODEL_MAP: Record<string, string> = {
-  "kandinsky-3.1": "black-forest-labs/flux-1-schnell", // Fallback to Flux for Kandinsky
-  "flux-schnell": "black-forest-labs/flux-1-schnell",
-  "dall-e-3": "openai/dall-e-3",
-  "midjourney-v7": "black-forest-labs/flux-1-schnell", // Fallback to Flux for Midjourney
-  "nana-banana": "black-forest-labs/flux-1-schnell", // Using Flux with Nana Banana prompt enhancement
+  "kandinsky-3.1": "flux/schnell", // Fallback to Flux for Kandinsky
+  "flux-schnell": "flux/schnell", // AIMLAPI модель
+  "flux-pro": "flux/2-pro", // AIMLAPI премиум модель
+  "dall-e-3": "flux/schnell", // Fallback to Flux for DALL-E
+  "midjourney-v7": "flux/schnell", // Fallback to Flux for Midjourney
+  "nana-banana": "flux/schnell", // Using Flux with Nana Banana prompt enhancement
 }
 
 // Get Replicate prediction status (for frontend polling)
@@ -57,16 +58,14 @@ async function getReplicatePredictionStatus(predictionId: string, apiToken: stri
   return await response.json() as { status: string; output?: string | string[]; error?: string }
 }
 
-// GET /api/image — проверка доступности роута; генерация — POST /api/image (без слеша в конце)
+// GET /api/image — проверка доступности; генерация — POST /api/image
 imageRoutes.get("/", (c) => {
-  const url = new URL(c.req.url)
-  console.log(`[Image Routes] GET / called - pathname: ${url.pathname}, method: ${c.req.method}`)
+  console.log(`[Image Routes] GET ${c.req.path} method=${c.req.method}`)
   return c.json({ ok: true, message: "Image API. Use POST to generate images." })
 })
 
 imageRoutes.post("/", async (c) => {
-  const url = new URL(c.req.url)
-  console.log(`[Image Routes] POST / called - pathname: ${url.pathname}, method: ${c.req.method}, full URL: ${c.req.url}`)
+  console.log(`[Image Routes] POST ${c.req.path} method=${c.req.method} url=${c.req.url}`)
   
   // Declare variables outside try block for use in catch block
   let engine: string | undefined = undefined
@@ -82,18 +81,18 @@ imageRoutes.post("/", async (c) => {
   }
   
   // c.env may be undefined on Vercel Edge; use hono/adapter env() then process.env
-  let openRouterKey: string | undefined
+  let aimlapiKey: string | undefined
   let replicateToken: string | undefined
   try {
     const bindings = c.env as Env | undefined
     const runtimeEnv = getRuntimeEnv<Env>(c)
-    openRouterKey = bindings?.OPENROUTER_API_KEY ?? runtimeEnv?.OPENROUTER_API_KEY ?? (typeof process !== "undefined" && process.env?.OPENROUTER_API_KEY)
+    aimlapiKey = bindings?.AIMLAPI_KEY ?? runtimeEnv?.AIMLAPI_KEY ?? (typeof process !== "undefined" && process.env?.AIMLAPI_KEY)
     replicateToken = bindings?.REPLICATE_API_TOKEN ?? runtimeEnv?.REPLICATE_API_TOKEN ?? (typeof process !== "undefined" && process.env?.REPLICATE_API_TOKEN)
-    if (openRouterKey === undefined || openRouterKey === "") {
+    if (aimlapiKey === undefined || aimlapiKey === "") {
       const debugEnvKeys = typeof process !== "undefined" && process.env ? Object.keys(process.env) : []
-      console.error("[Image API] OPENROUTER_API_KEY missing after c.env and process.env fallback. process.env keys:", debugEnvKeys.length)
+      console.error("[Image API] AIMLAPI_KEY missing after c.env and process.env fallback. process.env keys:", debugEnvKeys.length)
       return c.json({
-        error: "Error: Key OPENROUTER_API_KEY is missing.",
+        error: "Error: Key AIMLAPI_KEY is missing.",
         debug_env_keys: debugEnvKeys,
       }, 503)
     }
@@ -104,24 +103,22 @@ imageRoutes.post("/", async (c) => {
     const debugEnvKeys = typeof process !== "undefined" && process.env ? Object.keys(process.env) : []
     console.error("[Image API] Failed to read env:", envErr)
     return c.json({
-      error: "Error: Failed to read env (Key OPENROUTER_API_KEY or REPLICATE_API_TOKEN).",
+      error: "Error: Failed to read env (Key AIMLAPI_KEY or REPLICATE_API_TOKEN).",
       debug_env_keys: debugEnvKeys,
     }, 503)
   }
   
   try {
-    // Логирование для отладки маршрутизации
-    const url = new URL(c.req.url)
     console.log("[Image API] Request received:", {
-      path: url.pathname,
+      path: c.req.path,
       method: c.req.method,
       url: c.req.url,
       startTime: new Date(requestStartTime).toISOString(),
     });
     
     console.log("[Image API] Environment check:", {
-      hasOpenRouterKey: !!openRouterKey,
-      openRouterKeyPreview: openRouterKey ? `${openRouterKey.substring(0, 4)}...` : "missing",
+      hasAimlapiKey: !!aimlapiKey,
+      aimlapiKeyPreview: aimlapiKey ? `${aimlapiKey.substring(0, 4)}...` : "missing",
       hasReplicateToken: !!replicateToken,
       replicateTokenPreview: replicateToken ? `${replicateToken.substring(0, 4)}...` : "missing",
     });
@@ -205,94 +202,58 @@ imageRoutes.post("/", async (c) => {
     const generatedImages = []
 
     for (let i = 0; i < numToGenerate; i++) {
-      // For image-to-image mode, use a multimodal model
-      // For text-to-image, use flux-1-schnell
+      // For image-to-image mode, use Replicate or fallback to text-to-image
+      // For text-to-image, use AIMLAPI flux/schnell or flux/2-pro
       if (mode === "image-to-image" && referenceImage) {
-        // OpenRouter image-to-image; 8s client timeout to avoid Vercel 10s limit
-        // Используем абсолютный URL для внешнего API OpenRouter
-        const imageToImageUrl = "https://openrouter.ai/api/v1/chat/completions"
-        const imageToImageModel = "google/gemini-2.0-flash-exp:free"
-        console.log(`[FETCH START] URL: ${imageToImageUrl} | Model: ${imageToImageModel} | Provider: openrouter | Engine: ${engine || "default"} | Mode: image-to-image`)
-        
-        const imageToImageAbort = new AbortController()
-        const imageToImageTimeout = setTimeout(() => imageToImageAbort.abort(), 8000)
-        let response: Response
-        try {
-          response = await fetch(imageToImageUrl, {
-            method: "POST",
-            signal: imageToImageAbort.signal,
-            headers: {
-              "Authorization": `Bearer ${openRouterKey}`,
-              "Content-Type": "application/json",
-              "HTTP-Referer": "https://synapse-7436.vercel.app",
-              "X-Title": "Synapse AI",
-            },
-            body: JSON.stringify({
-              model: imageToImageModel,
-              messages: [
-                {
-                  role: "user",
-                  content: [
-                    {
-                      type: "image_url",
-                      image_url: {
-                        url: referenceImage,
-                      },
-                    },
-                    {
-                      type: "text",
-                      text: `Generate a new image based on this reference: ${enhancedPrompt}`,
-                    },
-                  ],
-                },
-              ],
-              modalities: ["image", "text"],
-              stream: false,
-            }),
-          })
-        } finally {
-          clearTimeout(imageToImageTimeout)
-        }
-
-        if (!response.ok) {
-          if (generatedImages.length > 0) break
-          const errorText = await response.text().catch(() => "Unknown error")
-          console.error("[Image API] Image-to-image error:", response.status, errorText)
-          return c.json({ error: "Image transformation is experiencing high demand. Please try again later." }, 500)
-        }
-
-        const data = await response.json() as {
-          choices?: Array<{
-            message?: {
-              images?: Array<{
-                image_url?: { url: string }
-                imageUrl?: { url: string }
-              }>
+        // Image-to-image через Replicate (если доступен) или fallback на text-to-image
+        if (replicateToken) {
+          try {
+            const replicateModel = "black-forest-labs/flux-schnell"
+            const replicateUrl = "https://api.replicate.com/v1/predictions"
+            
+            const replicatePayload = {
+              model: replicateModel,
+              input: {
+                prompt: enhancedPrompt,
+                image: referenceImage,
+                aspect_ratio: aspectRatio === "16:9" ? "16:9" : aspectRatio === "9:16" ? "9:16" : "1:1",
+                output_format: "png",
+              },
             }
-          }>
-        }
-        const message = data.choices?.[0]?.message
-        
-        if (message?.images && message.images.length > 0) {
-          for (const image of message.images) {
-            const imageUrl = image.image_url?.url || image.imageUrl?.url
-            if (imageUrl) {
-              generatedImages.push({
-                id: `${Date.now()}-${generatedImages.length}`,
-                url: imageUrl,
+            
+            const replicateResponse = await fetch(replicateUrl, {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${replicateToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(replicatePayload),
+            })
+            
+            if (replicateResponse.ok) {
+              const prediction = await replicateResponse.json() as { id: string; status: string }
+              return c.json({
+                id: prediction.id,
+                status: prediction.status,
+                provider: "replicate",
+                engine: engine,
                 prompt: prompt.trim(),
                 aspectRatio,
                 style: specializedEngine === "niji-v6" ? "nana-banana" : style,
-                mode: mode || "text-to-image",
-                createdAt: new Date().toISOString(),
-                creditCost: 3, // Image generation costs 3 credits
-              })
+                mode: mode || "image-to-image",
+              }, 201)
             }
+          } catch (replicateError) {
+            console.warn("[Image API] Replicate image-to-image failed, falling back to text-to-image:", replicateError)
           }
         }
-      } else {
-        // Text-to-image: Select model based on engine parameter
-        const modelId = engine && MODEL_MAP[engine] ? MODEL_MAP[engine] : "black-forest-labs/flux-1-schnell"
+        // Fallback: используем text-to-image с улучшенным промптом
+        enhancedPrompt = `Transform this image: ${enhancedPrompt}. ${enhancedPrompt}`
+      }
+      
+      {
+        // Text-to-image: Select model based on engine parameter (AIMLAPI)
+        const modelId = engine && MODEL_MAP[engine] ? MODEL_MAP[engine] : "flux/schnell"
         
         console.log("[Image API] Using model:", {
           requestedEngine: engine || "default",
@@ -306,27 +267,19 @@ imageRoutes.post("/", async (c) => {
           try {
             console.log("[Image API] Creating Replicate prediction for Nana Banana")
             
-            // Replicate model format: owner/model or owner/model:version
-            // Правильное имя модели для Replicate: black-forest-labs/flux-schnell (без "1")
             const replicateModel = "black-forest-labs/flux-schnell"
             const replicateUrl = "https://api.replicate.com/v1/predictions"
             
             console.log(`[FETCH START] URL: ${replicateUrl} | Model: ${replicateModel} | Provider: replicate | Engine: ${engine}`)
             
-            // Create prediction in Replicate - используем абсолютный URL для внешнего API
             const replicatePayload = {
-              model: replicateModel, // Replicate model format
+              model: replicateModel,
               input: {
                 prompt: enhancedPrompt,
                 aspect_ratio: aspectRatio === "16:9" ? "16:9" : aspectRatio === "9:16" ? "9:16" : "1:1",
                 output_format: "png",
               },
             }
-            console.log("[Image API] Replicate payload:", {
-              model: replicatePayload.model,
-              inputKeys: Object.keys(replicatePayload.input),
-              promptLength: replicatePayload.input.prompt.length,
-            })
             
             const replicateResponse = await fetch(replicateUrl, {
               method: "POST",
@@ -337,19 +290,8 @@ imageRoutes.post("/", async (c) => {
               body: JSON.stringify(replicatePayload),
             })
             
-            console.log("[Image API] Replicate response:", {
-              status: replicateResponse.status,
-              statusText: replicateResponse.statusText,
-              ok: replicateResponse.ok,
-              headers: Object.fromEntries(replicateResponse.headers.entries()),
-            })
-            
             if (replicateResponse.ok) {
               const prediction = await replicateResponse.json() as { id: string; status: string }
-              console.log("[Image API] Replicate prediction created:", prediction.id, "status:", prediction.status)
-              
-              // Return prediction ID immediately for frontend polling (no waiting)
-              // Frontend will poll /api/image/status/:id to get the result
               return c.json({
                 id: prediction.id,
                 status: prediction.status,
@@ -359,83 +301,59 @@ imageRoutes.post("/", async (c) => {
                 aspectRatio,
                 style: specializedEngine === "niji-v6" ? "nana-banana" : style,
                 mode: mode || "text-to-image",
-              }, 201) // 201 Created для успешного создания prediction
-            } else {
-              // Логируем детали ошибки от Replicate
-              const errorText = await replicateResponse.text().catch(() => "Failed to read error response")
-              console.error("[Image API] Replicate API error:", {
-                status: replicateResponse.status,
-                statusText: replicateResponse.statusText,
-                errorBody: errorText.substring(0, 500),
-                model: replicateModel,
-                url: replicateUrl,
-              })
-              
-              // Если 404 - модель не найдена, пробуем OpenRouter
-              if (replicateResponse.status === 404) {
-                console.warn(`[Image API] Replicate model ${replicateModel} not found (404), falling back to OpenRouter`)
-              }
-              // Fall through to OpenRouter fallback
+              }, 201)
             }
           } catch (replicateError) {
-            console.error("[Image API] Replicate request failed:", {
-              error: replicateError instanceof Error ? replicateError.message : String(replicateError),
-              stack: replicateError instanceof Error ? replicateError.stack : undefined,
-            })
-            // Fall through to OpenRouter
+            console.error("[Image API] Replicate request failed:", replicateError)
+            // Fall through to AIMLAPI
           }
         }
         
-        // Use OpenRouter for other models or as fallback; 8s client timeout to avoid Vercel 10s limit
-        // Используем абсолютный URL для внешнего API OpenRouter
-        const openRouterUrl = "https://openrouter.ai/api/v1/images/generations"
-        console.log(`[FETCH START] URL: ${openRouterUrl} | Model: ${modelId} | Provider: openrouter | Engine: ${engine || "default"}`)
+        // Use AIMLAPI for image generation; 60s timeout for image generation
+        const aimlapiUrl = "https://api.aimlapi.com/v1/images/generations" // AIMLAPI base
+        console.log(`[FETCH START] URL: ${aimlapiUrl} | Model: ${modelId} | Provider: aimlapi | Engine: ${engine || "default"}`)
         
-        const openRouterAbort = new AbortController()
-        const openRouterTimeout = setTimeout(() => openRouterAbort.abort(), 8000)
+        const aimlapiAbort = new AbortController()
+        const aimlapiTimeout = setTimeout(() => aimlapiAbort.abort(), 60000)
         let response: Response
-        const openRouterPayload = {
-          model: modelId, // OpenRouter model format
+        const aimlapiPayload = {
+          model: modelId, // AIMLAPI model format: "flux/schnell" or "flux/2-pro"
           prompt: enhancedPrompt,
           n: 1,
           size: `${size.width}x${size.height}`,
         }
-        console.log("[Image API] OpenRouter payload:", {
-          model: openRouterPayload.model,
-          promptLength: openRouterPayload.prompt.length,
-          size: openRouterPayload.size,
+        console.log("[Image API] AIMLAPI payload:", {
+          model: aimlapiPayload.model,
+          promptLength: aimlapiPayload.prompt.length,
+          size: aimlapiPayload.size,
         })
         
         try {
-          response = await fetch(openRouterUrl, {
+          response = await fetch(aimlapiUrl, {
             method: "POST",
-            signal: openRouterAbort.signal,
+            signal: aimlapiAbort.signal,
             headers: {
-              "Authorization": `Bearer ${openRouterKey}`,
+              "Authorization": `Bearer ${aimlapiKey}`,
               "Content-Type": "application/json",
-              "HTTP-Referer": "https://synapse-7436.vercel.app",
-              "X-Title": "Synapse AI",
             },
-            body: JSON.stringify(openRouterPayload),
+            body: JSON.stringify(aimlapiPayload),
           })
           
-          console.log("[Image API] OpenRouter response:", {
+          console.log("[Image API] AIMLAPI response:", {
             status: response.status,
             statusText: response.statusText,
             ok: response.ok,
             headers: Object.fromEntries(response.headers.entries()),
           })
         } finally {
-          clearTimeout(openRouterTimeout)
+          clearTimeout(aimlapiTimeout)
         }
 
         if (!response.ok) {
-          // Handle specific error cases with user-friendly messages
           const status = response.status
           
           if (generatedImages.length > 0) break
           
-          // Логируем детали ошибки для отладки
           const errorText = await response.text().catch(() => "Unknown error")
           console.error("[Image API] Text-to-image error:", {
             status,
@@ -445,13 +363,11 @@ imageRoutes.post("/", async (c) => {
             errorPreview: errorText.substring(0, 500),
           })
           
-          // Try to parse error as JSON for more details
           let errorMessage = "Failed to generate image. Please try again."
           try {
             const errorJson = JSON.parse(errorText)
             errorMessage = errorJson.error?.message || errorJson.error || errorMessage
           } catch {
-            // If not JSON, use the text or default message
             if (errorText && !errorText.includes("<!DOCTYPE")) {
               errorMessage = errorText.substring(0, 200)
             }
@@ -467,7 +383,6 @@ imageRoutes.post("/", async (c) => {
             return c.json({ error: "Image generation service is not available. Please check API configuration." }, 503)
           }
           
-          // Ensure status is a valid HTTP status code
           const httpStatus = status >= 500 ? 500 : (status >= 400 ? status : 500)
           return c.json({ error: errorMessage }, httpStatus as 400 | 401 | 403 | 429 | 500 | 503)
         }
@@ -480,9 +395,7 @@ imageRoutes.post("/", async (c) => {
         }
 
         // Extract image URL from the response
-        // Format: data[0].url or data[0].b64_json
         if (data.data && data.data.length > 0) {
-          // Бесплатные движки: Kandinsky 3.1, Flux.1 [schnell] — 0 кредитов
           const isFreeEngine = engine === "kandinsky-3.1" || engine === "flux-schnell" || !engine
           const creditCost = isFreeEngine ? 0 : 1
           for (const image of data.data) {
