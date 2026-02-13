@@ -816,6 +816,33 @@ export const MotionLab = () => {
     setShowPaywall(true);
   };
 
+  // Poll for video generation status
+  const pollForVideo = async (taskId: string, promptText: string): Promise<string> => {
+    const maxAttempts = 60; // 5 minutes max (every 5s)
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise(r => setTimeout(r, 5000));
+      try {
+        const res = await fetch(`/api/video/status/${encodeURIComponent(taskId)}`);
+        const data = await res.json() as { status: string; url?: string; error?: string };
+        
+        if (data.status === "completed" && data.url) {
+          return data.url;
+        }
+        if (data.status === "failed") {
+          throw new Error(data.error || "Video generation failed.");
+        }
+        // Still processing — continue polling
+      } catch (pollErr) {
+        if (pollErr instanceof Error && pollErr.message !== "Video generation failed.") {
+          console.warn("[Video] Poll error, retrying...", pollErr);
+          continue;
+        }
+        throw pollErr;
+      }
+    }
+    throw new Error("Video generation timed out. Please try again.");
+  };
+
   const handleGenerate = async () => {
     const hasPrompt = prompt.trim().length > 0;
     const hasImageAndPreset = uploadedImage && selectedPreset;
@@ -836,23 +863,23 @@ export const MotionLab = () => {
       const hasImageAndPreset = uploadedImage && selectedPreset;
       const textPrompt = prompt.trim();
 
-      let data: { id?: string; url: string; prompt?: string; duration?: number; aspectRatio?: string; thumbnailUrl?: string };
+      let data: { id?: string; status?: string; url?: string; error?: string; prompt?: string; duration?: number };
+
       if (textPrompt && !hasImageAndPreset) {
-        // Text-to-video: только промпт
-        const res = await fetch("/api/video", {
+        // Text-to-video → POST /api/video/generate
+        const res = await fetch("/api/video/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             prompt: textPrompt,
             duration,
-            aspectRatio: "9:16",
-            mode: "text-to-video",
+            aspectRatio: "16:9",
           }),
         });
         data = await res.json();
         if (!res.ok) throw new Error(data.error || "Failed to generate video");
       } else {
-        // Image-to-video: /animate
+        // Image-to-video → POST /api/video/animate
         const res = await fetch("/api/video/animate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -867,13 +894,22 @@ export const MotionLab = () => {
         if (!res.ok) throw new Error(data.error || "Failed to animate portrait");
       }
 
+      // If completed immediately — use the URL
+      let videoUrl = data.url;
+
+      // If still processing — poll for result
+      if (!videoUrl && data.id && data.status === "processing") {
+        videoUrl = await pollForVideo(data.id, textPrompt || "animation");
+      }
+
+      if (!videoUrl) throw new Error("No video URL received.");
+
       const newVideo: GeneratedVideo = {
         id: data.id || `${Date.now()}`,
-        url: data.url,
-        prompt: data.prompt ?? ANIMATION_PRESETS.find(p => p.id === selectedPreset)?.name ?? "",
+        url: videoUrl,
+        prompt: data.prompt ?? textPrompt ?? ANIMATION_PRESETS.find(p => p.id === selectedPreset)?.name ?? "",
         duration: data.duration ?? duration,
-        aspectRatio: (data.aspectRatio as "1:1" | "9:16") ?? "1:1",
-        thumbnailUrl: data.thumbnailUrl,
+        aspectRatio: "16:9",
         createdAt: new Date().toISOString(),
         preset: selectedPreset ?? undefined,
       };
@@ -892,8 +928,8 @@ export const MotionLab = () => {
         credits: videoCost,
       });
     } catch (err) {
-      console.error("Animation error:", err);
-      setError(err instanceof Error ? err.message : "Failed to animate portrait");
+      console.error("Video generation error:", err);
+      setError(err instanceof Error ? err.message : "Failed to generate video");
     } finally {
       setIsGenerating(false);
     }

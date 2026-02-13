@@ -1,14 +1,9 @@
 import { Hono } from "hono"
 
-// Environment variables type for Hono context
-type Env = {
-  REPLICATE_API_TOKEN?: string
-  LUMA_API_KEY?: string // Для прямого доступа к Luma Labs API
-  KLING_API_KEY?: string // Для прямого доступа к Kling AI API
-  AIMLAPI_KEY?: string // Для доступа к AIMLAPI (kling/v1.5)
-}
+export const videoRoutes = new Hono()
 
-export const videoRoutes = new Hono<{ Bindings: Env }>()
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+const TIMEOUT_MS = 55000 // 55s — safely under Vercel's 60s maxDuration
 
 // Animation preset prompt mapping
 const PRESET_PROMPTS: Record<string, string> = {
@@ -18,151 +13,263 @@ const PRESET_PROMPTS: Record<string, string> = {
   "old-film": "vintage film effect, sepia tones, film grain, slow deliberate movement, nostalgic aesthetic",
 }
 
-// Video model configurations - готовы к прямому подключению Luma/Kling/AIMLAPI
-const VIDEO_MODELS = {
-  standard: {
-    // Luma Labs API (прямое подключение)
-    provider: "luma",
-    apiUrl: "https://api.lumalabs.ai/v1/generations",
-    model: "luma-dream-machine",
-    // Fallback через Replicate если API ключ не настроен
-    replicateModel: "luma/ray",
-    replicateVersion: "478f3f66f8ce6ebe0ceeea8d8eb64ff8f38ebed5f8dddfae1f4e72b0ea229a5b",
-  },
-  premium: {
-    // Kling AI через AIMLAPI
-    provider: "aimlapi",
-    apiUrl: "https://api.aimlapi.com/v1/videos/generations",
-    model: "kling/v1.5",
-    // Fallback через Replicate если API ключ не настроен
-    replicateModel: "kling-ai/kling-v1",
-    replicateVersion: "f7a86ae5f2d0c2cc3dd3ece46e2e8c5e8b7b8c8d9e0f1a2b3c4d5e6f7a8b9c0d",
-  },
+/** Promise.race timeout */
+function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<Response> {
+  return Promise.race([
+    fetch(url, init),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`TIMEOUT_${ms}ms`)), ms)
+    ),
+  ])
 }
 
-// Poll Replicate for prediction result
-async function pollReplicatePrediction(predictionId: string, apiToken: string, maxAttempts = 120): Promise<{ status: string; output?: string | string[] }> {
-  
-  for (let i = 0; i < maxAttempts; i++) {
-    const response = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
-      headers: {
-        "Authorization": `Bearer ${apiToken}`,
-        "Content-Type": "application/json",
-      },
-    })
-    
-    if (!response.ok) {
-      throw new Error("Failed to check prediction status")
-    }
-    
-    const data = await response.json() as { status: string; output?: string | string[]; error?: string }
-    
-    if (data.status === "succeeded") {
-      return data
-    }
-    
-    if (data.status === "failed" || data.status === "canceled") {
-      throw new Error(data.error || "Video generation failed")
-    }
-    
-    // Wait 2 seconds before polling again (videos take longer)
-    await new Promise(resolve => setTimeout(resolve, 2000))
-  }
-  
-  throw new Error("Video generation timed out. Please try again.")
-}
+// ─── POST /generate — start video generation, return task ID
+videoRoutes.post("/generate", async (c) => {
+  const startTime = Date.now()
+  console.log("[Video] POST /generate start")
 
-// Try generating video with Replicate
-async function tryReplicateVideo(
-  prompt: string, 
-  duration: number, 
-  aspectRatio: string,
-  apiToken: string | undefined,
-  referenceImage?: string | null
-): Promise<string | null> {
-  if (!apiToken) {
-    return null // Replicate not configured
-  }
-  
   try {
-    // Map aspect ratio to Replicate format
-    const aspectMap: Record<string, string> = {
-      "16:9": "16:9",
-      "9:16": "9:16",
-      "1:1": "1:1",
+    const apiKey = process.env.OPENROUTER_API_KEY
+    if (!apiKey) {
+      console.error("[Video] OPENROUTER_API_KEY missing")
+      return c.json({ error: "Video generation service not configured." }, 503)
     }
-    
-    // Build input based on whether we have a reference image
-    const input: Record<string, unknown> = {
-      prompt: prompt,
-      aspect_ratio: aspectMap[aspectRatio] || "16:9",
-      loop: false,
+
+    const { prompt, duration = 5, aspectRatio = "16:9", image } = await c.req.json()
+
+    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+      return c.json({ error: "Please describe your video scene." }, 400)
     }
-    
-    // Add duration if model supports it (2 = free preview, 5, 10)
-    if (duration) {
-      input.duration = duration === 2 ? 2 : duration <= 5 ? 5 : 10
+
+    const validDurations = [5, 10]
+    const finalDuration = validDurations.includes(duration) ? duration : 5
+
+    // Build enhanced prompt
+    let enhancedPrompt = prompt.trim()
+    enhancedPrompt += ", cinematic quality, smooth motion, professional video"
+    if (finalDuration === 10) {
+      enhancedPrompt += ", extended scene, continuous action"
     }
-    
-    // Add reference image for image-to-video
-    if (referenceImage) {
-      input.image = referenceImage
+
+    console.log(`[Video] Prompt: "${enhancedPrompt.slice(0, 80)}..." duration=${finalDuration}s`)
+
+    // Build messages — text-to-video or image-to-video
+    const userContent: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
+      { type: "text", text: `Generate a ${finalDuration}-second video: ${enhancedPrompt}` }
+    ]
+    if (image) {
+      userContent.push({ type: "image_url", image_url: { url: image } })
     }
-    
-    // Create prediction with Luma model
-    const response = await fetch("https://api.replicate.com/v1/predictions", {
+
+    const body = {
+      model: "kling-ai/kling-v1-5",
+      messages: [{ role: "user", content: userContent }],
+      modalities: ["video"],
+      video_config: {
+        duration: finalDuration,
+        aspect_ratio: aspectRatio,
+      },
+    }
+
+    console.log(`[Video] Sending to OpenRouter... model=kling-ai/kling-v1-5`)
+    const response = await fetchWithTimeout(OPENROUTER_URL, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${apiToken}`,
+        "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
+        "HTTP-Referer": "https://synapse-7436.vercel.app",
+        "X-Title": "Synapse Video Studio",
       },
-      body: JSON.stringify({
-        version: VIDEO_MODELS.standard.replicateVersion,
-        input: input,
-      }),
-    })
-    
+      body: JSON.stringify(body),
+    }, TIMEOUT_MS)
+
+    const elapsed = Date.now() - startTime
+    console.log(`[Video] OpenRouter responded: ${response.status} in ${elapsed}ms`)
+
     if (!response.ok) {
-      return null
+      const errText = await response.text()
+      console.error(`[Video] OpenRouter error: ${errText}`)
+      return c.json({ error: "Video generation failed. Please try again.", detail: errText }, response.status as 400 | 500)
     }
-    
-    const prediction = await response.json() as { id: string }
-    
-    // Poll for result (videos take longer, up to 4 minutes)
-    const result = await pollReplicatePrediction(prediction.id, apiToken, 120)
-    
-    if (result.output) {
-      return Array.isArray(result.output) ? result.output[0] : result.output
+
+    const data = await response.json() as {
+      id?: string;
+      choices?: Array<{
+        message?: {
+          content?: string | Array<{ type: string; video_url?: string; url?: string }>;
+        }
+      }>;
+      generation_id?: string;
     }
-    
-    return null
-  } catch {
-    return null
+
+    console.log(`[Video] Response keys: ${Object.keys(data).join(", ")}`)
+
+    // Case 1: Async generation — OpenRouter returns a generation_id to poll
+    if (data.generation_id) {
+      console.log(`[Video] Async generation started: ${data.generation_id}`)
+      return c.json({
+        id: data.generation_id,
+        status: "processing",
+        prompt: prompt.trim(),
+        duration: finalDuration,
+        createdAt: new Date().toISOString(),
+      })
+    }
+
+    // Case 2: Sync response — video URL in choices
+    if (data.choices?.[0]?.message?.content) {
+      const content = data.choices[0].message.content
+      let videoUrl: string | null = null
+
+      if (typeof content === "string") {
+        // Try to extract URL from text
+        const urlMatch = content.match(/https?:\/\/[^\s"']+\.(mp4|webm|mov)/i)
+        videoUrl = urlMatch ? urlMatch[0] : null
+      } else if (Array.isArray(content)) {
+        // Look for video_url in content array
+        for (const part of content) {
+          if (part.video_url) { videoUrl = part.video_url; break }
+          if (part.url) { videoUrl = part.url; break }
+        }
+      }
+
+      if (videoUrl) {
+        console.log(`[Video] Got video URL directly: ${videoUrl.slice(0, 60)}...`)
+        return c.json({
+          id: data.id || `video-${Date.now()}`,
+          status: "completed",
+          url: videoUrl,
+          prompt: prompt.trim(),
+          duration: finalDuration,
+          createdAt: new Date().toISOString(),
+        })
+      }
+    }
+
+    // Case 3: Response has an ID but no video yet — treat as async
+    if (data.id) {
+      console.log(`[Video] Got response ID, treating as async: ${data.id}`)
+      return c.json({
+        id: data.id,
+        status: "processing",
+        prompt: prompt.trim(),
+        duration: finalDuration,
+        createdAt: new Date().toISOString(),
+      })
+    }
+
+    console.error("[Video] Unexpected response format:", JSON.stringify(data).slice(0, 500))
+    return c.json({ error: "Unexpected response from video service." }, 500)
+
+  } catch (err) {
+    const elapsed = Date.now() - startTime
+    console.error(`[Video] Error after ${elapsed}ms:`, err)
+    const msg = err instanceof Error ? err.message : String(err)
+    if (msg.includes("TIMEOUT")) {
+      return c.json({ error: "Video generation is taking longer than expected. Please try again." }, 504)
+    }
+    return c.json({ error: "Video generation failed.", detail: msg }, 500)
   }
-}
+})
 
-// Sample video URLs for fallback demonstration
-const SAMPLE_VIDEOS = [
-  "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-  "https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
-  "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-  "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
-]
+// ─── GET /status/:id — poll for generation result
+videoRoutes.get("/status/:id", async (c) => {
+  const generationId = c.req.param("id")
+  console.log(`[Video] GET /status/${generationId}`)
 
-const SAMPLE_ANIMATION_VIDEOS = [
-  "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
-  "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
-  "https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
-]
+  try {
+    const apiKey = process.env.OPENROUTER_API_KEY
+    if (!apiKey) {
+      return c.json({ error: "Service not configured." }, 503)
+    }
 
-// Dedicated endpoint for portrait animation (Bring Photos to Life feature)
+    // Poll OpenRouter for generation status
+    const response = await fetchWithTimeout(
+      `https://openrouter.ai/api/v1/generation?id=${encodeURIComponent(generationId)}`,
+      {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+        },
+      },
+      15000
+    )
+
+    if (!response.ok) {
+      const errText = await response.text()
+      console.error(`[Video] Status check error: ${response.status} ${errText}`)
+      // If 404, generation might still be processing
+      if (response.status === 404) {
+        return c.json({ id: generationId, status: "processing" })
+      }
+      return c.json({ error: "Failed to check status.", detail: errText }, 500)
+    }
+
+    const data = await response.json() as {
+      id?: string;
+      status?: string;
+      output?: string | { video_url?: string; url?: string };
+      error?: string;
+      choices?: Array<{
+        message?: {
+          content?: string | Array<{ type: string; video_url?: string; url?: string }>;
+        }
+      }>;
+    }
+
+    console.log(`[Video] Status for ${generationId}: ${data.status || "unknown"}`)
+
+    // Extract video URL from various response formats
+    let videoUrl: string | null = null
+
+    if (typeof data.output === "string") {
+      videoUrl = data.output
+    } else if (data.output && typeof data.output === "object") {
+      videoUrl = data.output.video_url || data.output.url || null
+    }
+
+    if (!videoUrl && data.choices?.[0]?.message?.content) {
+      const content = data.choices[0].message.content
+      if (typeof content === "string") {
+        const urlMatch = content.match(/https?:\/\/[^\s"']+\.(mp4|webm|mov)/i)
+        videoUrl = urlMatch ? urlMatch[0] : null
+      } else if (Array.isArray(content)) {
+        for (const part of content) {
+          if (part.video_url) { videoUrl = part.video_url; break }
+          if (part.url) { videoUrl = part.url; break }
+        }
+      }
+    }
+
+    if (videoUrl) {
+      return c.json({ id: generationId, status: "completed", url: videoUrl })
+    }
+
+    if (data.error) {
+      return c.json({ id: generationId, status: "failed", error: data.error })
+    }
+
+    // Still processing
+    return c.json({ id: generationId, status: data.status || "processing" })
+
+  } catch (err) {
+    console.error(`[Video] Status check error:`, err)
+    return c.json({ id: generationId, status: "processing" })
+  }
+})
+
+// ─── POST /animate — portrait animation (image-to-video with preset)
 videoRoutes.post("/animate", async (c) => {
   try {
-    console.log("[Video API] Portrait animation request received")
+    console.log("[Video] POST /animate start")
+
+    const apiKey = process.env.OPENROUTER_API_KEY
+    if (!apiKey) {
+      return c.json({ error: "Video generation service not configured." }, 503)
+    }
 
     const { image, preset, duration, prompt: userPrompt } = await c.req.json()
 
-    // Validate required fields
     if (!image || typeof image !== "string") {
       return c.json({ error: "Please upload an image to animate." }, 400)
     }
@@ -180,148 +287,57 @@ videoRoutes.post("/animate", async (c) => {
         ? userPrompt.trim()
         : `Animate this portrait: ${animationPrompt}`
 
-    // Try Replicate for video generation
-    const apiToken = c.env.REPLICATE_API_TOKEN
-    let videoUrl = await tryReplicateVideo(fullPrompt, finalDuration, "9:16", apiToken, image)
-    
-    // Only use sample video if Replicate is not configured
-    if (!videoUrl) {
-      if (!apiToken) {
-        console.warn("[Video API] REPLICATE_API_TOKEN not configured, using sample video")
-        videoUrl = SAMPLE_ANIMATION_VIDEOS[Math.floor(Math.random() * SAMPLE_ANIMATION_VIDEOS.length)]
-      } else {
-        // Replicate is configured but generation failed - return error
-        return c.json({ error: "Video generation failed. Please try again later." }, 500)
-      }
-    } else {
-      console.log("[Video API] Successfully generated animation via Replicate")
+    const body = {
+      model: "kling-ai/kling-v1-5",
+      messages: [{
+        role: "user",
+        content: [
+          { type: "text", text: `Generate a ${finalDuration}-second animation: ${fullPrompt}` },
+          { type: "image_url", image_url: { url: image } },
+        ]
+      }],
+      modalities: ["video"],
+      video_config: {
+        duration: finalDuration,
+        aspect_ratio: "9:16",
+      },
     }
 
+    const response = await fetchWithTimeout(OPENROUTER_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://synapse-7436.vercel.app",
+        "X-Title": "Synapse Video Studio",
+      },
+      body: JSON.stringify(body),
+    }, TIMEOUT_MS)
+
+    if (!response.ok) {
+      const errText = await response.text()
+      console.error(`[Video] Animate error: ${errText}`)
+      return c.json({ error: "Animation failed. Please try again." }, 500)
+    }
+
+    const data = await response.json() as { id?: string; generation_id?: string }
+
+    const taskId = data.generation_id || data.id || `animate-${Date.now()}`
     return c.json({
-      id: `animate-${Date.now()}`,
-      url: videoUrl,
+      id: taskId,
+      status: "processing",
       preset,
       duration: finalDuration,
       createdAt: new Date().toISOString(),
-      creditCost: 30, // Expensive GPU operation - 30 credits
     })
-  } catch (error) {
-    console.error("[Video API] Portrait animation error:", error)
-    return c.json({ error: "High load on GPU servers, please try again later." }, 500)
+
+  } catch (err) {
+    console.error("[Video] Animate error:", err)
+    return c.json({ error: "Animation failed. Please try again later." }, 500)
   }
 })
 
-// Original text-to-video and image-to-video endpoint
-videoRoutes.post("/", async (c) => {
-  try {
-    console.log("[Video API] Video generation request received")
-
-    const { prompt, duration, aspectRatio, motionScale, mode, referenceImage, videoModel } = await c.req.json()
-
-    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
-      return c.json({ error: "Please describe your video scene." }, 400)
-    }
-
-    // Validate image-to-video mode has a reference image
-    if (mode === "image-to-video" && !referenceImage) {
-      return c.json({ error: "Please upload a reference image for Image-to-Video mode." }, 400)
-    }
-
-    const validDurations = [2, 5, 10]
-    const finalDuration = validDurations.includes(duration) ? duration : 5
-    const isFreePreview = finalDuration === 2
-
-    const validAspectRatios = ["16:9", "9:16", "1:1"]
-    const finalAspectRatio = validAspectRatios.includes(aspectRatio) ? aspectRatio : "16:9"
-
-    // Build enhanced prompt with motion context
-    let enhancedPrompt = prompt.trim()
-    
-    // Add motion intensity to prompt
-    if (motionScale) {
-      const motionIntensity = motionScale <= 3 ? "subtle, slow" : motionScale <= 6 ? "moderate" : "dynamic, energetic"
-      enhancedPrompt += `, ${motionIntensity} motion`
-    }
-    
-    // Add cinematic quality
-    enhancedPrompt += ", cinematic quality, smooth motion, professional video"
-
-    // Try AIMLAPI kling/v1.5 first if premium model requested, then Replicate fallback
-    const aimlapiKey = c.env.AIMLAPI_KEY
-    const apiToken = c.env.REPLICATE_API_TOKEN
-    let videoUrl: string | null = null
-    
-    // Try AIMLAPI kling/v1.5 for premium model
-    if (videoModel === "premium" && aimlapiKey) {
-      try {
-        console.log("[Video API] Attempting AIMLAPI kling/v1.5")
-        const aimlapiUrl = VIDEO_MODELS.premium.apiUrl
-        const response = await fetch(aimlapiUrl, {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${aimlapiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: VIDEO_MODELS.premium.model, // "kling/v1.5"
-            prompt: enhancedPrompt,
-            duration: finalDuration,
-            aspect_ratio: finalAspectRatio,
-            ...(mode === "image-to-video" && referenceImage ? { image: referenceImage } : {}),
-          }),
-        })
-        
-        if (response.ok) {
-          const data = await response.json() as { video_url?: string; url?: string }
-          videoUrl = data.video_url || data.url || null
-          if (videoUrl) {
-            console.log("[Video API] Successfully generated video via AIMLAPI kling/v1.5")
-          }
-        }
-      } catch (aimlapiError) {
-        console.warn("[Video API] AIMLAPI kling/v1.5 failed, falling back to Replicate:", aimlapiError)
-      }
-    }
-    
-    // Fallback to Replicate if AIMLAPI failed or not configured
-    if (!videoUrl) {
-      videoUrl = await tryReplicateVideo(
-        enhancedPrompt,
-        finalDuration,
-        finalAspectRatio,
-        apiToken,
-        mode === "image-to-video" ? referenceImage : null
-      )
-      
-      if (videoUrl) {
-        console.log("[Video API] Successfully generated video via Replicate")
-      }
-    }
-    
-    // Only use sample video if both AIMLAPI and Replicate are not configured
-    if (!videoUrl) {
-      if (!aimlapiKey && !apiToken) {
-        console.warn("[Video API] Neither AIMLAPI_KEY nor REPLICATE_API_TOKEN configured, using sample video")
-        videoUrl = SAMPLE_VIDEOS[Math.floor(Math.random() * SAMPLE_VIDEOS.length)]
-      } else {
-        // API is configured but generation failed - return error
-        return c.json({ error: "Video generation failed. Please try again later." }, 500)
-      }
-    }
-
-    return c.json({
-      id: `video-${Date.now()}`,
-      url: videoUrl,
-      prompt: prompt.trim(),
-      duration: finalDuration,
-      aspectRatio: finalAspectRatio,
-      mode: mode || "text-to-video",
-      videoModel: videoModel || "standard",
-      createdAt: new Date().toISOString(),
-      creditCost: isFreePreview ? 0 : 30, // 2s preview free (Kling), full video 30 credits
-    })
-  } catch (error) {
-    console.error("[Video API] Video generation error:", error)
-    return c.json({ error: "High load on GPU servers, please try again later." }, 500)
-  }
+// ─── GET / — health check
+videoRoutes.get("/", (c) => {
+  return c.json({ status: "ok", service: "video", model: "kling-ai/kling-v1-5" })
 })
