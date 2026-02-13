@@ -13,9 +13,9 @@ import { avatarRoutes } from './routes/avatar.js'
 import { webhookRoutes } from './routes/webhook.js'
 import { monitoringRoutes } from './monitoring.js'
 
-// ─── basePath('/api') — Vercel передаёт полный путь /api/chat, /api/image и т.д.
-// Hono должен знать этот префикс, иначе — 404.
-const app = new Hono().basePath('/api')
+// ─── Без basePath: Vercel передаёт пути ОТНОСИТЕЛЬНО функции api/
+// Т.е. /api/image → Hono получает /image, /api/chat → /chat
+const app = new Hono()
 
 // ─── Logging
 app.use('*', async (c, next) => {
@@ -60,21 +60,21 @@ app.get('/debug', (c) => {
     provider: 'openrouter',
     hasApiKey: !!process.env.OPENROUTER_API_KEY,
     registeredRoutes: [
-      '/api/ping',
-      '/api/debug',
-      '/api/chat',
-      '/api/image',
-      '/api/video',
-      '/api/enhance',
-      '/api/audio',
-      '/api/avatar',
-      '/api/webhook',
-      '/api/monitoring',
+      '/ping',
+      '/debug',
+      '/chat',
+      '/image',
+      '/video',
+      '/enhance',
+      '/audio',
+      '/avatar',
+      '/webhook',
+      '/monitoring',
     ],
   });
 });
 
-// ─── Routes (paths relative to basePath '/api')
+// ─── Routes (Vercel strips /api prefix before passing to Hono)
 app.route('/chat', chatRoutes);
 app.route('/image', imageRoutes);
 app.route('/video', videoRoutes);
@@ -91,7 +91,7 @@ app.notFound((c) => {
     error: `Route not found: ${c.req.path}`,
     method: c.req.method,
     url: c.req.url,
-    availableRoutes: ['/api/ping', '/api/debug', '/api/chat', '/api/image', '/api/video', '/api/enhance', '/api/audio', '/api/avatar', '/api/webhook', '/api/monitoring']
+    availableRoutes: ['/ping', '/debug', '/chat', '/image', '/video', '/enhance', '/audio', '/avatar', '/webhook', '/monitoring']
   }, 404);
 });
 
