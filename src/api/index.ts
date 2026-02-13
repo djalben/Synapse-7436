@@ -3,7 +3,6 @@ export const runtime = 'nodejs';
 export const maxDuration = 60; // Даем функции 60 секунд на работу
 
 import { Hono, Context } from 'hono';
-import { prettyJSON } from "hono/pretty-json"
 import { trimTrailingSlash } from "hono/trailing-slash"
 import { env as getRuntimeEnv } from "hono/adapter"
 import { chatRoutes } from './routes/chat.js'
@@ -42,7 +41,8 @@ app.use('*', async (c, next) => {
 })
 
 app.use('*', trimTrailingSlash())
-app.use('*', prettyJSON())
+// prettyJSON убран — он читает тело запроса и блокирует повторное чтение на Vercel Node.js
+// JSON форматирование не критично для API
 
 // CORS без c.req.header(): на Vercel Node.js raw.headers может быть объектом без .get()
 app.use('*', async (c: Context, next) => {
