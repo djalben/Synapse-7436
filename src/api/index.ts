@@ -2,8 +2,7 @@
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-import { Hono, Context } from 'hono';
-import { trimTrailingSlash } from "hono/trailing-slash"
+import { Hono } from 'hono';
 import { chatRoutes } from './routes/chat.js'
 import { imageRoutes } from './routes/image.js'
 import { videoRoutes } from './routes/video.js'
@@ -13,21 +12,22 @@ import { avatarRoutes } from './routes/avatar.js'
 import { webhookRoutes } from './routes/webhook.js'
 import { monitoringRoutes } from './monitoring.js'
 
-// ─── Без basePath: Vercel передаёт пути ОТНОСИТЕЛЬНО функции api/
-// Т.е. /api/image → Hono получает /image, /api/chat → /chat
+console.log('[INIT] Hono app module loaded')
+
 const app = new Hono()
 
-// ─── Logging
+// ─── MW1: Logging + timing
 app.use('*', async (c, next) => {
-  console.log(`[HONO] ${c.req.method} ${c.req.path} (url: ${c.req.url})`)
+  console.log(`[MW1-LOG] START ${c.req.method} ${c.req.path}`)
   await next()
+  console.log(`[MW1-LOG] END ${c.req.method} ${c.req.path}`)
 })
 
-app.use('*', trimTrailingSlash())
-
-// ─── safeCors: совместим с Vercel Node.js Runtime (без c.req.header / raw.headers.get)
-app.use('*', async (c: Context, next) => {
+// ─── MW2: CORS (safe for Vercel Node.js — no c.req.header / raw.headers.get)
+app.use('*', async (c, next) => {
+  console.log(`[MW2-CORS] START method=${c.req.method}`)
   if (c.req.method === 'OPTIONS') {
+    console.log(`[MW2-CORS] OPTIONS preflight → 204`)
     return new Response(null, {
       status: 204,
       headers: {
@@ -38,7 +38,9 @@ app.use('*', async (c: Context, next) => {
       },
     })
   }
+  console.log(`[MW2-CORS] calling next()...`)
   await next()
+  console.log(`[MW2-CORS] END, setting headers`)
   c.header('Access-Control-Allow-Origin', '*')
   c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
   c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-User-Plan')
@@ -53,6 +55,7 @@ app.onError((err, c) => {
 // ─── Health / Debug
 app.get('/ping', (c) => c.json({ message: `Pong! ${Date.now()}`, provider: 'openrouter' }));
 app.get('/debug', (c) => {
+  console.log(`[ROUTE] /debug handler fired`)
   return c.json({
     path: c.req.path,
     method: c.req.method,
