@@ -1807,6 +1807,7 @@ const GeneratePanel = ({
   const [variantResult, setVariantResult] = useState<VariantResult | null>(null);
   const [selectedVariantIdx, setSelectedVariantIdx] = useState(0);
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
+  const mobileVariantRef = useRef<HTMLDivElement | null>(null);
 
   const isNanaBanana = selectedEngine === "nana-banana";
   const isFreeEngine = selectedEngine === "flux-schnell";
@@ -1989,6 +1990,14 @@ const GeneratePanel = ({
         });
         setSelectedVariantIdx(0);
 
+        // Mobile: toast + auto-scroll to result
+        if (window.innerWidth < 768) {
+          toast.success("Изображения готовы! Посмотрите ниже", { duration: 3000 });
+          setTimeout(() => {
+            mobileVariantRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }, 150);
+        }
+
         // Charge credits
         if (isNanaBanana) {
           incrementImages();
@@ -2140,6 +2149,21 @@ const GeneratePanel = ({
           {error && (
             <div className="p-3 md:p-4 rounded-xl bg-red-500/10 border border-red-500/30">
               <p className="text-sm text-red-400">{error}</p>
+            </div>
+          )}
+
+          {/* Mobile-only Variant Grid — shown above controls so user sees result immediately */}
+          {variantResult && (
+            <div ref={mobileVariantRef} className="md:hidden mb-2 animate-in fade-in slide-in-from-top-4 duration-500">
+              <VariantGrid
+                result={variantResult}
+                selectedIdx={selectedVariantIdx}
+                onSelect={setSelectedVariantIdx}
+                onDownloadHQ={handleDownloadHQ}
+                onAddToGallery={handleAddToGallery}
+                onRegenerate={handleRegenerate}
+                downloadProgress={downloadProgress}
+              />
             </div>
           )}
 
@@ -2481,9 +2505,9 @@ const GeneratePanel = ({
       {/* Right Panel - Variants + Gallery */}
       <div className="flex-1 p-4 md:p-6 pb-40 md:pb-6 overflow-y-auto min-h-0" data-tour="gallery">
 
-        {/* Variant Grid (Midjourney-style 2x2) — shown after generation */}
+        {/* Variant Grid (desktop only — mobile version is in left panel) */}
         {variantResult && (
-          <div className="mb-6 sm:mb-8 max-w-sm sm:max-w-lg mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="hidden md:block mb-6 sm:mb-8 max-w-sm sm:max-w-lg mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
             <VariantGrid
               result={variantResult}
               selectedIdx={selectedVariantIdx}
@@ -2577,8 +2601,8 @@ export const ImageStudio = () => {
         <StudioModeToggle mode={studioMode} onChange={setStudioMode} />
       </div>
 
-      {/* Content based on mode */}
-      {studioMode === "generate" ? (
+      {/* Content — both panels rendered, inactive hidden via CSS to preserve state */}
+      <div className={studioMode === "generate" ? "" : "hidden"}>
         <GeneratePanel
           imageCount={imageCount}
           limits={limits}
@@ -2592,7 +2616,8 @@ export const ImageStudio = () => {
           setShowPaywall={setShowPaywall}
           setPaywallReason={setPaywallReason}
         />
-      ) : (
+      </div>
+      <div className={studioMode === "enhance" ? "" : "hidden"}>
         <EnhancePhotoPanel
           imageCount={imageCount}
           limits={limits}
@@ -2602,7 +2627,7 @@ export const ImageStudio = () => {
           setShowPaywall={setShowPaywall}
           setPaywallReason={setPaywallReason}
         />
-      )}
+      </div>
     </div>
   );
 };
