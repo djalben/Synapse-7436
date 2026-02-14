@@ -504,9 +504,9 @@ const MultiImageUpload = ({ images, onChange, disabled }: MultiImageUploadProps)
       />
 
       {/* Grid of uploaded images + add button */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-4 gap-3 w-full">
         {images.map((img, idx) => (
-          <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-[#333] group">
+          <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-[#333] group min-h-[72px]">
             <img src={img} alt={`Ref ${idx + 1}`} className="w-full h-full object-cover" />
             <button
               type="button"
@@ -529,7 +529,7 @@ const MultiImageUpload = ({ images, onChange, disabled }: MultiImageUploadProps)
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             className={`
-              aspect-square rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1
+              aspect-square rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-1.5 min-h-[72px]
               cursor-pointer transition-all duration-200
               ${disabled ? "opacity-50 cursor-not-allowed" : ""}
               ${isDragging
@@ -546,12 +546,6 @@ const MultiImageUpload = ({ images, onChange, disabled }: MultiImageUploadProps)
         )}
       </div>
 
-      <p className="text-sm font-semibold text-indigo-300 flex items-center gap-1.5">
-        📸 Создай своего цифрового двойника
-      </p>
-      <p className="text-[11px] text-[#777] leading-snug">
-        Загрузи селфи и напиши, где хочешь оказаться. Nano Banana перенесет тебя в любую точку мира за секунды!
-      </p>
     </div>
   );
 };
@@ -2288,24 +2282,28 @@ const GeneratePanel = ({
 
           {/* === ЦИФРОВОЙ ДВОЙНИК: Фото сверху === */}
           {mode === "image-to-image" && (
-            <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-indigo-300">
-                📸 Создай своего цифрового двойника
-                {referenceImages.length > 0 && (
-                  <span className="text-indigo-400 ml-1.5 text-xs">({referenceImages.length}/4)</span>
-                )}
-              </label>
-              <MultiImageUpload
-                images={referenceImages}
-                onChange={setReferenceImages}
-                disabled={isGenerating}
-              />
-              <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/20">
-                <p className="text-xs text-indigo-300/80 leading-relaxed">
-                  Модель: <span className="font-semibold text-amber-300">Nano Banana Pro</span> — автоматически выбрана для мультимодальной генерации
+            <>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-indigo-300 flex items-center gap-1.5">
+                  📸 Загрузи селфи
+                  {referenceImages.length > 0 && (
+                    <span className="text-indigo-400 text-xs">({referenceImages.length}/4)</span>
+                  )}
+                </label>
+                <MultiImageUpload
+                  images={referenceImages}
+                  onChange={setReferenceImages}
+                  disabled={isGenerating}
+                />
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-indigo-500/5 border border-indigo-500/20 flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 animate-pulse" />
+                <p className="text-xs text-indigo-300/80">
+                  Модель: <span className="font-semibold text-amber-300">Nano Banana Pro</span> — автоматически выбрана
                 </p>
               </div>
-            </div>
+            </>
           )}
 
           {/* === ТЕКСТ В ИЗОБРАЖЕНИЕ: Выбор модели === */}
