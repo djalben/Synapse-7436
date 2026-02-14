@@ -1351,7 +1351,7 @@ const EnhancePhotoPanel = ({
   };
 
   return (
-    <div className="flex flex-col md:flex-row md:h-full md:min-h-screen">
+    <div className="h-full flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
       {/* Left Panel - Controls */}
       <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222] p-4 md:p-6 md:overflow-y-auto">
         <div className="space-y-5 md:space-y-6">
@@ -2088,7 +2088,7 @@ const GeneratePanel = ({
   };
 
   return (
-    <div className="flex flex-col md:flex-row md:h-full md:min-h-screen">
+    <div className="h-full flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
       {/* Left Panel - Controls */}
       <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222] md:flex md:flex-col md:min-h-0">
         <div className="overflow-x-hidden p-4 md:p-6 md:flex-1 md:overflow-y-auto md:min-h-0 pb-48 md:pb-24">
@@ -2554,14 +2554,14 @@ export const ImageStudio = () => {
   const atLimit = !canGenerateImage;
 
   return (
-    <div className="md:h-full">
+    <div className="h-full flex flex-col">
       {/* Top-level Mode Toggle */}
-      <div className="p-4 md:p-6 pb-0">
+      <div className="shrink-0 p-4 md:p-6 pb-0">
         <StudioModeToggle mode={studioMode} onChange={setStudioMode} />
       </div>
 
       {/* Content — both panels rendered, inactive hidden via CSS to preserve state */}
-      <div className={studioMode === "generate" ? "" : "hidden"}>
+      <div className={`flex-1 min-h-0 ${studioMode === "generate" ? "" : "hidden"}`}>
         <GeneratePanel
           imageCount={imageCount}
           limits={limits}
@@ -2576,7 +2576,7 @@ export const ImageStudio = () => {
           setPaywallReason={setPaywallReason}
         />
       </div>
-      <div className={studioMode === "enhance" ? "" : "hidden"}>
+      <div className={`flex-1 min-h-0 ${studioMode === "enhance" ? "" : "hidden"}`}>
         <EnhancePhotoPanel
           imageCount={imageCount}
           limits={limits}
