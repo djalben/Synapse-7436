@@ -143,7 +143,7 @@ imageRoutes.post("/", async (c) => {
     let body: {
       prompt?: string; aspectRatio?: string; numImages?: number;
       style?: string; mode?: string; engine?: string; specializedEngine?: string;
-      referenceImage?: string;
+      referenceImage?: string; images?: string[];
     }
     try {
       body = await c.req.json() as typeof body
@@ -162,7 +162,7 @@ imageRoutes.post("/", async (c) => {
     }
 
     const aspectRatio = VALID_ASPECT_RATIOS.includes(body.aspectRatio || "") ? body.aspectRatio! : "1:1"
-    const variantCount = 4
+    const variantCount = Math.min(Math.max(body.numImages || 4, 1), 4)
 
     const selectedModel = ENGINE_MODELS[body.engine || ""] || DEFAULT_MODEL
     console.log(`[Image] model=${selectedModel}, engine=${body.engine}, ar=${aspectRatio}, variants=${variantCount}, prompt="${enhancedPrompt.substring(0, 60)}"`)
@@ -173,8 +173,28 @@ imageRoutes.post("/", async (c) => {
       console.log(`[Image] >>> ACTIVATING PRO STUDIO: black-forest-labs/flux.2-max`)
     }
 
-    // ── Fire 4 parallel requests to OpenRouter ──
-    console.log(`[Image] >>> MODEL ID: "${selectedModel}", URL: ${OPENROUTER_URL}`)
+    // ── Build message content (multimodal for Nano Banana Pro, text-only for others) ──
+    const isNanoBanana = selectedModel === "google/gemini-3-pro-image-preview"
+    const refImages = body.images || []
+    let messageContent: string | Array<{ type: string; text?: string; image_url?: { url: string } }>
+
+    if (isNanoBanana && refImages.length > 0) {
+      // Multimodal: text + reference images
+      messageContent = [
+        { type: "text", text: enhancedPrompt },
+        ...refImages.map((img: string) => ({ type: "image_url" as const, image_url: { url: img } })),
+      ]
+      console.log(`[Image] Мультимодальный режим: ${refImages.length} референсов для Nano Banana Pro`)
+    } else {
+      // Text-only (all other models, or no images)
+      messageContent = enhancedPrompt
+      if (refImages.length > 0) {
+        console.log(`[Image] ВНИМАНИЕ: ${refImages.length} референсов проигнорированы — модель ${selectedModel} не поддерживает мультимодальность`)
+      }
+    }
+
+    // ── Fire parallel requests to OpenRouter ──
+    console.log(`[Image] >>> MODEL ID: "${selectedModel}", URL: ${OPENROUTER_URL}, variants: ${variantCount}`)
     const makeRequest = () =>
       fetchWithTimeout(OPENROUTER_URL, {
         method: "POST",
@@ -186,7 +206,7 @@ imageRoutes.post("/", async (c) => {
         },
         body: JSON.stringify({
           model: selectedModel,
-          messages: [{ role: "user", content: enhancedPrompt }],
+          messages: [{ role: "user", content: messageContent }],
           modalities: ["image"],
           stream: false,
           image_config: { aspect_ratio: aspectRatio },

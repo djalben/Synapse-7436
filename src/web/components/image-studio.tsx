@@ -20,6 +20,7 @@ import {
   Star,
   Check,
   RefreshCw,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useUsage, MAX_FREE_IMAGE_PER_DAY } from "./usage-context";
@@ -433,6 +434,122 @@ const ImageUpload = ({
         </div>
       </div>
     </>
+  );
+};
+
+// ===== MULTI IMAGE UPLOAD (up to 4 reference images) =====
+
+const MAX_REFERENCE_IMAGES = 4;
+
+interface MultiImageUploadProps {
+  images: string[];
+  onChange: (images: string[]) => void;
+  disabled?: boolean;
+}
+
+const MultiImageUpload = ({ images, onChange, disabled }: MultiImageUploadProps) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleFiles = useCallback((files: FileList | File[]) => {
+    const remaining = MAX_REFERENCE_IMAGES - images.length;
+    if (remaining <= 0) return;
+
+    const fileArr = Array.from(files).slice(0, remaining);
+    fileArr.forEach((file) => {
+      if (!file.type.startsWith("image/")) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const result = e.target?.result as string;
+        onChange([...images, result].slice(0, MAX_REFERENCE_IMAGES));
+      };
+      reader.readAsDataURL(file);
+    });
+  }, [images, onChange]);
+
+  const handleRemove = (idx: number) => {
+    onChange(images.filter((_, i) => i !== idx));
+  };
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (disabled) return;
+    handleFiles(e.dataTransfer.files);
+  }, [handleFiles, disabled]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    if (!disabled) setIsDragging(true);
+  }, [disabled]);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
+  return (
+    <div className="space-y-2">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        multiple
+        onChange={(e) => {
+          if (e.target.files) handleFiles(e.target.files);
+          e.target.value = "";
+        }}
+        className="hidden"
+      />
+
+      {/* Grid of uploaded images + add button */}
+      <div className="grid grid-cols-4 gap-2">
+        {images.map((img, idx) => (
+          <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-[#333] group">
+            <img src={img} alt={`Ref ${idx + 1}`} className="w-full h-full object-cover" />
+            <button
+              type="button"
+              onClick={() => handleRemove(idx)}
+              disabled={disabled}
+              className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 border border-white/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/80"
+            >
+              <X className="w-3 h-3 text-white" />
+            </button>
+            <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent h-6 flex items-end justify-center pb-0.5">
+              <span className="text-[8px] text-white/70 font-medium">{idx + 1}/{images.length}</span>
+            </div>
+          </div>
+        ))}
+
+        {images.length < MAX_REFERENCE_IMAGES && (
+          <div
+            onClick={() => !disabled && fileInputRef.current?.click()}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            className={`
+              aspect-square rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1
+              cursor-pointer transition-all duration-200
+              ${disabled ? "opacity-50 cursor-not-allowed" : ""}
+              ${isDragging
+                ? "border-indigo-500/60 bg-indigo-500/10"
+                : "border-[#333] bg-white/[0.02] hover:border-[#555] hover:bg-white/[0.04]"
+              }
+            `}
+          >
+            <Plus className={`w-5 h-5 ${isDragging ? "text-indigo-400" : "text-[#555]"}`} />
+            <span className="text-[9px] text-[#555] font-medium">
+              {images.length === 0 ? "Добавить" : `${images.length}/4`}
+            </span>
+          </div>
+        )}
+      </div>
+
+      <p className="text-xs text-indigo-400/80 flex items-center gap-1.5">
+        <ImageIcon className="w-3.5 h-3.5 shrink-0" />
+        Загрузи фото для переноса стиля или лица
+      </p>
+    </div>
   );
 };
 
@@ -1770,7 +1887,7 @@ const GeneratePanel = ({
 }: GeneratePanelProps) => {
   const [prompt, setPrompt] = useState("");
   const [mode, setMode] = useState<GenerationMode>("text-to-image");
-  const [referenceImage, setReferenceImage] = useState<string | null>(null);
+  const [referenceImages, setReferenceImages] = useState<string[]>([]);
   const [selectedEngine, setSelectedEngine] = useState<ImageEngineId>("flux-schnell");
   const [selectedStyle, setSelectedStyle] = useState("photorealistic");
   const [aspectRatio, setAspectRatio] = useState("1:1");
@@ -1797,7 +1914,7 @@ const GeneratePanel = ({
   const effectiveAtLimit = isImagen3 ? atLimit : (isFreeEngine ? atFreeDailyLimit : atLimit);
 
   // Check if image-to-image mode is ready
-  const isImg2ImgReady = mode === "text-to-image" || (mode === "image-to-image" && referenceImage);
+  const isImg2ImgReady = mode === "text-to-image" || (mode === "image-to-image" && referenceImages.length > 0);
 
   // Prompt tips shown during generation
   const PROMPT_TIPS = [
@@ -1846,7 +1963,7 @@ const GeneratePanel = ({
   const handleGenerate = async () => {
     if (!prompt.trim() || isGenerating) return;
     
-    if (mode === "image-to-image" && !referenceImage) {
+    if (mode === "image-to-image" && referenceImages.length === 0) {
       setError("Пожалуйста, загрузите референсное изображение для режима Image-to-Image");
       return;
     }
@@ -1880,6 +1997,7 @@ const GeneratePanel = ({
         aspectRatio,
         numImages: imageCount,
         engine: selectedEngine,
+        referenceImages: referenceImages.length,
       });
       
       startTipRotation();
@@ -1896,7 +2014,7 @@ const GeneratePanel = ({
           numImages: imageCount,
           style: selectedStyle,
           mode,
-          referenceImage: mode === "image-to-image" ? referenceImage : null,
+          images: referenceImages.length > 0 ? referenceImages : undefined,
           engine: selectedEngine,
         }),
       });
@@ -2153,30 +2271,22 @@ const GeneratePanel = ({
             <ModeToggle mode={mode} onChange={setMode} />
           </div>
 
-          {/* Reference Image Upload */}
+          {/* Reference Images Upload (up to 4) */}
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-[#888]">
-              Референс
+              Референсы
               {mode === "image-to-image" && (
                 <span className="text-amber-400 ml-1">*</span>
               )}
+              {referenceImages.length > 0 && (
+                <span className="text-indigo-400 ml-1.5 text-xs">({referenceImages.length}/4)</span>
+              )}
             </label>
-            <ImageUpload
-              image={referenceImage}
-              onImageChange={setReferenceImage}
-              required={mode === "image-to-image"}
+            <MultiImageUpload
+              images={referenceImages}
+              onChange={setReferenceImages}
               disabled={isGenerating}
             />
-            {mode === "image-to-image" && (
-              <p className="text-xs text-[#555]">
-                Загрузите изображение для трансформации. ИИ использует ваш промпт для его изменения.
-              </p>
-            )}
-            {mode === "text-to-image" && (
-              <p className="text-xs text-[#555]">
-                Опционально: загрузите референс для вдохновения стилем.
-              </p>
-            )}
           </div>
 
           {/* Model grid — над полем ввода промпта */}
