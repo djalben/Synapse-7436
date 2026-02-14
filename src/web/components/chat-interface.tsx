@@ -5,7 +5,6 @@ import { ModelSelector, models, getModelCreditCost } from "./model-selector"
 import { FREE_CHAT_MODEL_IDS } from "./usage-context"
 import { Paperclip, Mic, ArrowUp, Sparkles, Zap, Lightbulb, Code, Bot, User, Copy, Check, Lock, Coins } from "lucide-react"
 import { useUsage } from "./usage-context"
-import { useTour } from "./onboarding-tour"
 import { toast } from "sonner"
 import { addToHistory } from "./placeholder-pages"
 
@@ -430,7 +429,6 @@ export const ChatInterface = () => {
   const userAtBottomRef = useRef(true)
   const [inputValue, setInputValue] = useState("")
   const selectedModelRef = useRef(selectedModel)
-  const { startTour } = useTour()
   const { 
     checkMessageDailyLimit, 
     incrementMessageDaily,
@@ -556,10 +554,11 @@ export const ChatInterface = () => {
 
   const isFreeChatModel = FREE_CHAT_MODEL_IDS.includes(selectedModel as typeof FREE_CHAT_MODEL_IDS[number])
   const selectedModelData = models.find((m) => m.id === selectedModel)
-  const hasAccessToSelected = selectedModelData ? canAccessModel(selectedModelData.requiredPlan) : true
-  const atDailyLimit = isFreeChatModel && effectiveMessageCountToday >= limits.maxMessages
-  const notEnoughCredits = !isFreeChatModel && creditBalance < currentCreditCost
-  const sendDisabled = isLoading || atDailyLimit || (!hasAccessToSelected && !isFreeChatModel) || notEnoughCredits
+  // TOTAL FREEDOM: tier/credit checks disabled for testing
+  const hasAccessToSelected = true
+  const atDailyLimit = false
+  const notEnoughCredits = false
+  const sendDisabled = isLoading
 
   const handleSendMessage = () => {
     if (!inputValue.trim() || isLoading) return
@@ -735,7 +734,7 @@ export const ChatInterface = () => {
             value={inputValue}
             onChange={setInputValue}
             onSubmit={handleSendMessage}
-            disabled={sendDisabled}
+            disabled={isLoading}
           />
           <p className="text-center text-[#444] text-xs mt-1.5 md:mt-4">
             {isFreeChatModel
