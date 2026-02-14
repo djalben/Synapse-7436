@@ -2254,120 +2254,68 @@ const GeneratePanel = ({
             </div>
           </div>
 
-          {/* Кнопка "Сгенерировать" — на десктопе sticky внизу списка */}
-          <div className="hidden md:block sticky bottom-0 z-[50] mt-5 -mx-6 px-6 pt-4 pb-4 bg-gradient-to-t from-black/95 via-black/80 to-transparent backdrop-blur-xl">
-            <button
-              type="button"
-              onClick={handleGenerate}
-              disabled={!prompt.trim() || isGenerating || effectiveAtLimit || !isImg2ImgReady}
-              data-tour="generate-button"
-              className={`
-                w-full py-4 px-6 rounded-xl font-medium text-base mb-3
-                transition-all duration-300 relative overflow-hidden
-                active:scale-[0.98]
-                group
-                ${prompt.trim() && !isGenerating && !effectiveAtLimit && isImg2ImgReady
-                  ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_24px_rgba(0,112,243,0.4)]"
-                  : "bg-[#222] text-[#555] cursor-not-allowed"
-                }
-              `}
-            >
-              {prompt.trim() && !isGenerating && !effectiveAtLimit && isImg2ImgReady && (
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-              )}
-              <span className="relative flex items-center justify-center gap-2">
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>Генерация...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-5 h-5" />
-                    <span>Сгенерировать</span>
-                  </>
-                )}
-              </span>
-            </button>
-
-            {/* Live status indicator */}
-            {isGenerating && statusMessage && (
-              <div className="flex items-center justify-center gap-3 py-2 animate-in fade-in duration-300">
-                <div className="flex gap-1">
-                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "300ms" }} />
-                </div>
-                <span className="text-xs text-indigo-300/80 font-medium">{statusMessage}</span>
-                <span className="text-xs text-[#555] tabular-nums">{elapsedTime}с</span>
-              </div>
-            )}
-          </div>
           </div>
         </div>
 
-        {/* Нижняя панель: предупреждение о лимите и счётчик (на десктопе) */}
-        <div
-          className="
-            hidden md:flex flex-shrink-0 p-6 pt-0 space-y-3
-            sticky bottom-0 z-10
-          "
-        >
-          {/* Limit warning */}
+        {/* Desktop: кнопка генерации — ВЫНЕСЕНА из скролла, всегда видна внизу панели */}
+        <div className="hidden md:flex flex-col shrink-0 px-4 py-3 border-t border-[#222] bg-black/95 backdrop-blur-xl z-[100]">
           {effectiveAtLimit && (
             <button
-              onClick={() => {
-                setPaywallReason("images")
-                setShowPaywall(true)
-              }}
-              className="
-                w-full p-3 md:p-4 rounded-xl
-                bg-gradient-to-r from-red-500/10 via-amber-500/10 to-red-500/10
-                border border-red-500/30
-                flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3
-                group transition-all duration-300
-                hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/10
-                active:scale-[0.98]
-              "
+              onClick={() => { setPaywallReason("images"); setShowPaywall(true) }}
+              className="w-full mb-2 p-3 rounded-xl bg-gradient-to-r from-red-500/10 via-amber-500/10 to-red-500/10 border border-red-500/30 flex items-center justify-center gap-3 group transition-all duration-300 hover:border-amber-500/50 active:scale-[0.98]"
             >
-              <Lock className="w-5 h-5 text-amber-400" />
-              <span className="text-amber-400 font-medium text-sm text-center">
-                {isFreeEngine ? "Лимит 3 генерации в сутки исчерпан" : "Бесплатные генерации исчерпаны"}
-              </span>
-              <span className="text-amber-400/60 text-xs group-hover:text-amber-400 transition-colors">
-                Пополнить →
+              <Lock className="w-4 h-4 text-amber-400" />
+              <span className="text-amber-400 font-medium text-sm">
+                {isFreeEngine ? "Лимит исчерпан" : "Генерации закончились"}
               </span>
             </button>
           )}
-
-          {/* Credits indicator — отдельный контейнер с отступом */}
-          <div className="mt-3">
-            <div 
-              className={`
-                flex items-center justify-center gap-2 py-2 px-3 rounded-lg
-                ${effectiveAtLimit 
-                  ? "bg-red-500/5 border border-red-500/20" 
-                  : "bg-white/[0.02] border border-[#222]"
-                }
-              `}
-            >
-              <div className={`w-2 h-2 rounded-full ${effectiveAtLimit ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
-              <span className={`text-xs ${effectiveAtLimit ? "text-red-400" : "text-gray-400"}`}>
-                {isFreeEngine ? (
-                  effectiveAtLimit ? (
-                    "0/3 генераций сегодня"
-                  ) : (
-                    <>Осталось: {MAX_FREE_IMAGE_PER_DAY - freeImageCountToday}/{MAX_FREE_IMAGE_PER_DAY} генераций</>
-                  )
-                ) : (
-                  effectiveAtLimit ? (
-                    "Бесплатные генерации закончились"
-                  ) : (
-                    <>Осталось: {Math.max(0, limits.maxImages - usedImages)}/{limits.maxImages}</>
-                  )
-                )}
-              </span>
+          <button
+            type="button"
+            onClick={handleGenerate}
+            disabled={!prompt.trim() || isGenerating || effectiveAtLimit || !isImg2ImgReady}
+            data-tour="generate-button"
+            className={`
+              w-full py-4 px-6 rounded-xl font-medium text-base cursor-pointer
+              transition-all duration-300 relative overflow-hidden
+              active:scale-[0.98] group
+              ${prompt.trim() && !isGenerating && !effectiveAtLimit && isImg2ImgReady
+                ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_24px_rgba(0,112,243,0.4)]"
+                : "bg-[#222] text-[#555] cursor-not-allowed"
+              }
+            `}
+          >
+            {prompt.trim() && !isGenerating && !effectiveAtLimit && isImg2ImgReady && (
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+            )}
+            <span className="relative flex items-center justify-center gap-2">
+              {isGenerating ? (
+                <><Loader2 className="w-5 h-5 animate-spin" /><span>Генерация...</span></>
+              ) : (
+                <><Sparkles className="w-5 h-5" /><span>Сгенерировать</span></>
+              )}
+            </span>
+          </button>
+          {isGenerating && statusMessage && (
+            <div className="flex items-center justify-center gap-3 py-2 animate-in fade-in duration-300">
+              <div className="flex gap-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: "0ms" }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+              </div>
+              <span className="text-xs text-indigo-300/80 font-medium">{statusMessage}</span>
+              <span className="text-xs text-[#555] tabular-nums">{elapsedTime}с</span>
             </div>
+          )}
+          <div className="flex items-center justify-center gap-2 pt-2">
+            <div className={`w-2 h-2 rounded-full ${effectiveAtLimit ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
+            <span className={`text-xs ${effectiveAtLimit ? "text-red-400" : "text-gray-400"}`}>
+              {isFreeEngine ? (
+                effectiveAtLimit ? "0/3 генераций сегодня" : <>Осталось: {MAX_FREE_IMAGE_PER_DAY - freeImageCountToday}/{MAX_FREE_IMAGE_PER_DAY} генераций</>
+              ) : (
+                effectiveAtLimit ? "Генерации закончились" : <>Осталось: {Math.max(0, limits.maxImages - usedImages)}/{limits.maxImages}</>
+              )}
+            </span>
           </div>
         </div>
       </div>
@@ -2382,7 +2330,7 @@ const GeneratePanel = ({
           bg-black/95 backdrop-blur-xl
           border-t border-white/10
           shadow-[0_-4px_24px_rgba(0,0,0,0.4)]
-          fixed bottom-0 left-0 right-0 z-50
+          fixed bottom-0 left-0 right-0 z-[100]
         `}
       >
         {/* Limit warning banner (если есть лимит) */}

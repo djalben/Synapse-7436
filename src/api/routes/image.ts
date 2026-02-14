@@ -166,6 +166,11 @@ imageRoutes.post("/", async (c) => {
     console.log(`[Image] model=${selectedModel}, engine=${body.engine}, ar=${aspectRatio}, variants=${variantCount}, prompt="${enhancedPrompt.substring(0, 60)}"`)
 
     // ── Fire 4 parallel requests to OpenRouter ──
+    console.log(`[Image] >>> EXACT MODEL ID SENT TO OPENROUTER: "${selectedModel}"`)
+    console.log(`[Image] >>> URL: ${OPENROUTER_URL}`)
+    console.log(`[Image] >>> Full request body:`, JSON.stringify({
+      model: selectedModel, prompt: enhancedPrompt.substring(0, 80), modalities: ["image"], aspect_ratio: aspectRatio
+    }))
     const makeRequest = () =>
       fetchWithTimeout(OPENROUTER_URL, {
         method: "POST",
