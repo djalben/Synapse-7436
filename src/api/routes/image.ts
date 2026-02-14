@@ -110,20 +110,15 @@ async function createThumbnail(buf: Buffer): Promise<string | null> {
   }
 }
 
-/** Upload a buffer to Vercel Blob, return public URL or null */
-async function uploadToBlob(buf: Buffer, idx: number): Promise<string | null> {
-  try {
-    if (!process.env.BLOB_READ_WRITE_TOKEN) return null
-    const { put } = await import("@vercel/blob")
-    const blob = await put(`synapse/img-${Date.now()}-${idx}.png`, buf, {
-      access: "public",
-      contentType: "image/png",
-    })
-    return blob.url
-  } catch (err) {
-    console.error(`[Image] Blob upload ${idx} failed:`, err)
-    return null
-  }
+/** Upload a buffer to Vercel Blob, return public URL */
+async function uploadToBlob(buf: Buffer, idx: number): Promise<string> {
+  const { put } = await import("@vercel/blob")
+  const blob = await put(`synapse/img-${Date.now()}-${idx}.png`, buf, {
+    access: "public",
+    contentType: "image/png",
+  })
+  console.log(`[Image] Blob upload ${idx}: ${blob.url} (${buf.length} bytes)`)
+  return blob.url
 }
 
 // POST /image — generate 4 image variants in parallel (Midjourney-style grid)
@@ -136,6 +131,11 @@ imageRoutes.post("/", async (c) => {
     if (!apiKey) {
       console.error("[Image] OPENROUTER_API_KEY missing")
       return c.json({ error: "Image generation service is not available." }, 503)
+    }
+
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      console.error("[Image] BLOB_READ_WRITE_TOKEN missing")
+      return c.json({ error: "Blob storage is not configured." }, 503)
     }
 
     let body: {
@@ -231,13 +231,12 @@ imageRoutes.post("/", async (c) => {
       const buf = await imageToBuffer(imgData)
       console.log(`[Image] Variant ${i} buffer: ${buf.length} bytes`)
 
+      // Upload original to Vercel Blob (mandatory)
+      const link = await uploadToBlob(buf, i)
+
       // Create thumbnail (small Base64 JPEG ~15-30 KB)
       const thumbnail = await createThumbnail(buf)
-      const preview = thumbnail || imgData // fallback to original if sharp unavailable
-
-      // Upload original to Vercel Blob
-      const blobUrl = await uploadToBlob(buf, i)
-      const link = blobUrl || imgData // fallback to data URI if blob unavailable
+      const preview = thumbnail || link // fallback to Blob URL if sharp unavailable
 
       variants.push({ id: `v${i}`, preview, link })
     }))
