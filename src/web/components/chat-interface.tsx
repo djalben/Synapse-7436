@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
-import { ModelSelector, models } from "./model-selector"
-import { Paperclip, Mic, ArrowUp, Sparkles, Code, Bot, User, Copy, Check, Plus, MessageSquare, Trash2, Pencil, PanelLeftOpen, PanelLeftClose } from "lucide-react"
+import { ModelSelector } from "./model-selector"
+import { Paperclip, Mic, ArrowUp, Sparkles, Zap, Lightbulb, Code, Bot, User, Copy, Check, Plus, MessageSquare, Trash2, Pencil, PanelLeftOpen, PanelLeftClose } from "lucide-react"
 import { useUsage } from "./usage-context"
 import { toast } from "sonner"
 import { addToHistory } from "./placeholder-pages"
@@ -24,18 +24,6 @@ const AnthropicLogo = () => (
 const DeepSeekLogo = () => (
   <svg viewBox="0 0 24 24" className="w-4 h-4 flex-shrink-0" fill="#3b82f6" aria-hidden>
     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" />
-  </svg>
-)
-
-const MistralLogo = () => (
-  <svg viewBox="0 0 24 24" className="w-4 h-4 flex-shrink-0" fill="#ff6b35" aria-hidden>
-    <path d="M12 2L4 22h4l4-8 4 8h4L12 2z" />
-  </svg>
-)
-
-const XiaomiLogo = () => (
-  <svg viewBox="0 0 24 24" className="w-4 h-4 flex-shrink-0" fill="#ff6900" aria-hidden>
-    <path d="M12 2l2.5 7.5H22L15 13l2.5 7.5L12 16l-5.5 4.5L9 13 2 9.5h7.5L12 2z" />
   </svg>
 )
 
@@ -271,29 +259,6 @@ const SuggestionChips = ({ onSelect }: SuggestionChipsProps) => {
   )
 }
 
-// Credit Balance Indicator
-const CreditBalanceIndicator = ({ balance, cost }: { balance: number; cost: number }) => {
-  const isLow = balance < 5
-  const isVeryLow = balance < cost
-  
-  return (
-    <div className={`
-      flex items-center gap-2 px-3 py-1.5 rounded-lg
-      ${isVeryLow 
-        ? "bg-red-500/10 border border-red-500/30" 
-        : isLow 
-          ? "bg-amber-500/10 border border-amber-500/30" 
-          : "bg-white/[0.04] border border-[#333]"
-      }
-    `}>
-      <Coins className={`w-4 h-4 ${isVeryLow ? "text-red-400" : isLow ? "text-amber-400" : "text-emerald-400"}`} />
-      <span className={`text-sm font-medium ${isVeryLow ? "text-red-400" : isLow ? "text-amber-400" : "text-white/80"}`}>
-        {balance.toFixed(1)} кредитов
-      </span>
-    </div>
-  )
-}
-
 // Chat input component
 interface ChatInputProps {
   value: string
@@ -454,16 +419,88 @@ function genId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
 }
 
-function loadConversations(): ChatConversation[] {
+// --- localStorage helpers (fallback) ---
+function loadConversationsLocal(): ChatConversation[] {
   try {
-    return JSON.parse(localStorage.getItem(CONVERSATIONS_KEY) || "[]")
+    if (typeof window === "undefined") return []
+    const raw = localStorage.getItem(CONVERSATIONS_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
   } catch { return [] }
 }
 
-function persistConversations(convs: ChatConversation[]) {
+function persistConversationsLocal(convs: ChatConversation[]) {
   try {
+    if (typeof window === "undefined") return
     localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(convs))
   } catch {}
+}
+
+// --- API helpers (D1 database, returns null on failure → use localStorage) ---
+async function apiListConversations(): Promise<ChatConversation[] | null> {
+  try {
+    const res = await fetch("/api/conversations")
+    if (!res.ok) return null
+    const rows: any[] = await res.json()
+    // API returns conversations without messages; load messages per-conversation lazily
+    return rows.map(r => ({
+      id: r.id,
+      title: r.title,
+      model: r.model,
+      messages: [], // loaded on demand
+      createdAt: typeof r.createdAt === "string" ? new Date(r.createdAt).getTime() : r.createdAt,
+      updatedAt: typeof r.updatedAt === "string" ? new Date(r.updatedAt).getTime() : r.updatedAt,
+    }))
+  } catch { return null }
+}
+
+async function apiLoadMessages(convId: string): Promise<StoredMessage[] | null> {
+  try {
+    const res = await fetch(`/api/conversations/${convId}/messages`)
+    if (!res.ok) return null
+    return await res.json()
+  } catch { return null }
+}
+
+async function apiCreateConversation(conv: { id: string; title: string; model: string }): Promise<boolean> {
+  try {
+    const res = await fetch("/api/conversations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(conv),
+    })
+    return res.ok
+  } catch { return false }
+}
+
+async function apiSaveMessages(convId: string, msgs: StoredMessage[], title?: string, model?: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/conversations/${convId}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: msgs, title, model }),
+    })
+    return res.ok
+  } catch { return false }
+}
+
+async function apiDeleteConversation(convId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/conversations/${convId}`, { method: "DELETE" })
+    return res.ok
+  } catch { return false }
+}
+
+async function apiRenameConversation(convId: string, title: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/conversations/${convId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title }),
+    })
+    return res.ok
+  } catch { return false }
 }
 
 function extractTitle(text: string): string {
@@ -818,27 +855,50 @@ const ChatSession = ({ conversationId, initialMessages, selectedModel, onModelCh
 
 // Main chat interface — orchestrator with conversation management + sidebar
 export const ChatInterface = () => {
-  const [conversations, setConversations] = useState<ChatConversation[]>(() => loadConversations())
+  const [conversations, setConversations] = useState<ChatConversation[]>(() => loadConversationsLocal())
   const [activeConvId, setActiveConvId] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [selectedModel, setSelectedModel] = useState("deepseek-r1")
   const [chatKey, setChatKey] = useState(0)
+  const dbAvailableRef = useRef(false)
   const { userPlan = "free" } = useUsage()
 
   // Get initial messages for active conversation
   const activeConv = conversations.find(c => c.id === activeConvId)
   const initialMessages = activeConv?.messages ?? []
 
-  // Persist conversations whenever they change
+  // On mount: try loading from API (D1); if available, use DB data
   useEffect(() => {
-    persistConversations(conversations)
+    let cancelled = false
+    apiListConversations().then(async (apiConvs) => {
+      if (cancelled || !apiConvs) return
+      dbAvailableRef.current = true
+      // For each conversation, load messages from DB
+      const full: ChatConversation[] = await Promise.all(
+        apiConvs.map(async (conv) => {
+          const msgs = await apiLoadMessages(conv.id)
+          return { ...conv, messages: msgs ?? [] }
+        })
+      )
+      if (!cancelled) {
+        setConversations(full)
+        persistConversationsLocal(full) // sync localStorage as backup
+      }
+    })
+    return () => { cancelled = true }
+  }, [])
+
+  // Always persist to localStorage as backup whenever conversations change
+  useEffect(() => {
+    persistConversationsLocal(conversations)
   }, [conversations])
 
   // Handle messages update from ChatSession
   const handleMessagesUpdate = useCallback((convId: string | null, msgs: StoredMessage[], firstUserText?: string) => {
     setConversations(prev => {
       if (convId) {
-        // Update existing conversation
+        // Update existing conversation → save to API in background
+        apiSaveMessages(convId, msgs, undefined, selectedModel)
         return prev.map(c =>
           c.id === convId
             ? { ...c, messages: msgs, updatedAt: Date.now(), model: selectedModel }
@@ -856,7 +916,10 @@ export const ChatInterface = () => {
           createdAt: Date.now(),
           updatedAt: Date.now(),
         }
-        // Set active after state update
+        // Save to API in background (create + messages)
+        apiCreateConversation({ id: newId, title, model: selectedModel }).then(() => {
+          apiSaveMessages(newId, msgs, title, selectedModel)
+        })
         setTimeout(() => setActiveConvId(newId), 0)
         return [newConv, ...prev]
       }
@@ -869,14 +932,25 @@ export const ChatInterface = () => {
   }, [])
 
   const handleSelectConversation = useCallback((id: string) => {
+    // If DB is available and messages not yet loaded, fetch them
+    const conv = conversations.find(c => c.id === id)
+    if (conv && conv.messages.length === 0 && dbAvailableRef.current) {
+      apiLoadMessages(id).then(msgs => {
+        if (msgs && msgs.length > 0) {
+          setConversations(prev =>
+            prev.map(c => c.id === id ? { ...c, messages: msgs } : c)
+          )
+        }
+      })
+    }
     setActiveConvId(id)
     setChatKey(k => k + 1)
-    const conv = conversations.find(c => c.id === id)
     if (conv) setSelectedModel(conv.model)
   }, [conversations])
 
   const handleDeleteConversation = useCallback((id: string) => {
     setConversations(prev => prev.filter(c => c.id !== id))
+    apiDeleteConversation(id) // fire-and-forget
     if (activeConvId === id) {
       setActiveConvId(null)
       setChatKey(k => k + 1)
@@ -888,6 +962,7 @@ export const ChatInterface = () => {
     setConversations(prev =>
       prev.map(c => c.id === id ? { ...c, title: title.trim() } : c)
     )
+    apiRenameConversation(id, title.trim()) // fire-and-forget
   }, [])
 
   return (

@@ -6,6 +6,7 @@ import { enhanceRoutes } from './routes/enhance.js';
 import { audioRoutes } from './routes/audio.js';
 import { avatarRoutes } from './routes/avatar.js';
 import { webhookRoutes } from './routes/webhook.js';
+import { conversationRoutes } from './routes/conversations.js';
 import { monitoringRoutes } from './monitoring.js';
 
 const app = new Hono().basePath('/api');
@@ -42,6 +43,7 @@ app.route('/enhance', enhanceRoutes);
 app.route('/audio', audioRoutes);
 app.route('/avatar', avatarRoutes);
 app.route('/webhook', webhookRoutes);
+app.route('/conversations', conversationRoutes);
 app.route('/monitoring', monitoringRoutes);
 
 // ─── 404
