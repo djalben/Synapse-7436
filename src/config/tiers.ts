@@ -47,13 +47,13 @@ export const CHAT_MODEL_TIERS: Record<string, SynapseTier> = {
  */
 export const IMAGE_MODEL_TIERS: Record<string, SynapseTier> = {
   // START - Flux Schnell (Free)
-  "black-forest-labs/flux-schnell": "START",
+  "black-forest-labs/flux-1-schnell": "START",
   
   // CREATOR - Imagen 3 (Pro)
   "google/imagen-3": "CREATOR",
   
-  // PRO STUDIO - Flux Pro (Ultra)
-  "black-forest-labs/flux-pro": "PRO_STUDIO",
+  // PRO STUDIO - Flux 1.1 Pro (Ultra)
+  "black-forest-labs/flux-1.1-pro": "PRO_STUDIO",
 };
 
 /**
@@ -69,9 +69,9 @@ export const FRONTEND_TO_BACKEND: Record<string, string> = {
   "claude-opus": "anthropic/claude-opus-4.6",
   
   // Image models
-  "flux-schnell": "black-forest-labs/flux-schnell",
+  "flux-schnell": "black-forest-labs/flux-1-schnell",
   "imagen-3": "google/imagen-3",
-  "flux-pro": "black-forest-labs/flux-pro",
+  "flux-pro": "black-forest-labs/flux-1.1-pro",
 };
 
 /**
