@@ -242,7 +242,7 @@ const ModeToggle = ({ mode, onChange }: ModeToggleProps) => {
         `}
       >
         <ImageIcon className="w-4 h-4" />
-        <span className="text-sm font-medium">Изображение в изображение</span>
+        <span className="text-sm font-medium">Цифровой двойник</span>
       </button>
     </div>
   );
@@ -1916,6 +1916,13 @@ const GeneratePanel = ({
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
   const mobileVariantRef = useRef<HTMLDivElement | null>(null);
 
+  // Auto-switch to Nano Banana Pro in digital twin mode
+  useEffect(() => {
+    if (mode === "image-to-image") {
+      setSelectedEngine("imagen-3");
+    }
+  }, [mode]);
+
   const isImagen3 = selectedEngine === "imagen-3";
   const isFreeEngine = selectedEngine === "flux-schnell";
   const atFreeDailyLimit = isFreeEngine && freeImageCountToday >= MAX_FREE_IMAGE_PER_DAY;
@@ -2228,7 +2235,7 @@ const GeneratePanel = ({
   // Dynamic placeholder based on mode
   const getPromptPlaceholder = () => {
     if (mode === "image-to-image") {
-      return "Опишите, как трансформировать изображение... (например, 'в стиле киберпанк', 'в аниме стиле', 'как картина эпохи Возрождения')";
+      return "Опиши, где хочешь оказаться... (например, 'на вершине Эвереста', 'в Токио ночью', 'на обложке Vogue')";
     }
     return "Опишите ваше изображение детально...";
   };
@@ -2279,34 +2286,40 @@ const GeneratePanel = ({
             <ModeToggle mode={mode} onChange={setMode} />
           </div>
 
-          {/* Reference Images Upload (up to 4) */}
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-[#888]">
-              Референсы
-              {mode === "image-to-image" && (
-                <span className="text-amber-400 ml-1">*</span>
-              )}
-              {referenceImages.length > 0 && (
-                <span className="text-indigo-400 ml-1.5 text-xs">({referenceImages.length}/4)</span>
-              )}
-            </label>
-            <MultiImageUpload
-              images={referenceImages}
-              onChange={setReferenceImages}
-              disabled={isGenerating}
-            />
-          </div>
+          {/* === ЦИФРОВОЙ ДВОЙНИК: Фото сверху === */}
+          {mode === "image-to-image" && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-indigo-300">
+                📸 Создай своего цифрового двойника
+                {referenceImages.length > 0 && (
+                  <span className="text-indigo-400 ml-1.5 text-xs">({referenceImages.length}/4)</span>
+                )}
+              </label>
+              <MultiImageUpload
+                images={referenceImages}
+                onChange={setReferenceImages}
+                disabled={isGenerating}
+              />
+              <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/20">
+                <p className="text-xs text-indigo-300/80 leading-relaxed">
+                  Модель: <span className="font-semibold text-amber-300">Nano Banana Pro</span> — автоматически выбрана для мультимодальной генерации
+                </p>
+              </div>
+            </div>
+          )}
 
-          {/* Model grid — над полем ввода промпта */}
-          <ImageEngineSelector
-            selected={selectedEngine}
-            onChange={setSelectedEngine}
-            userPlan={userPlan}
-            onPremiumClick={() => {
-              setPaywallReason("images");
-              setShowPaywall(true);
-            }}
-          />
+          {/* === ТЕКСТ В ИЗОБРАЖЕНИЕ: Выбор модели === */}
+          {mode === "text-to-image" && (
+            <ImageEngineSelector
+              selected={selectedEngine}
+              onChange={setSelectedEngine}
+              userPlan={userPlan}
+              onPremiumClick={() => {
+                setPaywallReason("images");
+                setShowPaywall(true);
+              }}
+            />
+          )}
 
           {/* Prompt Area */}
           <div className="space-y-1.5" data-tour="image-prompt">
@@ -2493,7 +2506,7 @@ const GeneratePanel = ({
             <h3 className="text-base md:text-lg font-medium text-white/80 mb-2">Пока нет изображений</h3>
             <p className="text-sm text-[#666] max-w-xs">
               {mode === "image-to-image" 
-                ? "Загрузите референс и опишите, как его трансформировать"
+                ? "Загрузи селфи, опиши место — и окажись там за секунды"
                 : "Введите промпт и нажмите \"Сгенерировать\" для создания вашего первого шедевра"
               }
             </p>
