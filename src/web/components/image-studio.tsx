@@ -1351,10 +1351,10 @@ const EnhancePhotoPanel = ({
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-full">
+    <div className="flex flex-col md:flex-row">
       {/* Left Panel - Controls */}
-      <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222] flex flex-col min-h-0">
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 min-h-0">
+      <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222]">
+        <div className="p-4 md:p-6">
         <div className="space-y-5 md:space-y-6">
           {/* Header */}
           <div>
@@ -1518,7 +1518,7 @@ const EnhancePhotoPanel = ({
       </div>
 
       {/* Right Panel - Result preview */}
-      <div className="flex-1 p-4 md:p-6 overflow-y-auto min-h-0">
+      <div className="md:flex-1 p-4 md:p-6">
         <div className="max-w-2xl mx-auto">
           <div className="mb-6">
             <h3 className="font-mono text-lg font-semibold text-white">Результат</h3>
@@ -2100,10 +2100,10 @@ const GeneratePanel = ({
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-full">
+    <div className="flex flex-col md:flex-row">
       {/* Left Panel - Controls */}
-      <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222] flex flex-col min-h-0">
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 min-h-0 pb-48 md:pb-24">
+      <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222]">
+        <div className="p-4 md:p-6 pb-48 md:pb-24">
           <div className="space-y-3 md:space-y-4 pb-4">
           {/* Header */}
           <div className="flex items-start justify-between">
@@ -2257,12 +2257,16 @@ const GeneratePanel = ({
           </div>
         </div>
 
-        {/* Desktop: кнопка генерации — ВЫНЕСЕНА из скролла, всегда видна внизу панели */}
-        <div className="hidden md:flex flex-col shrink-0 px-4 py-3 border-t border-[#222] bg-black/95 backdrop-blur-xl z-[100]">
+      </div>
+
+      {/* ЕДИНАЯ фиксированная кнопка "Сгенерировать" — mobile + desktop */}
+      <div className="fixed bottom-0 left-0 right-0 z-[100] pointer-events-none md:left-[240px]">
+        <div className="pointer-events-auto w-full md:w-[35%] md:min-w-[360px] px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)] md:pb-4 bg-black/95 backdrop-blur-xl border-t border-white/10 shadow-[0_-4px_24px_rgba(0,0,0,0.4)]">
+          {/* Limit warning */}
           {effectiveAtLimit && (
             <button
               onClick={() => { setPaywallReason("images"); setShowPaywall(true) }}
-              className="w-full mb-2 p-3 rounded-xl bg-gradient-to-r from-red-500/10 via-amber-500/10 to-red-500/10 border border-red-500/30 flex items-center justify-center gap-3 group transition-all duration-300 hover:border-amber-500/50 active:scale-[0.98]"
+              className="pointer-events-auto w-full mb-2 p-3 rounded-xl bg-gradient-to-r from-red-500/10 via-amber-500/10 to-red-500/10 border border-red-500/30 flex items-center justify-center gap-2 group transition-all duration-300 hover:border-amber-500/50 active:scale-[0.98]"
             >
               <Lock className="w-4 h-4 text-amber-400" />
               <span className="text-amber-400 font-medium text-sm">
@@ -2270,13 +2274,27 @@ const GeneratePanel = ({
               </span>
             </button>
           )}
+
+          {/* Credits */}
+          <div className="mb-2 flex items-center justify-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${effectiveAtLimit ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
+            <span className={`text-xs ${effectiveAtLimit ? "text-red-400" : "text-gray-400"}`}>
+              {isFreeEngine ? (
+                effectiveAtLimit ? "0/3 генераций сегодня" : <>Осталось: {MAX_FREE_IMAGE_PER_DAY - freeImageCountToday}/{MAX_FREE_IMAGE_PER_DAY} генераций</>
+              ) : (
+                effectiveAtLimit ? "Генерации закончились" : <>Осталось: {Math.max(0, limits.maxImages - usedImages)}/{limits.maxImages}</>
+              )}
+            </span>
+          </div>
+
+          {/* Кнопка "Сгенерировать" */}
           <button
             type="button"
             onClick={handleGenerate}
             disabled={!prompt.trim() || isGenerating || effectiveAtLimit || !isImg2ImgReady}
             data-tour="generate-button"
             className={`
-              w-full py-4 px-6 rounded-xl font-medium text-base cursor-pointer
+              pointer-events-auto w-full py-4 px-6 rounded-xl font-medium text-base cursor-pointer
               transition-all duration-300 relative overflow-hidden
               active:scale-[0.98] group
               ${prompt.trim() && !isGenerating && !effectiveAtLimit && isImg2ImgReady
@@ -2296,8 +2314,10 @@ const GeneratePanel = ({
               )}
             </span>
           </button>
+
+          {/* Status indicator */}
           {isGenerating && statusMessage && (
-            <div className="flex items-center justify-center gap-3 py-2 animate-in fade-in duration-300">
+            <div className="flex items-center justify-center gap-3 pt-2 pb-1 animate-in fade-in duration-300">
               <div className="flex gap-1">
                 <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: "0ms" }} />
                 <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: "150ms" }} />
@@ -2307,122 +2327,11 @@ const GeneratePanel = ({
               <span className="text-xs text-[#555] tabular-nums">{elapsedTime}с</span>
             </div>
           )}
-          <div className="flex items-center justify-center gap-2 pt-2">
-            <div className={`w-2 h-2 rounded-full ${effectiveAtLimit ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
-            <span className={`text-xs ${effectiveAtLimit ? "text-red-400" : "text-gray-400"}`}>
-              {isFreeEngine ? (
-                effectiveAtLimit ? "0/3 генераций сегодня" : <>Осталось: {MAX_FREE_IMAGE_PER_DAY - freeImageCountToday}/{MAX_FREE_IMAGE_PER_DAY} генераций</>
-              ) : (
-                effectiveAtLimit ? "Генерации закончились" : <>Осталось: {Math.max(0, limits.maxImages - usedImages)}/{limits.maxImages}</>
-              )}
-            </span>
-          </div>
         </div>
-      </div>
-
-      {/* Фиксированная кнопка "Сгенерировать" на мобильных — как в чате (Telegram/WhatsApp стиль) */}
-      <div
-        className={`
-          md:hidden
-          w-full border-none
-          px-4
-          pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)]
-          bg-black/95 backdrop-blur-xl
-          border-t border-white/10
-          shadow-[0_-4px_24px_rgba(0,0,0,0.4)]
-          fixed bottom-0 left-0 right-0 z-[100]
-        `}
-      >
-        {/* Limit warning banner (если есть лимит) */}
-        {effectiveAtLimit && (
-          <button
-            onClick={() => {
-              setPaywallReason("images")
-              setShowPaywall(true)
-            }}
-            className="
-              w-full mb-3 p-3 rounded-xl
-              bg-gradient-to-r from-red-500/10 via-amber-500/10 to-red-500/10
-              border border-red-500/30
-              flex flex-col items-center justify-center gap-2
-              group transition-all duration-300
-              hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/10
-              active:scale-[0.98]
-            "
-          >
-            <Lock className="w-5 h-5 text-amber-400" />
-            <span className="text-amber-400 font-medium text-sm text-center">
-              {isFreeEngine ? "Лимит 3 генерации в сутки исчерпан" : "Бесплатные генерации исчерпаны"}
-            </span>
-            <span className="text-amber-400/60 text-xs group-hover:text-amber-400 transition-colors">
-              Пополнить →
-            </span>
-          </button>
-        )}
-
-        {/* Счетчик лимитов — над кнопкой на мобильных */}
-        <div className="mb-3 flex items-center justify-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${effectiveAtLimit ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
-          <span className={`text-xs ${effectiveAtLimit ? "text-red-400" : "text-gray-400"}`}>
-            {isFreeEngine ? (
-              effectiveAtLimit ? "0/3 генераций сегодня" : <>Осталось: {MAX_FREE_IMAGE_PER_DAY - freeImageCountToday}/{MAX_FREE_IMAGE_PER_DAY} генераций</>
-            ) : (
-              effectiveAtLimit ? "Бесплатные генерации закончились" : <>Осталось: {Math.max(0, limits.maxImages - usedImages)}/{limits.maxImages}</>
-            )}
-          </span>
-        </div>
-
-        {/* Кнопка "Сгенерировать" */}
-        <button
-          type="button"
-          onClick={handleGenerate}
-          disabled={!prompt.trim() || isGenerating || effectiveAtLimit || !isImg2ImgReady}
-          data-tour="generate-button-mobile"
-          className={`
-            w-full py-4 px-6 rounded-xl font-medium text-base
-            transition-all duration-300 relative overflow-hidden
-            active:scale-[0.98]
-            group
-            ${prompt.trim() && !isGenerating && !effectiveAtLimit && isImg2ImgReady
-              ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_24px_rgba(0,112,243,0.4)]"
-              : "bg-[#222] text-[#555] cursor-not-allowed"
-            }
-          `}
-        >
-          {prompt.trim() && !isGenerating && !effectiveAtLimit && isImg2ImgReady && (
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-          )}
-          <span className="relative flex items-center justify-center gap-2">
-            {isGenerating ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Генерация...</span>
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-5 h-5" />
-                <span>Сгенерировать</span>
-              </>
-            )}
-          </span>
-        </button>
-
-        {/* Mobile status indicator */}
-        {isGenerating && statusMessage && (
-          <div className="flex items-center justify-center gap-3 pt-2 pb-1 animate-in fade-in duration-300">
-            <div className="flex gap-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: "0ms" }} />
-              <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: "150ms" }} />
-              <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "300ms" }} />
-            </div>
-            <span className="text-xs text-indigo-300/80 font-medium">{statusMessage}</span>
-            <span className="text-xs text-[#555] tabular-nums">{elapsedTime}с</span>
-          </div>
-        )}
       </div>
 
       {/* Right Panel - Variants + Gallery */}
-      <div className="flex-1 p-4 md:p-6 pb-40 md:pb-6 overflow-y-auto min-h-0" data-tour="gallery">
+      <div className="md:flex-1 p-4 md:p-6 pb-40 md:pb-6" data-tour="gallery">
 
         {/* Variant Grid (desktop only — mobile version is in left panel) */}
         {variantResult && (
@@ -2514,14 +2423,14 @@ export const ImageStudio = () => {
   const atLimit = !canGenerateImage;
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex flex-col">
       {/* Top-level Mode Toggle */}
       <div className="shrink-0 p-4 md:p-6 pb-0">
         <StudioModeToggle mode={studioMode} onChange={setStudioMode} />
       </div>
 
       {/* Content — both panels rendered, inactive hidden via CSS to preserve state */}
-      <div className={`flex-1 min-h-0 ${studioMode === "generate" ? "" : "hidden"}`}>
+      <div className={`${studioMode === "generate" ? "" : "hidden"}`}>
         <GeneratePanel
           imageCount={imageCount}
           limits={limits}
@@ -2536,7 +2445,7 @@ export const ImageStudio = () => {
           setPaywallReason={setPaywallReason}
         />
       </div>
-      <div className={`flex-1 min-h-0 ${studioMode === "enhance" ? "" : "hidden"}`}>
+      <div className={`${studioMode === "enhance" ? "" : "hidden"}`}>
         <EnhancePhotoPanel
           imageCount={imageCount}
           limits={limits}
