@@ -1623,7 +1623,7 @@ const VariantGrid = ({
       </div>
 
       {/* 2x2 Grid */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3">
         {result.variants.map((variant, idx) => (
           <button
             key={variant.id}
@@ -1644,15 +1644,15 @@ const VariantGrid = ({
             />
             {/* Variant number badge */}
             <div className={`
-              absolute top-2 left-2 px-2 py-0.5 rounded-md backdrop-blur-sm text-xs font-bold
+              absolute top-1.5 left-1.5 sm:top-2 sm:left-2 px-1.5 sm:px-2 py-0.5 rounded-md backdrop-blur-sm text-[10px] sm:text-xs font-bold
               ${selectedIdx === idx ? "bg-indigo-500/80 text-white" : "bg-black/60 text-white/80"}
             `}>
               V{idx + 1}
             </div>
             {/* Selected checkmark */}
             {selectedIdx === idx && (
-              <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center animate-in zoom-in duration-200">
-                <Check className="w-4 h-4 text-white" />
+              <div className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-indigo-500 flex items-center justify-center animate-in zoom-in duration-200">
+                <Check className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
               </div>
             )}
             {/* Bottom gradient overlay */}
@@ -1662,7 +1662,7 @@ const VariantGrid = ({
       </div>
 
       {/* Quick select row */}
-      <div className="flex gap-2">
+      <div className="flex gap-1.5 sm:gap-2">
         {result.variants.map((_, idx) => (
           <button
             key={idx}
@@ -1687,7 +1687,7 @@ const VariantGrid = ({
           onClick={onDownloadHQ}
           disabled={downloadProgress !== null}
           className={`
-            w-full py-3.5 rounded-xl font-medium text-base relative overflow-hidden
+            w-full py-3 sm:py-3.5 rounded-xl font-medium text-sm sm:text-base relative overflow-hidden
             transition-all duration-300 active:scale-[0.98]
             ${downloadProgress !== null
               ? "bg-indigo-600/30 text-indigo-200 cursor-wait"
@@ -1720,7 +1720,7 @@ const VariantGrid = ({
         <button
           onClick={onAddToGallery}
           className="
-            w-full py-3 rounded-xl font-medium text-sm
+            w-full py-2.5 sm:py-3 rounded-xl font-medium text-sm
             bg-white/5 border border-[#333] text-white
             hover:bg-white/10 hover:border-[#444]
             transition-all duration-200 active:scale-[0.98]
@@ -2122,7 +2122,7 @@ const GeneratePanel = ({
     <div className="flex flex-col md:flex-row h-full min-h-screen">
       {/* Left Panel - Controls: scrollable + sticky bottom bar */}
       <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222] flex flex-col min-h-0">
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 min-h-0 max-h-[calc(100vh-200px)] md:max-h-none pb-36 md:pb-24">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 min-h-0 max-h-[calc(100vh-180px)] md:max-h-none pb-48 md:pb-24">
           <div className="space-y-3 md:space-y-4 pb-4">
           {/* Header */}
           <div className="flex items-start justify-between">
@@ -2195,8 +2195,8 @@ const GeneratePanel = ({
                 disabled={!prompt.trim() || isEnhancingPrompt || isGenerating}
                 title="Magic Prompt — ИИ расширит ваш промпт"
                 className={`
-                  flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
-                  transition-all duration-300
+                  flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium
+                  transition-all duration-300 shrink-0
                   ${prompt.trim() && !isEnhancingPrompt && !isGenerating
                     ? "bg-gradient-to-r from-purple-500/20 to-indigo-500/20 border border-purple-500/40 text-purple-300 hover:border-purple-400/60 hover:shadow-lg hover:shadow-purple-500/10 active:scale-95"
                     : "bg-white/[0.03] border border-[#333] text-[#555] cursor-not-allowed"
@@ -2208,7 +2208,7 @@ const GeneratePanel = ({
                 ) : (
                   <Wand2 className="w-3.5 h-3.5" />
                 )}
-                <span>{isEnhancingPrompt ? "Улучшаю..." : "Magic Prompt"}</span>
+                <span className="hidden sm:inline">{isEnhancingPrompt ? "Улучшаю..." : "Magic"}</span>
               </button>
             </div>
             <div className="relative">
@@ -2466,7 +2466,7 @@ const GeneratePanel = ({
 
         {/* Mobile status indicator */}
         {isGenerating && statusMessage && (
-          <div className="flex items-center justify-center gap-3 pt-2 animate-in fade-in duration-300">
+          <div className="flex items-center justify-center gap-3 pt-2 pb-1 animate-in fade-in duration-300">
             <div className="flex gap-1">
               <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: "0ms" }} />
               <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: "150ms" }} />
@@ -2479,11 +2479,11 @@ const GeneratePanel = ({
       </div>
 
       {/* Right Panel - Variants + Gallery */}
-      <div className="flex-1 p-4 md:p-6 overflow-y-auto min-h-0" data-tour="gallery">
+      <div className="flex-1 p-4 md:p-6 pb-40 md:pb-6 overflow-y-auto min-h-0" data-tour="gallery">
 
         {/* Variant Grid (Midjourney-style 2x2) — shown after generation */}
         {variantResult && (
-          <div className="mb-8 max-w-lg mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="mb-6 sm:mb-8 max-w-sm sm:max-w-lg mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
             <VariantGrid
               result={variantResult}
               selectedIdx={selectedVariantIdx}
