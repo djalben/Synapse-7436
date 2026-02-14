@@ -735,7 +735,7 @@ const ChatSession = ({ conversationId, initialMessages, selectedModel, onModelCh
   const hasMessages = messages.length > 0
 
   return (
-    <div className="flex flex-col w-full h-full min-h-0 overflow-hidden border-none">
+    <div className="relative flex flex-col w-full h-full min-h-0 overflow-hidden border-none">
       {/* Floating controls — transparent, no background strip */}
       <div
         className={`
