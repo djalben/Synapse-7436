@@ -10,7 +10,7 @@ const ENGINE_MODELS: Record<string, string> = {
   "flux-schnell": "black-forest-labs/flux.2-klein-4b",      // Free, fast — РАБОЧИЙ ID из утра
   "nana-banana": "google/gemini-3-pro-image-preview",        // Nano Banana Pro
   "imagen-3": "google/gemini-3-pro-image-preview",           // Фронтенд key → Gemini 3 Pro Image
-  "flux-pro": "black-forest-labs/flux-1-dev",                // Flux.1 dev, high quality — РАБОЧИЙ ID из утра
+  "flux-pro": "black-forest-labs/flux.2-max",               // FLUX.2 Max — PRO STUDIO
 }
 const DEFAULT_MODEL = "black-forest-labs/flux.2-klein-4b"
 
@@ -167,6 +167,9 @@ imageRoutes.post("/", async (c) => {
     console.log(`[Image] model=${selectedModel}, engine=${body.engine}, ar=${aspectRatio}, variants=${variantCount}, prompt="${enhancedPrompt.substring(0, 60)}"`)
     if (selectedModel === "google/gemini-3-pro-image-preview") {
       console.log(`[Image] >>> TESTING GOOGLE NANO BANANA: google/gemini-3-pro-image-preview`)
+    }
+    if (selectedModel === "black-forest-labs/flux.2-max") {
+      console.log(`[Image] >>> ACTIVATING PRO STUDIO: black-forest-labs/flux.2-max`)
     }
 
     // ── Fire 4 parallel requests to OpenRouter ──

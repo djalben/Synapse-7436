@@ -105,7 +105,7 @@ interface ImageEngineOption {
 const imageEngineOptions: ImageEngineOption[] = [
   { id: "flux-schnell", label: "Flux Schnell", subtitle: "START", creditCost: 0, requiredPlan: "free", speed: "~4с" },
   { id: "imagen-3", label: "Nano Banana Pro", subtitle: "CREATOR", creditCost: 1, requiredPlan: "standard", speed: "~8с" },
-  { id: "flux-pro", label: "Flux 1.1 Pro", subtitle: "PRO STUDIO", creditCost: 2, requiredPlan: "ultra", isLocked: false, speed: "~10с" },
+  { id: "flux-pro", label: "FLUX.2 Max", subtitle: "PRO STUDIO", creditCost: 2, requiredPlan: "ultra", isLocked: false, speed: "~12с" },
 ];
 
 const styleOptions: StyleOption[] = [

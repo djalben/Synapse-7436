@@ -52,8 +52,8 @@ export const IMAGE_MODEL_TIERS: Record<string, SynapseTier> = {
   // CREATOR - Nano Banana Pro
   "google/gemini-3-pro-image-preview": "CREATOR",
   
-  // PRO STUDIO - Flux.1 dev (Ultra)
-  "black-forest-labs/flux-1-dev": "PRO_STUDIO",
+  // PRO STUDIO - FLUX.2 Max
+  "black-forest-labs/flux.2-max": "PRO_STUDIO",
 };
 
 /**
@@ -71,7 +71,7 @@ export const FRONTEND_TO_BACKEND: Record<string, string> = {
   // Image models
   "flux-schnell": "black-forest-labs/flux.2-klein-4b",
   "imagen-3": "google/gemini-3-pro-image-preview",
-  "flux-pro": "black-forest-labs/flux-1-dev",
+  "flux-pro": "black-forest-labs/flux.2-max",
 };
 
 /**
