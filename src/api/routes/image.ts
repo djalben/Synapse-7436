@@ -86,10 +86,50 @@ imageRoutes.get("/test", async (c) => {
   }
 })
 
-// POST /image — generate image via OpenRouter
+/** Convert a Base64 data URI or URL to a Buffer */
+async function imageToBuffer(imageData: string): Promise<Buffer> {
+  if (imageData.startsWith("data:")) {
+    const base64 = imageData.split(",")[1]
+    return Buffer.from(base64, "base64")
+  }
+  const res = await fetch(imageData)
+  return Buffer.from(await res.arrayBuffer())
+}
+
+/** Create a small JPEG thumbnail as a data URI (256px, q60) */
+async function createThumbnail(buf: Buffer): Promise<string | null> {
+  try {
+    const sharp = (await import("sharp")).default
+    const thumb = await sharp(buf)
+      .resize(256, 256, { fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 60 })
+      .toBuffer()
+    return `data:image/jpeg;base64,${thumb.toString("base64")}`
+  } catch {
+    return null // sharp not available — caller will use fallback
+  }
+}
+
+/** Upload a buffer to Vercel Blob, return public URL or null */
+async function uploadToBlob(buf: Buffer, idx: number): Promise<string | null> {
+  try {
+    if (!process.env.BLOB_READ_WRITE_TOKEN) return null
+    const { put } = await import("@vercel/blob")
+    const blob = await put(`synapse/img-${Date.now()}-${idx}.png`, buf, {
+      access: "public",
+      contentType: "image/png",
+    })
+    return blob.url
+  } catch (err) {
+    console.error(`[Image] Blob upload ${idx} failed:`, err)
+    return null
+  }
+}
+
+// POST /image — generate 4 image variants in parallel (Midjourney-style grid)
 imageRoutes.post("/", async (c) => {
   const startTime = Date.now()
-  console.log(`[Image] POST start`)
+  console.log(`[Image] POST start — variant grid mode`)
 
   try {
     const apiKey = process.env.OPENROUTER_API_KEY
@@ -120,102 +160,102 @@ imageRoutes.post("/", async (c) => {
     }
 
     const aspectRatio = VALID_ASPECT_RATIOS.includes(body.aspectRatio || "") ? body.aspectRatio! : "1:1"
-    const numToGenerate = Math.min(Math.max(body.numImages || 1, 1), 4)
+    const variantCount = 4
 
     const selectedModel = ENGINE_MODELS[body.engine || ""] || DEFAULT_MODEL
-    console.log(`[Image] model=${selectedModel}, engine=${body.engine}, ar=${aspectRatio}, n=${numToGenerate}, prompt="${enhancedPrompt.substring(0, 60)}"`)
+    console.log(`[Image] model=${selectedModel}, engine=${body.engine}, ar=${aspectRatio}, variants=${variantCount}, prompt="${enhancedPrompt.substring(0, 60)}"`)
 
-    const generatedImages: Array<{
-      id: string; url: string; prompt: string; aspectRatio: string;
-      style: string; mode: string; createdAt: string; creditCost: number;
-    }> = []
-
-    for (let i = 0; i < numToGenerate; i++) {
-      const loopStart = Date.now()
-      console.log(`[Image] Requesting image ${i + 1}/${numToGenerate}...`)
-
-      try {
-        const requestBody = {
+    // ── Fire 4 parallel requests to OpenRouter ──
+    const makeRequest = () =>
+      fetchWithTimeout(OPENROUTER_URL, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": process.env.VITE_BASE_URL || "https://synapse.app",
+          "X-Title": "Synapse",
+        },
+        body: JSON.stringify({
           model: selectedModel,
           messages: [{ role: "user", content: enhancedPrompt }],
           modalities: ["image"],
           stream: false,
           image_config: { aspect_ratio: aspectRatio },
-        }
+        }),
+      }, TIMEOUT_MS)
 
-        const response = await fetchWithTimeout(OPENROUTER_URL, {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": process.env.VITE_BASE_URL || "https://synapse.app",
-            "X-Title": "Synapse",
-          },
-          body: JSON.stringify(requestBody),
-        }, TIMEOUT_MS)
+    console.log(`[Image] Firing ${variantCount} parallel requests...`)
+    const fetchResults = await Promise.allSettled(
+      Array.from({ length: variantCount }, () => makeRequest())
+    )
+    console.log(`[Image] All fetches settled in ${Date.now() - startTime}ms`)
 
-        console.log(`[Image] Response ${i + 1}: status=${response.status}, elapsed=${Date.now() - loopStart}ms`)
-
-        if (!response.ok) {
-          const errorText = await response.text().catch(() => "Unknown error")
-          console.error(`[Image] Error ${response.status}: ${errorText.slice(0, 300)}`)
-          if (generatedImages.length > 0) break
-          if (response.status === 429) return c.json({ error: "High demand. Please wait and try again." }, 429)
-          if (response.status === 402 || response.status === 403) return c.json({ error: "Insufficient credits or access denied." }, 500)
-          return c.json({ error: `Image generation failed (${response.status}). Try again.` }, 500)
-        }
-
+    // ── Extract raw image data from each response ──
+    const rawImages: string[] = []
+    for (let i = 0; i < fetchResults.length; i++) {
+      const r = fetchResults[i]
+      if (r.status !== "fulfilled") {
+        console.error(`[Image] Variant ${i} fetch failed:`, r.reason)
+        continue
+      }
+      const response = r.value
+      if (!response.ok) {
+        const errText = await response.text().catch(() => "?")
+        console.error(`[Image] Variant ${i} status ${response.status}: ${errText.slice(0, 200)}`)
+        continue
+      }
+      try {
         const rawText = await response.text()
-        console.log(`[Image] Raw response length: ${rawText.length}, preview: ${rawText.substring(0, 200)}`)
-
+        console.log(`[Image] Variant ${i} raw length: ${rawText.length}`)
         const data = JSON.parse(rawText) as {
-          choices?: Array<{
-            message?: {
-              content?: string;
-              images?: Array<{ type?: string; image_url?: { url?: string } }>;
-            };
-          }>;
+          choices?: Array<{ message?: { images?: Array<{ image_url?: { url?: string } }> } }>
         }
-
-        if (data.choices && data.choices.length > 0) {
-          const msg = data.choices[0]?.message
-          const images = msg?.images
-          console.log(`[Image] choices[0].message keys: ${msg ? Object.keys(msg).join(',') : 'null'}, images count: ${images?.length ?? 0}`)
-
-          if (images) {
-            for (const image of images) {
-              const imageUrl = image.image_url?.url
-              if (imageUrl) {
-                generatedImages.push({
-                  id: `${Date.now()}-${generatedImages.length}`,
-                  url: imageUrl,
-                  prompt, aspectRatio,
-                  style: body.style || "photorealistic",
-                  mode: body.mode || "text-to-image",
-                  createdAt: new Date().toISOString(),
-                  creditCost: 1,
-                })
-              }
-            }
-          }
-        }
-      } catch (fetchErr) {
-        const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr)
-        const isTimeout = msg.startsWith('TIMEOUT_')
-        console.error(`[Image] Fetch error (${isTimeout ? 'timeout' : 'network'}) after ${Date.now() - loopStart}ms: ${msg}`)
-        if (generatedImages.length > 0) break
-        return c.json({
-          error: isTimeout ? "Image generation timed out. Please try again with a simpler prompt." : "Network error. Please try again.",
-        }, 503)
+        const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url
+        if (imageUrl) rawImages.push(imageUrl)
+        else console.error(`[Image] Variant ${i}: no image in response`)
+      } catch (err) {
+        console.error(`[Image] Variant ${i} parse error:`, err)
       }
     }
 
-    if (generatedImages.length === 0) {
+    if (rawImages.length === 0) {
       return c.json({ error: "No images were generated. Try a different prompt." }, 500)
     }
 
-    console.log(`[Image] Done: ${generatedImages.length} images, total=${Date.now() - startTime}ms`)
-    return c.json({ images: generatedImages, totalCreditCost: generatedImages.length }, 201)
+    console.log(`[Image] ${rawImages.length} raw images extracted. Processing thumbnails + blob...`)
+
+    // ── Process each image: thumbnail + blob upload ──
+    const variants: Array<{ id: string; preview: string; link: string }> = []
+
+    await Promise.all(rawImages.map(async (imgData, i) => {
+      const buf = await imageToBuffer(imgData)
+      console.log(`[Image] Variant ${i} buffer: ${buf.length} bytes`)
+
+      // Create thumbnail (small Base64 JPEG ~15-30 KB)
+      const thumbnail = await createThumbnail(buf)
+      const preview = thumbnail || imgData // fallback to original if sharp unavailable
+
+      // Upload original to Vercel Blob
+      const blobUrl = await uploadToBlob(buf, i)
+      const link = blobUrl || imgData // fallback to data URI if blob unavailable
+
+      variants.push({ id: `v${i}`, preview, link })
+    }))
+
+    // Sort to maintain order
+    variants.sort((a, b) => a.id.localeCompare(b.id))
+
+    const totalMs = Date.now() - startTime
+    const previewSizes = variants.map(v => v.preview.length)
+    console.log(`[Image] Done: ${variants.length} variants, total=${totalMs}ms, preview sizes=[${previewSizes.join(",")}], blob=${variants[0]?.link.startsWith("http") ? "yes" : "no"}`)
+
+    return c.json({
+      variants,
+      prompt,
+      aspectRatio,
+      style: body.style || "photorealistic",
+      engine: body.engine || "flux-schnell",
+    }, 201)
   } catch (error) {
     console.error(`[Image] Unexpected error after ${Date.now() - startTime}ms:`, error)
     return c.json({ error: "Internal error. Please try again." }, 500)

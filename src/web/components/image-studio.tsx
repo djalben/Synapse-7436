@@ -18,7 +18,10 @@ import {
   Trash2,
   Palette,
   Star,
+  Check,
+  RefreshCw,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useUsage, MAX_FREE_IMAGE_PER_DAY } from "./usage-context";
 import { type UserPlan, canAccessModel } from "./model-selector";
 import { 
@@ -1577,6 +1580,183 @@ const EnhancePhotoPanel = ({
   );
 };
 
+// ===== VARIANT GRID (Midjourney-style 2x2) =====
+
+interface VariantData {
+  id: string;
+  preview: string; // small Base64 thumbnail
+  link: string;    // HQ Blob URL
+}
+
+interface VariantResult {
+  variants: VariantData[];
+  prompt: string;
+  aspectRatio: string;
+}
+
+interface VariantGridProps {
+  result: VariantResult;
+  selectedIdx: number;
+  onSelect: (idx: number) => void;
+  onDownloadHQ: () => void;
+  onAddToGallery: () => void;
+  onRegenerate: () => void;
+  downloadProgress: number | null;
+}
+
+const VariantGrid = ({
+  result, selectedIdx, onSelect,
+  onDownloadHQ, onAddToGallery, onRegenerate,
+  downloadProgress,
+}: VariantGridProps) => {
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div>
+        <h3 className="font-mono text-lg font-semibold text-white flex items-center gap-2">
+          <Sparkles className="w-5 h-5 text-indigo-400" />
+          Выберите вариант
+        </h3>
+        <p className="text-sm text-[#666]">
+          {result.variants.length} варианта — нажмите на лучший
+        </p>
+      </div>
+
+      {/* 2x2 Grid */}
+      <div className="grid grid-cols-2 gap-3">
+        {result.variants.map((variant, idx) => (
+          <button
+            key={variant.id}
+            onClick={() => onSelect(idx)}
+            className={`
+              relative rounded-xl overflow-hidden aspect-square
+              border-2 transition-all duration-300 group
+              ${selectedIdx === idx
+                ? "border-indigo-500 shadow-lg shadow-indigo-500/20 scale-[1.02]"
+                : "border-[#333] hover:border-[#555]"
+              }
+            `}
+          >
+            <img
+              src={variant.preview}
+              alt={`Вариант ${idx + 1}`}
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            />
+            {/* Variant number badge */}
+            <div className={`
+              absolute top-2 left-2 px-2 py-0.5 rounded-md backdrop-blur-sm text-xs font-bold
+              ${selectedIdx === idx ? "bg-indigo-500/80 text-white" : "bg-black/60 text-white/80"}
+            `}>
+              V{idx + 1}
+            </div>
+            {/* Selected checkmark */}
+            {selectedIdx === idx && (
+              <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center animate-in zoom-in duration-200">
+                <Check className="w-4 h-4 text-white" />
+              </div>
+            )}
+            {/* Bottom gradient overlay */}
+            <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/50 to-transparent pointer-events-none" />
+          </button>
+        ))}
+      </div>
+
+      {/* Quick select row */}
+      <div className="flex gap-2">
+        {result.variants.map((_, idx) => (
+          <button
+            key={idx}
+            onClick={() => onSelect(idx)}
+            className={`
+              flex-1 py-2 rounded-lg text-sm font-medium transition-all duration-200
+              ${selectedIdx === idx
+                ? "bg-indigo-500/20 border border-indigo-500/50 text-indigo-300"
+                : "bg-white/[0.03] border border-[#333] text-[#666] hover:border-[#555] hover:text-[#999]"
+              }
+            `}
+          >
+            V{idx + 1}
+          </button>
+        ))}
+      </div>
+
+      {/* Action buttons */}
+      <div className="space-y-3">
+        {/* Download HQ with progress bar */}
+        <button
+          onClick={onDownloadHQ}
+          disabled={downloadProgress !== null}
+          className={`
+            w-full py-3.5 rounded-xl font-medium text-base relative overflow-hidden
+            transition-all duration-300 active:scale-[0.98]
+            ${downloadProgress !== null
+              ? "bg-indigo-600/30 text-indigo-200 cursor-wait"
+              : "bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40"
+            }
+          `}
+        >
+          {downloadProgress !== null && (
+            <div
+              className="absolute inset-y-0 left-0 bg-indigo-500/40 transition-all duration-300 ease-out"
+              style={{ width: `${downloadProgress}%` }}
+            />
+          )}
+          <span className="relative flex items-center justify-center gap-2">
+            {downloadProgress !== null ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Загрузка HQ... {downloadProgress}%</span>
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4" />
+                <span>Скачать HQ</span>
+              </>
+            )}
+          </span>
+        </button>
+
+        {/* Add to Gallery */}
+        <button
+          onClick={onAddToGallery}
+          className="
+            w-full py-3 rounded-xl font-medium text-sm
+            bg-white/5 border border-[#333] text-white
+            hover:bg-white/10 hover:border-[#444]
+            transition-all duration-200 active:scale-[0.98]
+            flex items-center justify-center gap-2
+          "
+        >
+          <Sparkles className="w-4 h-4 text-indigo-400" />
+          Добавить в галерею
+        </button>
+
+        {/* Regenerate */}
+        <button
+          onClick={onRegenerate}
+          className="
+            w-full py-2.5 rounded-xl text-[#666] text-sm
+            hover:text-white hover:bg-white/[0.03]
+            transition-all duration-200
+            flex items-center justify-center gap-2
+          "
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          Сгенерировать заново
+        </button>
+      </div>
+
+      {/* Prompt info */}
+      <div className="p-3 rounded-xl bg-white/[0.02] border border-[#222]">
+        <p className="text-xs text-[#555] line-clamp-2">
+          <span className="text-[#888] font-medium">Промпт: </span>
+          {result.prompt}
+        </p>
+      </div>
+    </div>
+  );
+};
+
 // ===== GENERATE PANEL =====
 
 interface GeneratePanelProps {
@@ -1622,6 +1802,11 @@ const GeneratePanel = ({
   const [error, setError] = useState<string | null>(null);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
+
+  // Variant grid state
+  const [variantResult, setVariantResult] = useState<VariantResult | null>(null);
+  const [selectedVariantIdx, setSelectedVariantIdx] = useState(0);
+  const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
 
   const isNanaBanana = selectedEngine === "nana-banana";
   const isFreeEngine = selectedEngine === "flux-schnell";
@@ -1780,93 +1965,31 @@ const GeneratePanel = ({
       }
 
       // Только если response.ok === true, парсим JSON
-      const data = await response.json();
+      const data = await response.json() as {
+        variants?: VariantData[];
+        prompt?: string;
+        aspectRatio?: string;
+        error?: string;
+      };
 
-      // Check if this is a Replicate prediction ID (needs polling)
-      if (data.id && data.provider === "replicate") {
-        const predictionId = data.id;
-        console.log("[Image Studio] Received Replicate prediction ID, starting polling:", predictionId);
-        
-        // Poll for result on frontend
-        const pollStartTime = Date.now();
-        let pollAttempts = 0;
-        const maxPollAttempts = 120; // 2 minutes max (1 second intervals)
-        
-        while (pollAttempts < maxPollAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second between polls
-          pollAttempts++;
-          
-          const statusResponse = await fetch(`/api/image/status/${predictionId}`);
-          
-          if (!statusResponse.ok) {
-            throw new Error(`Failed to check prediction status: ${statusResponse.statusText}`);
-          }
-          
-          const statusData = await statusResponse.json();
-          console.log(`[Image Studio] Poll attempt ${pollAttempts}:`, {
-            status: statusData.status,
-            elapsedTime: Date.now() - pollStartTime,
-          });
-          
-          if (statusData.status === "succeeded") {
-            const imageUrl = Array.isArray(statusData.output) ? statusData.output[0] : statusData.output;
-            
-            if (imageUrl) {
-              const totalTime = Date.now() - generationStartTime;
-              console.log("[Image Studio] Generation completed:", {
-                totalTimeMs: totalTime,
-                totalTimeSeconds: (totalTime / 1000).toFixed(2),
-                pollAttempts,
-                pollTimeMs: Date.now() - pollStartTime,
-              });
-              
-              const generatedImage = {
-                id: `${Date.now()}-0`,
-                url: imageUrl,
-                prompt: prompt.trim(),
-                aspectRatio: data.aspectRatio,
-                style: data.style,
-                mode: data.mode,
-                createdAt: new Date().toISOString(),
-                creditCost: 1,
-              };
-              
-              setGeneratedImages((prev) => [generatedImage, ...prev]);
-              incrementImages();
-              
-              // Сохранить в историю
-              const engineCost = imageEngineOptions.find(e => e.id === selectedEngine)?.creditCost || 0;
-              addToHistory({
-                type: "image",
-                prompt: prompt.trim(),
-                model: selectedEngine,
-                result: imageUrl,
-                credits: engineCost,
-              });
-              
-              setPrompt("");
-              return; // Success, exit function
-            }
-          } else if (statusData.status === "failed" || statusData.status === "canceled") {
-            throw new Error(statusData.error || "Image generation failed");
-          }
-          // Continue polling if status is "starting" or "processing"
-        }
-        
-        // If we exit the loop, it means we timed out
-        throw new Error("Image generation timed out. Please try again.");
-      }
-
-      // Handle regular OpenRouter response (immediate images)
-      if (data.images && Array.isArray(data.images)) {
+      // Handle new variant grid response
+      if (data.variants && Array.isArray(data.variants) && data.variants.length > 0) {
         const totalTime = Date.now() - generationStartTime;
-        console.log("[Image Studio] Generation completed:", {
+        console.log("[Image Studio] Variants received:", {
+          count: data.variants.length,
           totalTimeMs: totalTime,
-          totalTimeSeconds: (totalTime / 1000).toFixed(2),
-          imageCount: data.images.length,
+          previewSizes: data.variants.map(v => v.preview.length),
+          hasBlob: data.variants[0]?.link.startsWith("http"),
         });
 
-        setGeneratedImages((prev) => [...data.images, ...prev]);
+        setVariantResult({
+          variants: data.variants,
+          prompt: data.prompt || prompt.trim(),
+          aspectRatio: data.aspectRatio || aspectRatio,
+        });
+        setSelectedVariantIdx(0);
+
+        // Charge credits
         if (isNanaBanana) {
           incrementImages();
         } else if (isFreeEngine) {
@@ -1874,22 +1997,8 @@ const GeneratePanel = ({
         } else {
           incrementImages();
         }
-        
-        // Сохранить каждое изображение в историю
-        const engineCost = imageEngineOptions.find(e => e.id === selectedEngine)?.creditCost || 0;
-        data.images.forEach((img: { url: string }) => {
-          addToHistory({
-            type: "image",
-            prompt: prompt.trim(),
-            model: selectedEngine,
-            result: img.url,
-            credits: engineCost,
-          });
-        });
-        
-        setPrompt("");
       } else {
-        throw new Error("Unexpected response format from server");
+        throw new Error(data.error || "Unexpected response format from server");
       }
     } catch (err) {
       console.error("Generation error:", err);
@@ -1900,6 +2009,105 @@ const GeneratePanel = ({
       setIsGenerating(false);
       setStatusMessage(null);
     }
+  };
+
+  // ── Variant action handlers ──
+
+  const handleDownloadHQ = async () => {
+    if (!variantResult) return;
+    const variant = variantResult.variants[selectedVariantIdx];
+    if (!variant) return;
+
+    setDownloadProgress(0);
+    try {
+      const response = await fetch(variant.link);
+      const contentLength = response.headers.get("content-length");
+      const total = contentLength ? parseInt(contentLength, 10) : 0;
+
+      if (!response.body) {
+        // Fallback: no streaming support
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `synapse-hq-${Date.now()}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success("Изображение сохранено в высоком качестве!");
+        return;
+      }
+
+      const reader = response.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let received = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        received += value.length;
+        if (total > 0) {
+          setDownloadProgress(Math.min(99, Math.round((received / total) * 100)));
+        } else {
+          setDownloadProgress(Math.min(99, Math.round((received / (received + 50000)) * 100)));
+        }
+      }
+
+      setDownloadProgress(100);
+      const blob = new Blob(chunks, { type: "image/png" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `synapse-hq-${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success("Изображение сохранено в высоком качестве!");
+    } catch (err) {
+      console.error("Download error:", err);
+      toast.error("Ошибка загрузки изображения");
+    } finally {
+      setDownloadProgress(null);
+    }
+  };
+
+  const handleAddToGallery = () => {
+    if (!variantResult) return;
+    const variant = variantResult.variants[selectedVariantIdx];
+    if (!variant) return;
+
+    const newImage: GeneratedImage = {
+      id: `${Date.now()}-${selectedVariantIdx}`,
+      url: variant.link, // Use Blob URL (not Base64!)
+      prompt: variantResult.prompt,
+      aspectRatio: variantResult.aspectRatio,
+      style: selectedStyle,
+      mode,
+      createdAt: new Date().toISOString(),
+      creditCost: imageEngineOptions.find(e => e.id === selectedEngine)?.creditCost || 0,
+    };
+
+    setGeneratedImages((prev) => [newImage, ...prev]);
+
+    // Save to history with Blob URL (tiny, not Base64)
+    addToHistory({
+      type: "image",
+      prompt: variantResult.prompt,
+      model: selectedEngine,
+      result: variant.link,
+      credits: newImage.creditCost,
+    });
+
+    toast.success("Добавлено в галерею!");
+    setVariantResult(null);
+    setPrompt("");
+  };
+
+  const handleRegenerate = () => {
+    setVariantResult(null);
+    handleGenerate();
   };
 
   // Dynamic placeholder based on mode
@@ -2270,8 +2478,24 @@ const GeneratePanel = ({
         )}
       </div>
 
-      {/* Right Panel - Gallery */}
+      {/* Right Panel - Variants + Gallery */}
       <div className="flex-1 p-4 md:p-6 overflow-y-auto min-h-0" data-tour="gallery">
+
+        {/* Variant Grid (Midjourney-style 2x2) — shown after generation */}
+        {variantResult && (
+          <div className="mb-8 max-w-lg mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <VariantGrid
+              result={variantResult}
+              selectedIdx={selectedVariantIdx}
+              onSelect={setSelectedVariantIdx}
+              onDownloadHQ={handleDownloadHQ}
+              onAddToGallery={handleAddToGallery}
+              onRegenerate={handleRegenerate}
+              downloadProgress={downloadProgress}
+            />
+          </div>
+        )}
+
         {/* Gallery Header */}
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <div>
@@ -2282,8 +2506,8 @@ const GeneratePanel = ({
           </div>
         </div>
 
-        {/* Empty state */}
-        {generatedImages.length === 0 && (
+        {/* Empty state — only when no variants AND no gallery */}
+        {generatedImages.length === 0 && !variantResult && (
           <div className="flex flex-col items-center justify-center h-[40vh] md:h-[60vh] text-center px-4">
             <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-white/[0.02] border border-[#333] flex items-center justify-center mb-4 md:mb-6">
               <Sparkles className="w-8 h-8 md:w-10 md:h-10 text-[#444]" />
