@@ -736,14 +736,13 @@ const ChatSession = ({ conversationId, initialMessages, selectedModel, onModelCh
 
   return (
     <div className="flex flex-col w-full h-full min-h-0 overflow-hidden border-none">
-      {/* Top header bar — sidebar toggle + model selector */}
+      {/* Floating controls — transparent, no background strip */}
       <div
         className={`
-          sticky top-0 z-[100]
+          absolute top-0 left-0 right-0 z-[100]
           flex items-center gap-3
           px-4 md:px-6 py-3
-          bg-black/80 backdrop-blur-xl
-          border-b border-white/[0.06]
+          pointer-events-none
           transition-opacity duration-700 ease-out
           ${isLoaded ? "opacity-100" : "opacity-0"}
         `}
@@ -751,9 +750,10 @@ const ChatSession = ({ conversationId, initialMessages, selectedModel, onModelCh
         <button
           onClick={onToggleSidebar}
           className="
+            pointer-events-auto
             flex items-center justify-center
             w-9 h-9 rounded-lg
-            bg-white/[0.04] border border-white/[0.08]
+            bg-black/40 backdrop-blur-md border border-white/[0.08]
             text-[#888] hover:text-white hover:bg-white/[0.08]
             transition-all duration-200
             flex-shrink-0
@@ -762,18 +762,20 @@ const ChatSession = ({ conversationId, initialMessages, selectedModel, onModelCh
         >
           {sidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
         </button>
-        <ModelSelector
-          selectedModel={selectedModel}
-          onModelChange={onModelChange}
-          userPlan={userPlan as any}
-        />
+        <div className="pointer-events-auto">
+          <ModelSelector
+            selectedModel={selectedModel}
+            onModelChange={onModelChange}
+            userPlan={userPlan as any}
+          />
+        </div>
       </div>
 
       {/* Messages area */}
       <div
         ref={messagesContainerRef}
         onScroll={handleMessagesScroll}
-        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-4 md:px-8 py-4 md:py-6 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-6"
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-4 md:px-8 pt-14 md:pt-16 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-6"
       >
         {!hasMessages ? (
           <div
