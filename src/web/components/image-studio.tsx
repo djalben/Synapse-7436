@@ -567,7 +567,7 @@ const ImageEngineSelector = ({ selected, onChange, userPlan, onPremiumClick }: I
   return (
     <div className="space-y-1.5">
       <label className="text-xs font-medium text-[#888]">Модель</label>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-2 relative z-10 pointer-events-auto">
         {imageEngineOptions.map((engine) => {
           const isSelected = selected === engine.id;
           // ВРЕМЕННО ОТКЛЮЧЕНО: Проверка доступа по тарифу (режим тестирования)
@@ -600,14 +600,14 @@ const ImageEngineSelector = ({ selected, onChange, userPlan, onPremiumClick }: I
               className={`
                 relative flex flex-col items-center justify-center gap-1 py-2.5 px-2 rounded-xl
                 transition-all duration-300 backdrop-blur-xl
-                min-h-[52px]
+                min-h-[52px] cursor-pointer pointer-events-auto select-none
                 ${engine.isExclusive && isSelected
-                  ? "bg-amber-500/20 border border-amber-500/40"
+                  ? "bg-amber-500/20 border-2 border-amber-500 shadow-lg shadow-amber-500/20"
                   : isSelected
-                    ? "bg-indigo-500/20 border border-indigo-500/40"
+                    ? "bg-blue-500/20 border-2 border-blue-500 shadow-lg shadow-blue-500/20"
                     : isLocked
                       ? "bg-white/[0.02] border border-[#333] hover:border-amber-500/30"
-                      : "bg-white/[0.04] border border-[#333] hover:border-[#444] hover:bg-white/[0.06]"
+                      : "bg-white/[0.04] border border-[#333] hover:border-[#555] hover:bg-white/[0.08]"
                 }
               `}
             >
@@ -2255,7 +2255,7 @@ const GeneratePanel = ({
           </div>
 
           {/* Кнопка "Сгенерировать" — на десктопе sticky внизу списка */}
-          <div className="hidden md:block sticky bottom-0 z-[50] mt-5 pt-2 pb-2 -mx-6 px-6">
+          <div className="hidden md:block sticky bottom-0 z-[50] mt-5 -mx-6 px-6 pt-4 pb-4 bg-gradient-to-t from-black/95 via-black/80 to-transparent backdrop-blur-xl">
             <button
               type="button"
               onClick={handleGenerate}

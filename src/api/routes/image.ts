@@ -7,11 +7,11 @@ const TIMEOUT_MS = 45000 // 45s — safely under Vercel's 60s limit
 
 // Model routing by engine ID
 const ENGINE_MODELS: Record<string, string> = {
-  "flux-schnell": "black-forest-labs/flux-1-schnell",         // Start / Free
+  "flux-schnell": "black-forest-labs/flux-schnell",            // Start / Free
   "imagen-3": "google/imagen-3",                              // Creator / Pro
-  "flux-pro": "black-forest-labs/flux-1.1-pro",               // Studio / Ultra
+  "flux-pro": "black-forest-labs/flux-pro",                    // Studio / Ultra
 }
-const DEFAULT_MODEL = "black-forest-labs/flux-1-schnell"
+const DEFAULT_MODEL = "black-forest-labs/flux-schnell"
 
 // Style prompt enhancements
 const STYLE_PROMPTS: Record<string, string> = {
