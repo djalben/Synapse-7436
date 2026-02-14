@@ -7,11 +7,12 @@ const TIMEOUT_MS = 45000 // 45s — safely under Vercel's 60s limit
 
 // Model routing by engine ID
 const ENGINE_MODELS: Record<string, string> = {
-  "flux-schnell": "openai/dall-e-3",                            // ДИАГНОСТИКА: всё на DALL-E 3
-  "imagen-3": "openai/dall-e-3",                               // ДИАГНОСТИКА: всё на DALL-E 3
-  "flux-pro": "openai/dall-e-3",                               // ДИАГНОСТИКА: всё на DALL-E 3
+  "flux-schnell": "black-forest-labs/flux.2-klein-4b",      // Free, fast — РАБОЧИЙ ID из утра
+  "nana-banana": "google/imagen-3",                          // Imagen 3, fast + quality
+  "imagen-3": "google/imagen-3",                             // Новый frontend key → тот же Imagen 3
+  "flux-pro": "black-forest-labs/flux-1-dev",                // Flux.1 dev, high quality — РАБОЧИЙ ID из утра
 }
-const DEFAULT_MODEL = "openai/dall-e-3"
+const DEFAULT_MODEL = "black-forest-labs/flux.2-klein-4b"
 
 // Style prompt enhancements
 const STYLE_PROMPTS: Record<string, string> = {
@@ -49,6 +50,7 @@ imageRoutes.get("/test", async (c) => {
   const requestBody = {
     model: DEFAULT_MODEL,
     messages: [{ role: "user", content: "A red circle on white background" }],
+    modalities: ["image"],
     stream: false,
   }
   console.log("[Image/test] Request body:", JSON.stringify(requestBody))
@@ -59,8 +61,8 @@ imageRoutes.get("/test", async (c) => {
       headers: {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://synapse-7436.vercel.app",
-        "X-Title": "Synapse AI",
+        "HTTP-Referer": "https://synapse.app",
+        "X-Title": "Synapse",
       },
       body: JSON.stringify(requestBody),
     }, TIMEOUT_MS)
@@ -165,25 +167,23 @@ imageRoutes.post("/", async (c) => {
     console.log(`[Image] model=${selectedModel}, engine=${body.engine}, ar=${aspectRatio}, variants=${variantCount}, prompt="${enhancedPrompt.substring(0, 60)}"`)
 
     // ── Fire 4 parallel requests to OpenRouter ──
-    // ── DIAGNOSTIC: минимальный запрос для теста ──
-    const requestBody = {
-      model: selectedModel,
-      messages: [{ role: "user", content: enhancedPrompt }],
-      stream: false,
-    }
-    console.log(`[Image] >>> EXACT MODEL ID: "${selectedModel}"`)
-    console.log(`[Image] >>> URL: ${OPENROUTER_URL}`)
-    console.log(`[Image] >>> SIMPLIFIED body (no modalities/aspect_ratio):`, JSON.stringify(requestBody))
+    console.log(`[Image] >>> MODEL ID: "${selectedModel}", URL: ${OPENROUTER_URL}`)
     const makeRequest = () =>
       fetchWithTimeout(OPENROUTER_URL, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json",
-          "HTTP-Referer": "https://synapse-7436.vercel.app",
-          "X-Title": "Synapse AI",
+          "HTTP-Referer": process.env.VITE_BASE_URL || "https://synapse.app",
+          "X-Title": "Synapse",
         },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({
+          model: selectedModel,
+          messages: [{ role: "user", content: enhancedPrompt }],
+          modalities: ["image"],
+          stream: false,
+          image_config: { aspect_ratio: aspectRatio },
+        }),
       }, TIMEOUT_MS)
 
     console.log(`[Image] Firing ${variantCount} parallel requests...`)
@@ -203,7 +203,7 @@ imageRoutes.post("/", async (c) => {
       const response = r.value
       if (!response.ok) {
         const errText = await response.text().catch(() => "?")
-        console.error(`[Image] Variant ${i} status ${response.status} FULL ERROR: ${errText}`)
+        console.error(`[Image] Variant ${i} status ${response.status}: ${errText.slice(0, 500)}`)
         continue
       }
       try {
