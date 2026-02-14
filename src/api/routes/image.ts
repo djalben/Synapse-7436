@@ -7,9 +7,9 @@ const TIMEOUT_MS = 45000 // 45s — safely under Vercel's 60s limit
 
 // Model routing by engine ID
 const ENGINE_MODELS: Record<string, string> = {
-  "flux-schnell": "together/flux-1-schnell",                   // Start / Free — диагностика: провайдер together
+  "flux-schnell": "google/imagen-3",                           // ВРЕМЕННО: всё на Imagen 3 для диагностики
   "imagen-3": "google/imagen-3",                              // Creator / Pro — работает
-  "flux-pro": "black-forest-labs/flux-1.1-pro",                // Studio / Ultra
+  "flux-pro": "google/imagen-3",                              // ВРЕМЕННО: всё на Imagen 3 для диагностики
 }
 const DEFAULT_MODEL = "google/imagen-3"
 

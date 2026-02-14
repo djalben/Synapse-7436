@@ -46,14 +46,8 @@ export const CHAT_MODEL_TIERS: Record<string, SynapseTier> = {
  * Распределение моделей Image по тарифам
  */
 export const IMAGE_MODEL_TIERS: Record<string, SynapseTier> = {
-  // START - Flux Schnell (Free)
-  "black-forest-labs/flux-1-schnell": "START",
-  
-  // CREATOR - Imagen 3 (Pro)
-  "google/imagen-3": "CREATOR",
-  
-  // PRO STUDIO - Flux 1.1 Pro (Ultra)
-  "black-forest-labs/flux-1.1-pro": "PRO_STUDIO",
+  // ВРЕМЕННО: всё на Imagen 3 для диагностики
+  "google/imagen-3": "START",
 };
 
 /**
@@ -69,9 +63,9 @@ export const FRONTEND_TO_BACKEND: Record<string, string> = {
   "claude-opus": "anthropic/claude-opus-4.6",
   
   // Image models
-  "flux-schnell": "black-forest-labs/flux-1-schnell",
+  "flux-schnell": "google/imagen-3",
   "imagen-3": "google/imagen-3",
-  "flux-pro": "black-forest-labs/flux-1.1-pro",
+  "flux-pro": "google/imagen-3",
 };
 
 /**

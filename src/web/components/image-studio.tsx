@@ -1351,10 +1351,10 @@ const EnhancePhotoPanel = ({
   };
 
   return (
-    <div className="flex flex-col md:flex-row">
+    <div className="h-full flex flex-col md:flex-row">
       {/* Left Panel - Controls */}
-      <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222]">
-        <div className="p-4 md:p-6">
+      <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222] flex flex-col min-h-0">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 min-h-0">
         <div className="space-y-5 md:space-y-6">
           {/* Header */}
           <div>
@@ -1518,7 +1518,7 @@ const EnhancePhotoPanel = ({
       </div>
 
       {/* Right Panel - Result preview */}
-      <div className="md:flex-1 p-4 md:p-6">
+      <div className="flex-1 p-4 md:p-6 overflow-y-auto min-h-0">
         <div className="max-w-2xl mx-auto">
           <div className="mb-6">
             <h3 className="font-mono text-lg font-semibold text-white">Результат</h3>
@@ -2100,10 +2100,10 @@ const GeneratePanel = ({
   };
 
   return (
-    <div className="flex flex-col md:flex-row">
+    <div className="h-full flex flex-col md:flex-row">
       {/* Left Panel - Controls */}
-      <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222]">
-        <div className="p-4 md:p-6 pb-48 md:pb-24">
+      <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222] flex flex-col min-h-0">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 min-h-0 pb-48 md:pb-24">
           <div className="space-y-3 md:space-y-4 pb-4">
           {/* Header */}
           <div className="flex items-start justify-between">
@@ -2331,7 +2331,7 @@ const GeneratePanel = ({
       </div>
 
       {/* Right Panel - Variants + Gallery */}
-      <div className="md:flex-1 p-4 md:p-6 pb-40 md:pb-6" data-tour="gallery">
+      <div className="flex-1 p-4 md:p-6 pb-40 md:pb-6 overflow-y-auto min-h-0" data-tour="gallery">
 
         {/* Variant Grid (desktop only — mobile version is in left panel) */}
         {variantResult && (
@@ -2423,14 +2423,14 @@ export const ImageStudio = () => {
   const atLimit = !canGenerateImage;
 
   return (
-    <div className="flex flex-col">
+    <div className="h-full flex flex-col">
       {/* Top-level Mode Toggle */}
       <div className="shrink-0 p-4 md:p-6 pb-0">
         <StudioModeToggle mode={studioMode} onChange={setStudioMode} />
       </div>
 
       {/* Content — both panels rendered, inactive hidden via CSS to preserve state */}
-      <div className={`${studioMode === "generate" ? "" : "hidden"}`}>
+      <div className={`flex-1 min-h-0 ${studioMode === "generate" ? "" : "hidden"}`}>
         <GeneratePanel
           imageCount={imageCount}
           limits={limits}
@@ -2445,7 +2445,7 @@ export const ImageStudio = () => {
           setPaywallReason={setPaywallReason}
         />
       </div>
-      <div className={`${studioMode === "enhance" ? "" : "hidden"}`}>
+      <div className={`flex-1 min-h-0 ${studioMode === "enhance" ? "" : "hidden"}`}>
         <EnhancePhotoPanel
           imageCount={imageCount}
           limits={limits}
