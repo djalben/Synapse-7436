@@ -49,8 +49,8 @@ export const IMAGE_MODEL_TIERS: Record<string, SynapseTier> = {
   // START - Flux Schnell (Free)
   "black-forest-labs/flux.2-klein-4b": "START",
   
-  // CREATOR - Imagen 3 (Pro)
-  "google/imagen-3": "CREATOR",
+  // CREATOR - Gemini 3 Pro Image (Nano Banana)
+  "google/gemini-3-pro-image-preview": "CREATOR",
   
   // PRO STUDIO - Flux.1 dev (Ultra)
   "black-forest-labs/flux-1-dev": "PRO_STUDIO",
@@ -70,7 +70,7 @@ export const FRONTEND_TO_BACKEND: Record<string, string> = {
   
   // Image models
   "flux-schnell": "black-forest-labs/flux.2-klein-4b",
-  "imagen-3": "google/imagen-3",
+  "imagen-3": "google/gemini-3-pro-image-preview",
   "flux-pro": "black-forest-labs/flux-1-dev",
 };
 

@@ -8,8 +8,8 @@ const TIMEOUT_MS = 45000 // 45s — safely under Vercel's 60s limit
 // Model routing by engine ID
 const ENGINE_MODELS: Record<string, string> = {
   "flux-schnell": "black-forest-labs/flux.2-klein-4b",      // Free, fast — РАБОЧИЙ ID из утра
-  "nana-banana": "google/imagen-3",                          // Imagen 3, fast + quality
-  "imagen-3": "google/imagen-3",                             // Новый frontend key → тот же Imagen 3
+  "nana-banana": "google/gemini-3-pro-image-preview",        // Nano Banana Pro
+  "imagen-3": "google/gemini-3-pro-image-preview",           // Фронтенд key → Gemini 3 Pro Image
   "flux-pro": "black-forest-labs/flux-1-dev",                // Flux.1 dev, high quality — РАБОЧИЙ ID из утра
 }
 const DEFAULT_MODEL = "black-forest-labs/flux.2-klein-4b"
@@ -165,8 +165,8 @@ imageRoutes.post("/", async (c) => {
 
     const selectedModel = ENGINE_MODELS[body.engine || ""] || DEFAULT_MODEL
     console.log(`[Image] model=${selectedModel}, engine=${body.engine}, ar=${aspectRatio}, variants=${variantCount}, prompt="${enhancedPrompt.substring(0, 60)}"`)
-    if (selectedModel === "google/imagen-3") {
-      console.log(`[Image] >>> TESTING SECOND MODEL: google/imagen-3`)
+    if (selectedModel === "google/gemini-3-pro-image-preview") {
+      console.log(`[Image] >>> TESTING GOOGLE NANO BANANA: google/gemini-3-pro-image-preview`)
     }
 
     // ── Fire 4 parallel requests to OpenRouter ──
