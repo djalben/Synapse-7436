@@ -89,7 +89,7 @@ interface EnhancedResult {
 // ===== CONSTANTS =====
 
 // Image engine (model) for generation — актуальные модели 2026 года
-type ImageEngineId = "flux-schnell" | "imagen-3" | "flux-pro";
+type ImageEngineId = "flux-schnell" | "seedream" | "flux-pro" | "imagen-3";
 
 interface ImageEngineOption {
   id: ImageEngineId;
@@ -104,8 +104,9 @@ interface ImageEngineOption {
 
 const imageEngineOptions: ImageEngineOption[] = [
   { id: "flux-schnell", label: "Flux Schnell", subtitle: "START", creditCost: 0, requiredPlan: "free", speed: "~4с" },
-  { id: "imagen-3", label: "Nano Banana Pro", subtitle: "CREATOR", creditCost: 1, requiredPlan: "standard", speed: "~8с" },
-  { id: "flux-pro", label: "FLUX.2 Max", subtitle: "PRO STUDIO", creditCost: 2, requiredPlan: "ultra", isLocked: false, speed: "~12с" },
+  { id: "seedream", label: "Seedream 4.5", subtitle: "CREATOR", creditCost: 1, requiredPlan: "standard", speed: "~6с" },
+  { id: "flux-pro", label: "FLUX.2 Max", subtitle: "PRO STUDIO", creditCost: 2, requiredPlan: "ultra", speed: "~12с" },
+  { id: "imagen-3", label: "Nano Banana Pro", subtitle: "MAXIMAL", creditCost: 3, requiredPlan: "ultra", isExclusive: true, speed: "~8с" },
 ];
 
 const styleOptions: StyleOption[] = [
@@ -567,7 +568,7 @@ const ImageEngineSelector = ({ selected, onChange, userPlan, onPremiumClick }: I
   return (
     <div className="space-y-1.5">
       <label className="text-xs font-medium text-[#888]">Модель</label>
-      <div className="grid grid-cols-3 gap-2 relative z-10 pointer-events-auto">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 relative z-10 pointer-events-auto">
         {imageEngineOptions.map((engine) => {
           const isSelected = selected === engine.id;
           // ВРЕМЕННО ОТКЛЮЧЕНО: Проверка доступа по тарифу (режим тестирования)
@@ -603,18 +604,25 @@ const ImageEngineSelector = ({ selected, onChange, userPlan, onPremiumClick }: I
                 min-h-[52px] cursor-pointer pointer-events-auto select-none
                 ${engine.isExclusive && isSelected
                   ? "bg-amber-500/20 border-2 border-amber-500 shadow-lg shadow-amber-500/20"
-                  : isSelected
-                    ? "bg-blue-500/20 border-2 border-blue-500 shadow-lg shadow-blue-500/20"
-                    : isLocked
-                      ? "bg-white/[0.02] border border-[#333] hover:border-amber-500/30"
-                      : "bg-white/[0.04] border border-[#333] hover:border-[#555] hover:bg-white/[0.08]"
+                  : engine.isExclusive
+                    ? "bg-amber-500/5 border border-amber-500/40 hover:border-amber-500/70 hover:bg-amber-500/10 shadow-sm shadow-amber-500/10"
+                    : isSelected
+                      ? "bg-blue-500/20 border-2 border-blue-500 shadow-lg shadow-blue-500/20"
+                      : isLocked
+                        ? "bg-white/[0.02] border border-[#333] hover:border-amber-500/30"
+                        : "bg-white/[0.04] border border-[#333] hover:border-[#555] hover:bg-white/[0.08]"
                 }
               `}
             >
               {isLocked && (
                 <Lock className="w-3.5 h-3.5 absolute top-1.5 right-1.5 text-amber-400" aria-hidden />
               )}
-              <span className={`text-xs font-medium truncate w-full text-center ${engine.isExclusive && isSelected ? "text-amber-200" : isSelected ? "text-indigo-200" : "text-white/90"}`}>
+              {engine.isExclusive && (
+                <span className="absolute -top-1.5 left-1/2 -translate-x-1/2 text-[7px] font-bold bg-gradient-to-r from-amber-500 to-yellow-400 text-black px-1.5 py-0.5 rounded-full whitespace-nowrap shadow-lg">
+                  №1 в Мире
+                </span>
+              )}
+              <span className={`text-xs font-medium truncate w-full text-center ${engine.isExclusive && isSelected ? "text-amber-200" : engine.isExclusive ? "text-amber-300/90" : isSelected ? "text-indigo-200" : "text-white/90"}`}>
                 {engine.label}
               </span>
               {engine.subtitle && (

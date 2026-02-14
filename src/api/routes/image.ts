@@ -7,10 +7,11 @@ const TIMEOUT_MS = 45000 // 45s — safely under Vercel's 60s limit
 
 // Model routing by engine ID
 const ENGINE_MODELS: Record<string, string> = {
-  "flux-schnell": "black-forest-labs/flux.2-klein-4b",      // Free, fast — РАБОЧИЙ ID из утра
-  "nana-banana": "google/gemini-3-pro-image-preview",        // Nano Banana Pro
-  "imagen-3": "google/gemini-3-pro-image-preview",           // Фронтенд key → Gemini 3 Pro Image
-  "flux-pro": "black-forest-labs/flux.2-max",               // FLUX.2 Max — PRO STUDIO
+  "flux-schnell": "black-forest-labs/flux.2-klein-4b",      // START — Free, fast
+  "seedream": "bytedance-seed/seedream-4.5",                // CREATOR — Seedream 4.5
+  "flux-pro": "black-forest-labs/flux.2-max",               // PRO STUDIO — FLUX.2 Max
+  "imagen-3": "google/gemini-3-pro-image-preview",           // MAXIMAL — Nano Banana Pro (№1 в Мире)
+  "nana-banana": "google/gemini-3-pro-image-preview",        // legacy alias
 }
 const DEFAULT_MODEL = "black-forest-labs/flux.2-klein-4b"
 
