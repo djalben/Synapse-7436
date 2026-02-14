@@ -1351,9 +1351,10 @@ const EnhancePhotoPanel = ({
   };
 
   return (
-    <div className="h-full flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
+    <div className="flex flex-col md:flex-row h-full">
       {/* Left Panel - Controls */}
-      <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222] p-4 md:p-6 md:overflow-y-auto">
+      <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222] flex flex-col min-h-0">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 min-h-0">
         <div className="space-y-5 md:space-y-6">
           {/* Header */}
           <div>
@@ -1483,11 +1484,21 @@ const EnhancePhotoPanel = ({
             </div>
           </button>
 
-          {/* Tech note */}
-          <div className="p-3 rounded-xl bg-purple-500/5 border border-purple-500/20">
-            <p className="text-xs text-purple-300/70 text-center">
-              Powered by CodeFormer + Real-ESRGAN
+          {/* Tech note — professional trust copy */}
+          <div className="p-4 rounded-xl bg-purple-500/5 border border-purple-500/20 space-y-2">
+            <p className="text-xs text-purple-300/80 font-medium text-center">
+              Профессиональный AI-апскейл
             </p>
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-2 text-xs text-[#888]">
+                <span className="text-purple-400">▸</span>
+                <span><span className="text-white/70 font-medium">CodeFormer</span> — восстановление и детализация лиц</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-[#888]">
+                <span className="text-purple-400">▸</span>
+                <span><span className="text-white/70 font-medium">Real-ESRGAN</span> — увеличение до 4K без потери качества</span>
+              </div>
+            </div>
           </div>
 
           {/* Credits Note */}
@@ -1503,10 +1514,11 @@ const EnhancePhotoPanel = ({
             </span>
           </div>
         </div>
+        </div>
       </div>
 
       {/* Right Panel - Result preview */}
-      <div className="md:flex-1 p-4 md:p-6 md:overflow-y-auto md:min-h-0">
+      <div className="flex-1 p-4 md:p-6 overflow-y-auto min-h-0">
         <div className="max-w-2xl mx-auto">
           <div className="mb-6">
             <h3 className="font-mono text-lg font-semibold text-white">Результат</h3>
@@ -2088,10 +2100,10 @@ const GeneratePanel = ({
   };
 
   return (
-    <div className="h-full flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
+    <div className="flex flex-col md:flex-row h-full">
       {/* Left Panel - Controls */}
-      <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222] md:flex md:flex-col md:min-h-0">
-        <div className="overflow-x-hidden p-4 md:p-6 md:flex-1 md:overflow-y-auto md:min-h-0 pb-48 md:pb-24">
+      <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222] flex flex-col min-h-0">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 min-h-0 pb-48 md:pb-24">
           <div className="space-y-3 md:space-y-4 pb-4">
           {/* Header */}
           <div className="flex items-start justify-between">
@@ -2462,7 +2474,7 @@ const GeneratePanel = ({
       </div>
 
       {/* Right Panel - Variants + Gallery */}
-      <div className="md:flex-1 p-4 md:p-6 pb-40 md:pb-6 md:overflow-y-auto md:min-h-0" data-tour="gallery">
+      <div className="flex-1 p-4 md:p-6 pb-40 md:pb-6 overflow-y-auto min-h-0" data-tour="gallery">
 
         {/* Variant Grid (desktop only — mobile version is in left panel) */}
         {variantResult && (
