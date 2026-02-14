@@ -165,6 +165,9 @@ imageRoutes.post("/", async (c) => {
 
     const selectedModel = ENGINE_MODELS[body.engine || ""] || DEFAULT_MODEL
     console.log(`[Image] model=${selectedModel}, engine=${body.engine}, ar=${aspectRatio}, variants=${variantCount}, prompt="${enhancedPrompt.substring(0, 60)}"`)
+    if (selectedModel === "google/imagen-3") {
+      console.log(`[Image] >>> TESTING SECOND MODEL: google/imagen-3`)
+    }
 
     // ── Fire 4 parallel requests to OpenRouter ──
     console.log(`[Image] >>> MODEL ID: "${selectedModel}", URL: ${OPENROUTER_URL}`)
