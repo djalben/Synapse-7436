@@ -3,14 +3,14 @@ import { Hono } from "hono"
 export const enhanceRoutes = new Hono()
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-const ENHANCE_MODEL = "bytedance-seed/seedream-4.5"
+const ENHANCE_MODEL = "sourceful/riverflow-v2-fast"
 const TIMEOUT_MS = 45000
 
 // Prompt fragments for each enhancement option
 const OPTION_PROMPTS: Record<string, string> = {
-  upscale: "Increase resolution to 4K, enhance sharpness and fine details",
-  faceRestore: "Fix and restore facial details, make eyes and skin clear and realistic",
-  brightness: "Optimize professional lighting, enhance brightness and contrast",
+  upscale: "Enhance image resolution. Maintain authentic film grain and skin pores. Strictly avoid artificial smoothing or plastic skin effect.",
+  faceRestore: "Sharpen facial features naturally. Do NOT apply beauty filters. Preserve the original character, wrinkles, and skin texture.",
+  brightness: "Professional color grading. Balance shadows and highlights to look like a high-end cinematic shot.",
 }
 
 /** Promise.race timeout */
