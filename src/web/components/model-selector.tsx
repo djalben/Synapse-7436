@@ -118,7 +118,7 @@ export const models: Model[] = [
   },
   {
     id: "gpt-5-o1",
-    backendId: "openai/o1-preview", // FIXME: replace with openai/gpt-5-preview when available
+    backendId: "openai/gpt-5.2",
     name: "GPT-5 Pro",
     subtitle: "PRO STUDIO",
     description: "Максимальный интеллект. Решает невозможные задачи.",

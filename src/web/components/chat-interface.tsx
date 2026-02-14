@@ -1,12 +1,12 @@
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
-import { ModelSelector, models, getModelCreditCost } from "./model-selector"
-import { FREE_CHAT_MODEL_IDS } from "./usage-context"
-import { Paperclip, Mic, ArrowUp, Sparkles, Zap, Lightbulb, Code, Bot, User, Copy, Check, Lock, Coins } from "lucide-react"
+import { ModelSelector, models } from "./model-selector"
+import { Paperclip, Mic, ArrowUp, Sparkles, Code, Bot, User, Copy, Check, Plus, MessageSquare, Trash2, Pencil, PanelLeftOpen, PanelLeftClose } from "lucide-react"
 import { useUsage } from "./usage-context"
 import { toast } from "sonner"
 import { addToHistory } from "./placeholder-pages"
+import { Highlight, themes } from "prism-react-renderer"
 
 // Provider logos — те же цветные иконки, что и в model-selector (без currentColor)
 const OpenAILogo = () => (
@@ -39,12 +39,10 @@ const XiaomiLogo = () => (
   </svg>
 )
 
-// Model logos mapped by ID (must match model-selector models)
+// Model logos mapped by ID (Golden Five only)
 const MODEL_LOGOS: Record<string, React.ReactNode> = {
   "deepseek-r1": <DeepSeekLogo />,
   "gpt-4o-mini": <OpenAILogo />,
-  "mimo-v2-flash": <XiaomiLogo />,
-  "devstral-2512": <MistralLogo />,
   "gpt-4o": <OpenAILogo />,
   "claude-3.5-sonnet": <AnthropicLogo />,
   "gpt-5-o1": <OpenAILogo />,
@@ -54,11 +52,9 @@ const MODEL_LOGOS: Record<string, React.ReactNode> = {
 const MODEL_NAMES: Record<string, string> = {
   "deepseek-r1": "DeepSeek R1",
   "gpt-4o-mini": "GPT-4o mini",
-  "mimo-v2-flash": "Xiaomi MiMo-V2-Flash",
-  "devstral-2512": "Devstral 2 2512",
   "gpt-4o": "GPT-4o",
   "claude-3.5-sonnet": "Claude 3.5 Sonnet",
-  "gpt-5-o1": "GPT-5 (o1)",
+  "gpt-5-o1": "GPT-5 Pro",
 }
 
 // Typing indicator component
@@ -101,13 +97,29 @@ const MessageBubble = ({ role, content, model, isStreaming }: MessageBubbleProps
         return (
           <div key={index} className="my-3 rounded-lg overflow-hidden border border-[#333]">
             {language && (
-              <div className="px-4 py-2 bg-[#1a1a1a] border-b border-[#333] text-xs text-[#888] font-mono">
-                {language}
+              <div className="px-4 py-2 bg-[#1a1a1a] border-b border-[#333] text-xs text-[#888] font-mono flex items-center justify-between">
+                <span>{language}</span>
+                <button
+                  onClick={() => { navigator.clipboard.writeText(code); toast.success("Скопировано", { duration: 1500 }) }}
+                  className="text-[#666] hover:text-white transition-colors"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                </button>
               </div>
             )}
-            <pre className="p-4 bg-[#0d0d0d] overflow-x-auto text-sm">
-              <code className="text-[#e5e5e5] font-mono whitespace-pre">{code}</code>
-            </pre>
+            <Highlight theme={themes.vsDark} code={code.trimEnd()} language={language || "text"}>
+              {({ style, tokens, getLineProps, getTokenProps }) => (
+                <pre className="p-4 overflow-x-auto text-sm !bg-[#0d0d0d]" style={{ ...style, backgroundColor: "transparent" }}>
+                  {tokens.map((line, i) => (
+                    <div key={i} {...getLineProps({ line })}>
+                      {line.map((token, key) => (
+                        <span key={key} {...getTokenProps({ token })} />
+                      ))}
+                    </div>
+                  ))}
+                </pre>
+              )}
+            </Highlight>
           </div>
         )
       }
@@ -420,100 +432,234 @@ const ChatInputComponent = ({ value, onChange, onSubmit, disabled }: ChatInputPr
   )
 }
 
-// Main chat interface
-export const ChatInterface = () => {
-  const [selectedModel, setSelectedModel] = useState("deepseek-r1")
+// === Chat History System ===
+interface StoredMessage {
+  id: string
+  role: string
+  content: string
+}
+
+interface ChatConversation {
+  id: string
+  title: string
+  model: string
+  messages: StoredMessage[]
+  createdAt: number
+  updatedAt: number
+}
+
+const CONVERSATIONS_KEY = "synapse_conversations"
+
+function genId(): string {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
+}
+
+function loadConversations(): ChatConversation[] {
+  try {
+    return JSON.parse(localStorage.getItem(CONVERSATIONS_KEY) || "[]")
+  } catch { return [] }
+}
+
+function persistConversations(convs: ChatConversation[]) {
+  try {
+    localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(convs))
+  } catch {}
+}
+
+function extractTitle(text: string): string {
+  const clean = text.replace(/\n/g, " ").trim()
+  return clean.length > 50 ? clean.slice(0, 50) + "…" : clean || "Новый чат"
+}
+
+// Chat History Sidebar
+interface ChatHistorySidebarProps {
+  conversations: ChatConversation[]
+  activeId: string | null
+  onSelect: (id: string) => void
+  onNew: () => void
+  onDelete: (id: string) => void
+  onRename: (id: string, title: string) => void
+}
+
+const ChatHistorySidebar = ({ conversations, activeId, onSelect, onNew, onDelete, onRename }: ChatHistorySidebarProps) => {
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editTitle, setEditTitle] = useState("")
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (editingId && inputRef.current) inputRef.current.focus()
+  }, [editingId])
+
+  const sorted = [...conversations].sort((a, b) => b.updatedAt - a.updatedAt)
+
+  const today = new Date().toDateString()
+  const yesterday = new Date(Date.now() - 86400000).toDateString()
+
+  const groups: { label: string; items: ChatConversation[] }[] = []
+  const todayItems = sorted.filter(c => new Date(c.updatedAt).toDateString() === today)
+  const yesterdayItems = sorted.filter(c => new Date(c.updatedAt).toDateString() === yesterday)
+  const olderItems = sorted.filter(c => {
+    const d = new Date(c.updatedAt).toDateString()
+    return d !== today && d !== yesterday
+  })
+  if (todayItems.length) groups.push({ label: "Сегодня", items: todayItems })
+  if (yesterdayItems.length) groups.push({ label: "Вчера", items: yesterdayItems })
+  if (olderItems.length) groups.push({ label: "Ранее", items: olderItems })
+
+  return (
+    <div className="w-72 h-full flex flex-col bg-black/60 backdrop-blur-xl border-r border-white/10 overflow-hidden">
+      {/* New chat button */}
+      <div className="p-3 border-b border-white/10">
+        <button
+          onClick={onNew}
+          className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0070f3] hover:bg-[#0060df] text-white text-sm font-medium transition-all shadow-lg shadow-[0_0_16px_rgba(0,112,243,0.3)]"
+        >
+          <Plus className="w-4 h-4" />
+          Новый чат
+        </button>
+      </div>
+
+      {/* Conversations list */}
+      <div className="flex-1 overflow-y-auto overscroll-contain py-2 space-y-3">
+        {groups.length === 0 && (
+          <p className="text-center text-[#555] text-xs mt-8">Нет сохранённых чатов</p>
+        )}
+        {groups.map(group => (
+          <div key={group.label}>
+            <p className="px-4 text-[10px] uppercase tracking-wider text-[#555] font-medium mb-1">{group.label}</p>
+            {group.items.map(conv => {
+              const isActive = conv.id === activeId
+              const isEditing = editingId === conv.id
+              return (
+                <div
+                  key={conv.id}
+                  onClick={() => !isEditing && onSelect(conv.id)}
+                  className={`
+                    group mx-2 px-3 py-2.5 rounded-lg cursor-pointer
+                    flex items-center gap-2 transition-all duration-150
+                    ${isActive ? "bg-white/10 border border-white/10" : "hover:bg-white/[0.05] border border-transparent"}
+                  `}
+                >
+                  <MessageSquare className={`w-4 h-4 flex-shrink-0 ${isActive ? "text-indigo-400" : "text-[#555]"}`} />
+                  {isEditing ? (
+                    <input
+                      ref={inputRef}
+                      value={editTitle}
+                      onChange={e => setEditTitle(e.target.value)}
+                      onBlur={() => { onRename(conv.id, editTitle); setEditingId(null) }}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") { onRename(conv.id, editTitle); setEditingId(null) }
+                        if (e.key === "Escape") setEditingId(null)
+                      }}
+                      onClick={e => e.stopPropagation()}
+                      className="flex-1 min-w-0 bg-white/10 rounded px-2 py-0.5 text-sm text-white outline-none border border-indigo-500/50"
+                    />
+                  ) : (
+                    <span className={`flex-1 min-w-0 text-sm truncate ${isActive ? "text-white" : "text-[#aaa]"}`}>
+                      {conv.title}
+                    </span>
+                  )}
+                  {!isEditing && (
+                    <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                      <button
+                        onClick={e => { e.stopPropagation(); setEditingId(conv.id); setEditTitle(conv.title) }}
+                        className="p-1 rounded hover:bg-white/10 text-[#666] hover:text-white transition-colors"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); onDelete(conv.id) }}
+                        className="p-1 rounded hover:bg-red-500/20 text-[#666] hover:text-red-400 transition-colors"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Chat session — inner component that uses useChat, remounts via key on conversation switch
+interface ChatSessionProps {
+  conversationId: string | null
+  initialMessages: StoredMessage[]
+  selectedModel: string
+  onModelChange: (id: string) => void
+  userPlan: string
+  onMessagesUpdate: (convId: string | null, msgs: StoredMessage[], firstUserText?: string) => void
+}
+
+const ChatSession = ({ conversationId, initialMessages, selectedModel, onModelChange, userPlan, onMessagesUpdate }: ChatSessionProps) => {
   const [isLoaded, setIsLoaded] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const userAtBottomRef = useRef(true)
   const [inputValue, setInputValue] = useState("")
   const selectedModelRef = useRef(selectedModel)
-  const { 
-    checkMessageDailyLimit, 
+  const convIdRef = useRef(conversationId)
+  const {
     incrementMessageDaily,
-    incrementMessages, 
-    limits, 
-    setShowPaywall, 
-    setPaywallReason,
-    creditBalance,
-    deductCredits,
-    checkCredits,
-    canAccessModel,
-    effectiveMessageCountToday,
-    userPlan = "free",
+    incrementMessages,
   } = useUsage()
-  
-  // Use ref to track credit balance for callbacks
-  const creditBalanceRef = useRef(creditBalance)
-  useEffect(() => {
-    creditBalanceRef.current = creditBalance
-  }, [creditBalance])
-  
-  // Keep ref in sync with state
-  useEffect(() => {
-    selectedModelRef.current = selectedModel
-  }, [selectedModel])
 
-  // Get current model credit cost
-  const currentCreditCost = getModelCreditCost(selectedModel)
+  useEffect(() => { selectedModelRef.current = selectedModel }, [selectedModel])
+  useEffect(() => { convIdRef.current = conversationId }, [conversationId])
+
+  const reconstructedInitial = initialMessages.length > 0
+    ? initialMessages.map(m => ({
+        id: m.id,
+        role: m.role as "user" | "assistant",
+        parts: [{ type: "text" as const, text: m.content }],
+      }))
+    : undefined
 
   const { messages, sendMessage, status, error } = useChat({
-    transport: new DefaultChatTransport({ 
+    initialMessages: reconstructedInitial,
+    transport: new DefaultChatTransport({
       api: "/api/chat",
       body: () => ({ model: selectedModelRef.current }),
-      headers: () => ({
-        "X-User-Plan": userPlan,
-      }),
+      headers: () => ({ "X-User-Plan": userPlan }),
     }),
     onFinish: (message) => {
-      const modelId = selectedModelRef.current
-      const isFreeModel = FREE_CHAT_MODEL_IDS.includes(modelId as typeof FREE_CHAT_MODEL_IDS[number])
-      
-      if (isFreeModel) {
-        // Бесплатная модель - только увеличиваем счетчик дневных сообщений, кредиты НЕ списываем
-        incrementMessageDaily()
-        const remainingFree = `${effectiveMessageCountToday + 1}/${limits.maxMessages} бесплатных попыток`
-        
-        toast.success("Использована бесплатная попытка", {
-          description: `Осталось: ${Math.max(0, limits.maxMessages - effectiveMessageCountToday - 1)}/${limits.maxMessages} запросов`,
-          duration: 2000,
-        })
-      } else {
-        // Платная модель - списываем кредиты
-        const cost = getModelCreditCost(modelId)
-        const success = deductCredits(cost)
-        
-        if (success) {
-          const newBalance = Math.max(0, creditBalanceRef.current - cost)
-          toast.success(`Списано ${cost} кредит${cost === 1 ? '' : cost < 5 ? 'а' : 'ов'}`, {
-            description: `Баланс: ${newBalance.toFixed(1)} кредитов`,
-            duration: 3000,
-          })
-        } else {
-          toast.error("Недостаточно кредитов", {
-            description: `Требуется ${cost} кредит${cost === 1 ? '' : cost < 5 ? 'а' : 'ов'}, доступно ${creditBalanceRef.current.toFixed(1)}`,
-            duration: 3000,
-          })
-        }
-      }
-      
+      incrementMessageDaily()
       incrementMessages()
-      
-      // Сохранить в историю: найти последнее сообщение пользователя и ответ
-      const userMessages = messages.filter(m => m.role === "user")
+
+      const allMsgs = [...messages, message]
+      const stored: StoredMessage[] = allMsgs.map(m => ({
+        id: m.id,
+        role: m.role,
+        content: m.parts
+          .filter((p): p is { type: "text"; text: string } => p.type === "text")
+          .map(p => p.text)
+          .join(""),
+      }))
+
+      const firstUser = allMsgs.find(m => m.role === "user")
+      const firstUserText = firstUser
+        ? firstUser.parts.filter((p): p is { type: "text"; text: string } => p.type === "text").map(p => p.text).join("")
+        : undefined
+
+      onMessagesUpdate(convIdRef.current, stored, firstUserText)
+
+      // Also persist to global history
+      const userMessages = allMsgs.filter(m => m.role === "user")
       const lastUserMessage = userMessages[userMessages.length - 1]
       if (lastUserMessage && message.content) {
-        const cost = isFreeModel ? 0 : getModelCreditCost(modelId)
         addToHistory({
           type: "chat",
           prompt: typeof lastUserMessage.content === "string" ? lastUserMessage.content : "",
-          model: modelId,
+          model: selectedModelRef.current,
           result: typeof message.content === "string" ? message.content : "",
-          credits: cost,
+          credits: 0,
         })
       }
-    }
+    },
   })
 
   const isLoading = status === "streaming" || status === "submitted"
@@ -523,69 +669,35 @@ export const ChatInterface = () => {
     return () => clearTimeout(timer)
   }, [])
 
-  // Умная авто-прокрутка: не дергаем экран при стриминге, не возвращаем насильно, если пользователь ушёл вверх
   useEffect(() => {
     const el = messagesContainerRef.current
     const endEl = messagesEndRef.current
     if (!el || !endEl) return
-
-    const isStreaming = status === "streaming"
-    const wasAtBottom = userAtBottomRef.current
-
-    if (isStreaming) {
-      // Во время печати: только если пользователь у низа — держим скролл внизу без анимации (без тряски)
-      if (wasAtBottom) {
-        el.scrollTop = el.scrollHeight
-      }
+    if (status === "streaming") {
+      if (userAtBottomRef.current) el.scrollTop = el.scrollHeight
     } else {
-      // Не стриминг: плавно к последнему сообщению (новая реплика или конец ответа)
       endEl.scrollIntoView({ behavior: "smooth", block: "end" })
     }
   }, [messages, status])
 
-  // Отслеживание: пользователь прокрутил вверх — не возвращать его вниз до конца печати
   const handleMessagesScroll = () => {
     const el = messagesContainerRef.current
     if (!el) return
-    const threshold = 120
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= threshold
-    userAtBottomRef.current = atBottom
+    userAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight <= 120
   }
-
-  const isFreeChatModel = FREE_CHAT_MODEL_IDS.includes(selectedModel as typeof FREE_CHAT_MODEL_IDS[number])
-  const selectedModelData = models.find((m) => m.id === selectedModel)
-  // TOTAL FREEDOM: tier/credit checks disabled for testing
-  const hasAccessToSelected = true
-  const atDailyLimit = false
-  const notEnoughCredits = false
-  const sendDisabled = isLoading
 
   const handleSendMessage = () => {
     if (!inputValue.trim() || isLoading) return
-    if (isFreeChatModel) {
-      if (!checkMessageDailyLimit(selectedModel)) return
-    } else {
-      if (!hasAccessToSelected) return
-      if (!checkCredits(currentCreditCost)) return
-    }
     userAtBottomRef.current = true
     sendMessage({ text: inputValue })
     setInputValue("")
   }
 
-  const handleSuggestionSelect = (prompt: string) => {
-    setInputValue(prompt)
-  }
-
   const hasMessages = messages.length > 0
-  const atLimit = atDailyLimit
-  const showLimitBanner = atDailyLimit || notEnoughCredits
 
   return (
-    <div
-      className="flex flex-col w-full h-full min-h-0 overflow-hidden border-none"
-    >
-      {/* Кнопка выбора модели: на мобильных — ниже хедера на 10–15px, не перекрывая шапку */}
+    <div className="flex flex-col w-full h-full min-h-0 overflow-hidden border-none">
+      {/* Model selector */}
       <div
         className={`
           fixed z-[10000]
@@ -598,19 +710,18 @@ export const ChatInterface = () => {
       >
         <ModelSelector
           selectedModel={selectedModel}
-          onModelChange={setSelectedModel}
-          userPlan={userPlan}
+          onModelChange={onModelChange}
+          userPlan={userPlan as any}
         />
       </div>
 
-      {/* Область сообщений: единственная область с вертикальным скроллом */}
+      {/* Messages area */}
       <div
         ref={messagesContainerRef}
         onScroll={handleMessagesScroll}
         className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-4 md:px-8 pt-[calc(env(safe-area-inset-top)+4rem+12px+3rem+8px)] md:pt-24 py-4 md:py-6 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-6"
       >
         {!hasMessages ? (
-          // Empty state
           <div
             className={`
               h-full flex flex-col items-center justify-center
@@ -629,19 +740,12 @@ export const ChatInterface = () => {
                   Начните беседу с Synapse чтобы генерировать идеи, писать код или создавать что-то новое.
                 </p>
               </div>
-
-              <div
-                className={`
-                  transition-all duration-700 ease-out delay-200
-                  ${isLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}
-                `}
-              >
-                <SuggestionChips onSelect={handleSuggestionSelect} />
+              <div className={`transition-all duration-700 ease-out delay-200 ${isLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+                <SuggestionChips onSelect={(p) => setInputValue(p)} />
               </div>
             </div>
           </div>
         ) : (
-          // Messages list
           <div className="max-w-4xl mx-auto">
             {messages.map((message) => (
               <MessageBubble
@@ -655,8 +759,7 @@ export const ChatInterface = () => {
                 isStreaming={status === "streaming" && message === messages[messages.length - 1] && message.role === "assistant"}
               />
             ))}
-            
-            {/* Typing indicator when waiting for response */}
+
             {status === "submitted" && (
               <div className="flex justify-start mb-4">
                 <div className="flex items-start gap-3">
@@ -670,7 +773,6 @@ export const ChatInterface = () => {
               </div>
             )}
 
-            {/* Error display */}
             {error && (
               <div className="flex justify-center mb-4">
                 <div className="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm max-w-md">
@@ -684,14 +786,12 @@ export const ChatInterface = () => {
         )}
       </div>
 
-      {/* Поле ввода: на мобильных — position:fixed к низу экрана, не выталкивается баннерами/футером */}
+      {/* Input area */}
       <div
         className={`
-          w-full border-none
-          px-4 md:px-8
+          w-full border-none px-4 md:px-8
           pt-3 pb-[env(safe-area-inset-bottom)] md:py-6 md:pb-6
-          bg-black/95 backdrop-blur-xl
-          border-t border-white/10
+          bg-black/95 backdrop-blur-xl border-t border-white/10
           shadow-[0_-4px_24px_rgba(0,0,0,0.4)]
           md:bg-transparent md:border-t-0 md:shadow-none md:backdrop-blur-lg
           transition-opacity duration-700 delay-300
@@ -701,35 +801,6 @@ export const ChatInterface = () => {
         `}
       >
         <div className="max-w-4xl mx-auto">
-          {/* Limit warning banner — только при исчерпании лимита или нехватке кредитов */}
-          {showLimitBanner && (
-            <button
-              onClick={() => {
-                setPaywallReason(notEnoughCredits ? "credits" : "messages")
-                setShowPaywall(true)
-              }}
-              className="
-                w-full mb-3 md:mb-4 p-3 md:p-4 rounded-xl
-                bg-gradient-to-r from-red-500/10 via-amber-500/10 to-red-500/10
-                border border-red-500/30
-                flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3
-                group transition-all duration-300
-                hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/10
-              "
-            >
-              <Lock className="w-5 h-5 text-amber-400" />
-              <span className="text-amber-400 font-medium text-sm md:text-base text-center">
-                {notEnoughCredits 
-                  ? `Недостаточно кредитов. Для этой модели нужно ${currentCreditCost} кредитов.`
-                  : "Вы достигли лимита бесплатных сообщений. Улучшите тариф чтобы продолжить."
-                }
-              </span>
-              <span className="text-amber-400/60 text-sm group-hover:text-amber-400 transition-colors">
-                Посмотреть тарифы →
-              </span>
-            </button>
-          )}
-          
           <ChatInputComponent
             value={inputValue}
             onChange={setInputValue}
@@ -737,14 +808,133 @@ export const ChatInterface = () => {
             disabled={isLoading}
           />
           <p className="text-center text-[#444] text-xs mt-1.5 md:mt-4">
-            {isFreeChatModel
-              ? `Осталось: ${Math.max(0, limits.maxMessages - effectiveMessageCountToday)}/${limits.maxMessages} запросов`
-              : notEnoughCredits
-                ? `Нужно ${currentCreditCost} кредитов • Баланс: ${creditBalance.toFixed(1)}`
-                : "Synapse может ошибаться. Проверяйте важную информацию."
-            }
+            Synapse может ошибаться. Проверяйте важную информацию.
           </p>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// Main chat interface — orchestrator with conversation management + sidebar
+export const ChatInterface = () => {
+  const [conversations, setConversations] = useState<ChatConversation[]>(() => loadConversations())
+  const [activeConvId, setActiveConvId] = useState<string | null>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [selectedModel, setSelectedModel] = useState("deepseek-r1")
+  const [chatKey, setChatKey] = useState(0)
+  const { userPlan = "free" } = useUsage()
+
+  // Get initial messages for active conversation
+  const activeConv = conversations.find(c => c.id === activeConvId)
+  const initialMessages = activeConv?.messages ?? []
+
+  // Persist conversations whenever they change
+  useEffect(() => {
+    persistConversations(conversations)
+  }, [conversations])
+
+  // Handle messages update from ChatSession
+  const handleMessagesUpdate = useCallback((convId: string | null, msgs: StoredMessage[], firstUserText?: string) => {
+    setConversations(prev => {
+      if (convId) {
+        // Update existing conversation
+        return prev.map(c =>
+          c.id === convId
+            ? { ...c, messages: msgs, updatedAt: Date.now(), model: selectedModel }
+            : c
+        )
+      } else {
+        // Create new conversation
+        const newId = genId()
+        const title = firstUserText ? extractTitle(firstUserText) : "Новый чат"
+        const newConv: ChatConversation = {
+          id: newId,
+          title,
+          model: selectedModel,
+          messages: msgs,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        }
+        // Set active after state update
+        setTimeout(() => setActiveConvId(newId), 0)
+        return [newConv, ...prev]
+      }
+    })
+  }, [selectedModel])
+
+  const handleNewChat = useCallback(() => {
+    setActiveConvId(null)
+    setChatKey(k => k + 1)
+  }, [])
+
+  const handleSelectConversation = useCallback((id: string) => {
+    setActiveConvId(id)
+    setChatKey(k => k + 1)
+    const conv = conversations.find(c => c.id === id)
+    if (conv) setSelectedModel(conv.model)
+  }, [conversations])
+
+  const handleDeleteConversation = useCallback((id: string) => {
+    setConversations(prev => prev.filter(c => c.id !== id))
+    if (activeConvId === id) {
+      setActiveConvId(null)
+      setChatKey(k => k + 1)
+    }
+  }, [activeConvId])
+
+  const handleRenameConversation = useCallback((id: string, title: string) => {
+    if (!title.trim()) return
+    setConversations(prev =>
+      prev.map(c => c.id === id ? { ...c, title: title.trim() } : c)
+    )
+  }, [])
+
+  return (
+    <div className="flex w-full h-full min-h-0 overflow-hidden">
+      {/* Sidebar toggle button — desktop only */}
+      <button
+        onClick={() => setSidebarOpen(o => !o)}
+        className="
+          hidden md:flex
+          fixed z-[10001] top-4 right-auto
+          items-center justify-center
+          w-9 h-9 rounded-lg
+          bg-black/40 backdrop-blur-xl border border-white/10
+          text-[#888] hover:text-white hover:bg-white/[0.08]
+          transition-all duration-200
+        "
+        style={{ left: sidebarOpen ? "calc(240px + 288px + 8px)" : "calc(240px + 8px)" }}
+        title={sidebarOpen ? "Скрыть историю" : "История чатов"}
+      >
+        {sidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
+      </button>
+
+      {/* Chat history sidebar — desktop */}
+      {sidebarOpen && (
+        <div className="hidden md:flex flex-shrink-0 h-full">
+          <ChatHistorySidebar
+            conversations={conversations}
+            activeId={activeConvId}
+            onSelect={handleSelectConversation}
+            onNew={handleNewChat}
+            onDelete={handleDeleteConversation}
+            onRename={handleRenameConversation}
+          />
+        </div>
+      )}
+
+      {/* Chat session — remounts on conversation switch */}
+      <div className="flex-1 min-w-0 h-full">
+        <ChatSession
+          key={chatKey}
+          conversationId={activeConvId}
+          initialMessages={initialMessages}
+          selectedModel={selectedModel}
+          onModelChange={setSelectedModel}
+          userPlan={userPlan}
+          onMessagesUpdate={handleMessagesUpdate}
+        />
       </div>
     </div>
   )
