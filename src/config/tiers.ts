@@ -49,7 +49,7 @@ export const IMAGE_MODEL_TIERS: Record<string, SynapseTier> = {
   // START - Flux Schnell (Free)
   "black-forest-labs/flux.2-klein-4b": "START",
   
-  // CREATOR - Gemini 3 Pro Image (Nano Banana)
+  // CREATOR - Nano Banana Pro
   "google/gemini-3-pro-image-preview": "CREATOR",
   
   // PRO STUDIO - Flux.1 dev (Ultra)
