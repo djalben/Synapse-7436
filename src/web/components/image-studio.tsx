@@ -96,6 +96,7 @@ interface ImageEngineOption {
   id: ImageEngineId;
   label: string;
   subtitle?: string;
+  description?: string;
   creditCost: number;
   requiredPlan: UserPlan;
   isLocked?: boolean;
@@ -104,17 +105,17 @@ interface ImageEngineOption {
 }
 
 const imageEngineOptions: ImageEngineOption[] = [
-  { id: "flux-schnell", label: "Flux Schnell", subtitle: "START", creditCost: 0, requiredPlan: "free", speed: "~4с" },
-  { id: "seedream", label: "Seedream 4.5", subtitle: "CREATOR", creditCost: 1, requiredPlan: "standard", speed: "~6с" },
-  { id: "flux-pro", label: "FLUX.2 Max", subtitle: "PRO STUDIO", creditCost: 2, requiredPlan: "ultra", speed: "~12с" },
-  { id: "imagen-3", label: "Nano Banana Pro", subtitle: "MAXIMAL", creditCost: 3, requiredPlan: "ultra", isExclusive: true, speed: "~8с" },
+  { id: "flux-schnell", label: "Flux Schnell", subtitle: "START", description: "Скорость мысли: Идеально для быстрых набросков", creditCost: 0, requiredPlan: "free", speed: "~4с" },
+  { id: "seedream", label: "Seedream 4.5", subtitle: "CREATOR", description: "Эстетика кино: Глубокие цвета и кинематографичный свет", creditCost: 1, requiredPlan: "standard", speed: "~6с" },
+  { id: "flux-pro", label: "FLUX.2 Max", subtitle: "PRO STUDIO", description: "Pro Стандарт: Макс. детализация кожи и текстур", creditCost: 2, requiredPlan: "ultra", speed: "~12с" },
+  { id: "imagen-3", label: "Nano Banana Pro", subtitle: "MAXIMAL", description: "Абсолютный реализм: Твое лицо в любой реальности", creditCost: 3, requiredPlan: "ultra", isExclusive: true, speed: "~8с" },
 ];
 
 const styleOptions: StyleOption[] = [
-  { id: "photorealistic", label: "Фотореализм", icon: Camera, description: "Неотличимо от реальности." },
-  { id: "anime", label: "Аниме/Манга", icon: Sparkles, description: "Японский анимационный стиль." },
-  { id: "3d", label: "3D Рендер", icon: Box, description: "Pixar уровень CGI и персонажи." },
-  { id: "cyberpunk", label: "Киберпанк", icon: Zap, description: "Неоновые огни и технологии будущего." },
+  { id: "photorealistic", label: "Фотореализм", icon: Camera, description: "Как на обложку журнала" },
+  { id: "anime", label: "Аниме/Манга", icon: Sparkles, description: "В стиле Ghibli" },
+  { id: "3d", label: "3D Рендер", icon: Box, description: "Графика Next-Gen" },
+  { id: "cyberpunk", label: "Киберпанк", icon: Zap, description: "Неоновое будущее" },
 ];
 
 const aspectRatios: AspectRatio[] = [
@@ -545,9 +546,11 @@ const MultiImageUpload = ({ images, onChange, disabled }: MultiImageUploadProps)
         )}
       </div>
 
-      <p className="text-xs text-indigo-400/80 flex items-center gap-1.5">
-        <ImageIcon className="w-3.5 h-3.5 shrink-0" />
-        Загрузи фото для переноса стиля или лица
+      <p className="text-sm font-semibold text-indigo-300 flex items-center gap-1.5">
+        📸 Создай своего цифрового двойника
+      </p>
+      <p className="text-[11px] text-[#777] leading-snug">
+        Загрузи селфи и напиши, где хочешь оказаться. Nano Banana перенесет тебя в любую точку мира за секунды!
       </p>
     </div>
   );
@@ -750,6 +753,11 @@ const ImageEngineSelector = ({ selected, onChange, userPlan, onPremiumClick }: I
                   "text-purple-400"
                 }`}>
                   {engine.subtitle}
+                </span>
+              )}
+              {engine.description && isSelected && (
+                <span className="text-[8px] text-[#888] leading-tight text-center mt-0.5 line-clamp-2">
+                  {engine.description}
                 </span>
               )}
             </button>
@@ -2307,7 +2315,7 @@ const GeneratePanel = ({
               <button
                 onClick={handleMagicPrompt}
                 disabled={!prompt.trim() || isEnhancingPrompt || isGenerating}
-                title="Magic Prompt — ИИ расширит ваш промпт"
+                title="Нажми, чтобы ИИ превратил твой простой запрос в детальное задание для шедевра"
                 className={`
                   flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium
                   transition-all duration-300 shrink-0
