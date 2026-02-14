@@ -1,40 +1,60 @@
 import { Hono } from "hono"
-import { drizzle } from "drizzle-orm/d1"
-import { eq, desc } from "drizzle-orm"
-import { conversations, chatMessages } from "../database/schema.js"
+import postgres from "postgres"
 
 export const conversationRoutes = new Hono()
 
-// Helper: get D1-backed drizzle instance from Hono context, or null
-function getDb(c: any) {
-  try {
-    const d1 = c.env?.DB
-    if (!d1) return null
-    return drizzle(d1, { schema: { conversations, chatMessages } })
-  } catch {
-    return null
-  }
+// Lazy singleton PostgreSQL connection
+let _sql: ReturnType<typeof postgres> | null = null
+function getSql() {
+  if (_sql) return _sql
+  const url = process.env.DATABASE_URL || process.env.POSTGRES_URL
+  if (!url) return null
+  _sql = postgres(url, { ssl: "prefer", connection: { application_name: "synapse" } })
+  return _sql
+}
+
+// Auto-migrate: create tables if they don't exist
+let _migrated = false
+async function ensureTables(sql: ReturnType<typeof postgres>) {
+  if (_migrated) return
+  await sql`
+    CREATE TABLE IF NOT EXISTS conversations (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL DEFAULT 'anonymous',
+      title TEXT NOT NULL DEFAULT 'Новый чат',
+      model TEXT NOT NULL DEFAULT 'deepseek-r1',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `
+  await sql`
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS idx_conv_user ON conversations(user_id)`
+  await sql`CREATE INDEX IF NOT EXISTS idx_msg_conv ON chat_messages(conversation_id)`
+  _migrated = true
 }
 
 // GET /api/conversations — list all conversations for a user
 conversationRoutes.get("/", async (c) => {
-  const db = getDb(c)
-  if (!db) return c.json({ error: "db_unavailable" }, 503)
+  const sql = getSql()
+  if (!sql) return c.json({ error: "db_unavailable" }, 503)
 
   const userId = c.req.header("X-User-Id") || "anonymous"
   try {
-    const rows = await db
-      .select({
-        id: conversations.id,
-        title: conversations.title,
-        model: conversations.model,
-        createdAt: conversations.createdAt,
-        updatedAt: conversations.updatedAt,
-      })
-      .from(conversations)
-      .where(eq(conversations.userId, userId))
-      .orderBy(desc(conversations.updatedAt))
-
+    await ensureTables(sql)
+    const rows = await sql`
+      SELECT id, title, model, created_at, updated_at
+      FROM conversations
+      WHERE user_id = ${userId}
+      ORDER BY updated_at DESC
+    `
     return c.json(rows)
   } catch (err: any) {
     console.error("[conversations] list error:", err)
@@ -44,23 +64,19 @@ conversationRoutes.get("/", async (c) => {
 
 // GET /api/conversations/:id/messages — get messages for a conversation
 conversationRoutes.get("/:id/messages", async (c) => {
-  const db = getDb(c)
-  if (!db) return c.json({ error: "db_unavailable" }, 503)
+  const sql = getSql()
+  if (!sql) return c.json({ error: "db_unavailable" }, 503)
 
   const convId = c.req.param("id")
   try {
-    const msgs = await db
-      .select({
-        id: chatMessages.id,
-        role: chatMessages.role,
-        content: chatMessages.content,
-        createdAt: chatMessages.createdAt,
-      })
-      .from(chatMessages)
-      .where(eq(chatMessages.conversationId, convId))
-      .orderBy(chatMessages.createdAt)
-
-    return c.json(msgs)
+    await ensureTables(sql)
+    const rows = await sql`
+      SELECT id, role, content, created_at
+      FROM chat_messages
+      WHERE conversation_id = ${convId}
+      ORDER BY created_at ASC
+    `
+    return c.json(rows)
   } catch (err: any) {
     console.error("[conversations] messages error:", err)
     return c.json({ error: err.message }, 500)
@@ -69,18 +85,17 @@ conversationRoutes.get("/:id/messages", async (c) => {
 
 // POST /api/conversations — create a new conversation
 conversationRoutes.post("/", async (c) => {
-  const db = getDb(c)
-  if (!db) return c.json({ error: "db_unavailable" }, 503)
+  const sql = getSql()
+  if (!sql) return c.json({ error: "db_unavailable" }, 503)
 
   const userId = c.req.header("X-User-Id") || "anonymous"
   try {
+    await ensureTables(sql)
     const body = await c.req.json<{ id: string; title: string; model: string }>()
-    await db.insert(conversations).values({
-      id: body.id,
-      userId,
-      title: body.title,
-      model: body.model,
-    })
+    await sql`
+      INSERT INTO conversations (id, user_id, title, model)
+      VALUES (${body.id}, ${userId}, ${body.title}, ${body.model})
+    `
     return c.json({ ok: true, id: body.id })
   } catch (err: any) {
     console.error("[conversations] create error:", err)
@@ -90,17 +105,21 @@ conversationRoutes.post("/", async (c) => {
 
 // PUT /api/conversations/:id — update title/model
 conversationRoutes.put("/:id", async (c) => {
-  const db = getDb(c)
-  if (!db) return c.json({ error: "db_unavailable" }, 503)
+  const sql = getSql()
+  if (!sql) return c.json({ error: "db_unavailable" }, 503)
 
   const convId = c.req.param("id")
   try {
+    await ensureTables(sql)
     const body = await c.req.json<{ title?: string; model?: string }>()
-    const updates: Record<string, any> = { updatedAt: new Date() }
-    if (body.title !== undefined) updates.title = body.title
-    if (body.model !== undefined) updates.model = body.model
 
-    await db.update(conversations).set(updates).where(eq(conversations.id, convId))
+    if (body.title !== undefined && body.model !== undefined) {
+      await sql`UPDATE conversations SET title = ${body.title}, model = ${body.model}, updated_at = NOW() WHERE id = ${convId}`
+    } else if (body.title !== undefined) {
+      await sql`UPDATE conversations SET title = ${body.title}, updated_at = NOW() WHERE id = ${convId}`
+    } else if (body.model !== undefined) {
+      await sql`UPDATE conversations SET model = ${body.model}, updated_at = NOW() WHERE id = ${convId}`
+    }
     return c.json({ ok: true })
   } catch (err: any) {
     console.error("[conversations] update error:", err)
@@ -108,15 +127,15 @@ conversationRoutes.put("/:id", async (c) => {
   }
 })
 
-// DELETE /api/conversations/:id — delete conversation and its messages
+// DELETE /api/conversations/:id — delete conversation and its messages (CASCADE handles messages)
 conversationRoutes.delete("/:id", async (c) => {
-  const db = getDb(c)
-  if (!db) return c.json({ error: "db_unavailable" }, 503)
+  const sql = getSql()
+  if (!sql) return c.json({ error: "db_unavailable" }, 503)
 
   const convId = c.req.param("id")
   try {
-    await db.delete(chatMessages).where(eq(chatMessages.conversationId, convId))
-    await db.delete(conversations).where(eq(conversations.id, convId))
+    await ensureTables(sql)
+    await sql`DELETE FROM conversations WHERE id = ${convId}`
     return c.json({ ok: true })
   } catch (err: any) {
     console.error("[conversations] delete error:", err)
@@ -124,38 +143,46 @@ conversationRoutes.delete("/:id", async (c) => {
   }
 })
 
-// POST /api/conversations/:id/messages — save messages (batch upsert)
+// POST /api/conversations/:id/messages — save messages (full replace)
 conversationRoutes.post("/:id/messages", async (c) => {
-  const db = getDb(c)
-  if (!db) return c.json({ error: "db_unavailable" }, 503)
+  const sql = getSql()
+  if (!sql) return c.json({ error: "db_unavailable" }, 503)
 
   const convId = c.req.param("id")
   try {
+    await ensureTables(sql)
     const body = await c.req.json<{
       messages: { id: string; role: string; content: string }[]
       title?: string
       model?: string
     }>()
 
-    // Delete old messages and insert new ones (simple full replace)
-    await db.delete(chatMessages).where(eq(chatMessages.conversationId, convId))
+    // Delete old messages and insert new ones
+    await sql`DELETE FROM chat_messages WHERE conversation_id = ${convId}`
 
     if (body.messages.length > 0) {
-      await db.insert(chatMessages).values(
-        body.messages.map((m) => ({
-          id: m.id,
-          conversationId: convId,
-          role: m.role,
-          content: m.content,
-        }))
-      )
+      await sql`
+        INSERT INTO chat_messages ${sql(
+          body.messages.map((m) => ({
+            id: m.id,
+            conversation_id: convId,
+            role: m.role,
+            content: m.content,
+          }))
+        )}
+      `
     }
 
     // Update conversation timestamp and optionally title/model
-    const updates: Record<string, any> = { updatedAt: new Date() }
-    if (body.title) updates.title = body.title
-    if (body.model) updates.model = body.model
-    await db.update(conversations).set(updates).where(eq(conversations.id, convId))
+    if (body.title && body.model) {
+      await sql`UPDATE conversations SET title = ${body.title}, model = ${body.model}, updated_at = NOW() WHERE id = ${convId}`
+    } else if (body.title) {
+      await sql`UPDATE conversations SET title = ${body.title}, updated_at = NOW() WHERE id = ${convId}`
+    } else if (body.model) {
+      await sql`UPDATE conversations SET model = ${body.model}, updated_at = NOW() WHERE id = ${convId}`
+    } else {
+      await sql`UPDATE conversations SET updated_at = NOW() WHERE id = ${convId}`
+    }
 
     return c.json({ ok: true })
   } catch (err: any) {

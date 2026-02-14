@@ -544,7 +544,7 @@ const ChatHistorySidebar = ({ conversations, activeId, onSelect, onNew, onDelete
   if (olderItems.length) groups.push({ label: "Ранее", items: olderItems })
 
   return (
-    <div className="w-72 h-full flex flex-col bg-black/60 backdrop-blur-xl border-r border-white/10 overflow-hidden">
+    <div className="w-72 h-full flex flex-col bg-[#0a0a0a] border-r border-[#1a1a1a] overflow-hidden">
       {/* New chat button */}
       <div className="p-3 border-b border-white/10">
         <button
@@ -629,10 +629,12 @@ interface ChatSessionProps {
   selectedModel: string
   onModelChange: (id: string) => void
   userPlan: string
+  sidebarOpen: boolean
+  onToggleSidebar: () => void
   onMessagesUpdate: (convId: string | null, msgs: StoredMessage[], firstUserText?: string) => void
 }
 
-const ChatSession = ({ conversationId, initialMessages, selectedModel, onModelChange, userPlan, onMessagesUpdate }: ChatSessionProps) => {
+const ChatSession = ({ conversationId, initialMessages, selectedModel, onModelChange, userPlan, sidebarOpen, onToggleSidebar, onMessagesUpdate }: ChatSessionProps) => {
   const [isLoaded, setIsLoaded] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
@@ -734,17 +736,32 @@ const ChatSession = ({ conversationId, initialMessages, selectedModel, onModelCh
 
   return (
     <div className="flex flex-col w-full h-full min-h-0 overflow-hidden border-none">
-      {/* Model selector */}
+      {/* Top header bar — sidebar toggle + model selector */}
       <div
         className={`
-          fixed z-[10000]
-          top-[calc(env(safe-area-inset-top,0px)+4rem+12px)]
-          left-4
-          md:top-4 md:left-[260px]
+          sticky top-0 z-[100]
+          flex items-center gap-3
+          px-4 md:px-6 py-3
+          bg-black/80 backdrop-blur-xl
+          border-b border-white/[0.06]
           transition-opacity duration-700 ease-out
           ${isLoaded ? "opacity-100" : "opacity-0"}
         `}
       >
+        <button
+          onClick={onToggleSidebar}
+          className="
+            flex items-center justify-center
+            w-9 h-9 rounded-lg
+            bg-white/[0.04] border border-white/[0.08]
+            text-[#888] hover:text-white hover:bg-white/[0.08]
+            transition-all duration-200
+            flex-shrink-0
+          "
+          title={sidebarOpen ? "Скрыть историю" : "История чатов"}
+        >
+          {sidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
+        </button>
         <ModelSelector
           selectedModel={selectedModel}
           onModelChange={onModelChange}
@@ -756,7 +773,7 @@ const ChatSession = ({ conversationId, initialMessages, selectedModel, onModelCh
       <div
         ref={messagesContainerRef}
         onScroll={handleMessagesScroll}
-        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-4 md:px-8 pt-[calc(env(safe-area-inset-top)+4rem+12px+3rem+8px)] md:pt-24 py-4 md:py-6 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-6"
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-4 md:px-8 py-4 md:py-6 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-6"
       >
         {!hasMessages ? (
           <div
@@ -965,37 +982,42 @@ export const ChatInterface = () => {
     apiRenameConversation(id, title.trim()) // fire-and-forget
   }, [])
 
-  return (
-    <div className="flex w-full h-full min-h-0 overflow-hidden">
-      {/* Sidebar toggle button — desktop only */}
-      <button
-        onClick={() => setSidebarOpen(o => !o)}
-        className="
-          hidden md:flex
-          fixed z-[10001] top-4 right-auto
-          items-center justify-center
-          w-9 h-9 rounded-lg
-          bg-black/40 backdrop-blur-xl border border-white/10
-          text-[#888] hover:text-white hover:bg-white/[0.08]
-          transition-all duration-200
-        "
-        style={{ left: sidebarOpen ? "calc(240px + 288px + 8px)" : "calc(240px + 8px)" }}
-        title={sidebarOpen ? "Скрыть историю" : "История чатов"}
-      >
-        {sidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
-      </button>
+  const toggleSidebar = useCallback(() => setSidebarOpen(o => !o), [])
 
-      {/* Chat history sidebar — desktop */}
+  return (
+    <div className="flex w-full h-full min-h-0 overflow-hidden relative">
+      {/* Chat history sidebar — slides in/out */}
+      <div
+        className={`
+          hidden md:flex flex-shrink-0 h-full
+          transition-all duration-300 ease-in-out overflow-hidden
+          ${sidebarOpen ? "w-72" : "w-0"}
+        `}
+      >
+        <ChatHistorySidebar
+          conversations={conversations}
+          activeId={activeConvId}
+          onSelect={handleSelectConversation}
+          onNew={handleNewChat}
+          onDelete={handleDeleteConversation}
+          onRename={handleRenameConversation}
+        />
+      </div>
+
+      {/* Mobile sidebar overlay */}
       {sidebarOpen && (
-        <div className="hidden md:flex flex-shrink-0 h-full">
-          <ChatHistorySidebar
-            conversations={conversations}
-            activeId={activeConvId}
-            onSelect={handleSelectConversation}
-            onNew={handleNewChat}
-            onDelete={handleDeleteConversation}
-            onRename={handleRenameConversation}
-          />
+        <div className="md:hidden fixed inset-0 z-[200]">
+          <div className="absolute inset-0 bg-black/60" onClick={toggleSidebar} />
+          <div className="relative w-72 h-full">
+            <ChatHistorySidebar
+              conversations={conversations}
+              activeId={activeConvId}
+              onSelect={(id) => { handleSelectConversation(id); setSidebarOpen(false) }}
+              onNew={() => { handleNewChat(); setSidebarOpen(false) }}
+              onDelete={handleDeleteConversation}
+              onRename={handleRenameConversation}
+            />
+          </div>
         </div>
       )}
 
@@ -1008,6 +1030,8 @@ export const ChatInterface = () => {
           selectedModel={selectedModel}
           onModelChange={setSelectedModel}
           userPlan={userPlan}
+          sidebarOpen={sidebarOpen}
+          onToggleSidebar={toggleSidebar}
           onMessagesUpdate={handleMessagesUpdate}
         />
       </div>
