@@ -46,18 +46,14 @@ export const CHAT_MODEL_TIERS: Record<string, SynapseTier> = {
  * Распределение моделей Image по тарифам
  */
 export const IMAGE_MODEL_TIERS: Record<string, SynapseTier> = {
-  // START (390 ₽) - актуальные ID 2026 года
-  "black-forest-labs/flux.2-klein": "START", // Flux 2 Klein (быстро/дешево, 2026)
-  "openrouter/free": "START",
+  // START - Flux Schnell (Free)
+  "black-forest-labs/flux-1-schnell": "START",
   
-  // CREATOR (990 ₽) - актуальные ID 2026 года
-  "google/gemini-2.5-flash-image": "CREATOR", // Gemini 2.5 Flash для изображений (2026)
+  // CREATOR - Imagen 3 (Pro)
+  "google/imagen-3": "CREATOR",
   
-  // PRO STUDIO (2 990 ₽) - актуальные ID 2026 года
-  "black-forest-labs/flux.2-pro": "PRO_STUDIO", // Flux 2 Pro (премиум, 2026)
-  
-  // MAXIMAL (8 990 ₽)
-  "openai/gpt-4o": "MAXIMAL", // image-generation
+  // PRO STUDIO - Flux 1.1 Pro (Ultra)
+  "black-forest-labs/flux-1.1-pro": "PRO_STUDIO",
 };
 
 /**
@@ -72,10 +68,10 @@ export const FRONTEND_TO_BACKEND: Record<string, string> = {
   "gpt-5-o1": "openai/gpt-5-pro",
   "claude-opus": "anthropic/claude-opus-4.6",
   
-  // Image models - актуальные ID 2026 года
-  "flux-schnell": "black-forest-labs/flux.2-klein",
-  "nana-banana": "google/gemini-2.5-flash-image",
-  "flux-pro": "black-forest-labs/flux.2-pro",
+  // Image models
+  "flux-schnell": "black-forest-labs/flux-1-schnell",
+  "imagen-3": "google/imagen-3",
+  "flux-pro": "black-forest-labs/flux-1.1-pro",
 };
 
 /**

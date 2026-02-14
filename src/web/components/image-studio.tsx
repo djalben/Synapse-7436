@@ -89,7 +89,7 @@ interface EnhancedResult {
 // ===== CONSTANTS =====
 
 // Image engine (model) for generation — актуальные модели 2026 года
-type ImageEngineId = "flux-schnell" | "nana-banana" | "flux-pro";
+type ImageEngineId = "flux-schnell" | "imagen-3" | "flux-pro";
 
 interface ImageEngineOption {
   id: ImageEngineId;
@@ -103,9 +103,9 @@ interface ImageEngineOption {
 }
 
 const imageEngineOptions: ImageEngineOption[] = [
-  { id: "flux-schnell", label: "Flux 2 Klein", subtitle: "START", creditCost: 0, requiredPlan: "free", speed: "~8с" },
-  { id: "nana-banana", label: "Imagen 3", subtitle: "CREATOR", creditCost: 1, requiredPlan: "standard", speed: "~5с" },
-  { id: "flux-pro", label: "Flux.1 [dev]", subtitle: "PRO STUDIO", creditCost: 2, requiredPlan: "ultra", isLocked: false, speed: "~12с" },
+  { id: "flux-schnell", label: "Flux Schnell", subtitle: "START", creditCost: 0, requiredPlan: "free", speed: "~4с" },
+  { id: "imagen-3", label: "Imagen 3", subtitle: "CREATOR", creditCost: 1, requiredPlan: "standard", speed: "~6с" },
+  { id: "flux-pro", label: "Flux 1.1 Pro", subtitle: "PRO STUDIO", creditCost: 2, requiredPlan: "ultra", isLocked: false, speed: "~10с" },
 ];
 
 const styleOptions: StyleOption[] = [
@@ -567,7 +567,7 @@ const ImageEngineSelector = ({ selected, onChange, userPlan, onPremiumClick }: I
   return (
     <div className="space-y-1.5">
       <label className="text-xs font-medium text-[#888]">Модель</label>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         {imageEngineOptions.map((engine) => {
           const isSelected = selected === engine.id;
           // ВРЕМЕННО ОТКЛЮЧЕНО: Проверка доступа по тарифу (режим тестирования)
@@ -1318,49 +1318,24 @@ const EnhancePhotoPanel = ({
   setPaywallReason 
 }: EnhancePhotoPanelProps) => {
   const [enhanceImage, setEnhanceImage] = useState<string | null>(null);
-  const [selectedTool, setSelectedTool] = useState<EnhancementTool | null>(null);
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [enhancedResult, setEnhancedResult] = useState<EnhancedResult | null>(null);
 
-  const canEnhance = enhanceImage && selectedTool && !isEnhancing && !atLimit;
+  const canEnhance = enhanceImage && !isEnhancing && !atLimit;
 
   const handleEnhance = async () => {
     if (!canEnhance) return;
-    
-    // Check limit before processing (enhancement costs 2 credits, but we check for at least 1)
     if (!checkImageLimit()) return;
     
     setIsEnhancing(true);
     setError(null);
 
     try {
-      const response = await fetch("/api/enhance", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          image: enhanceImage,
-          tool: selectedTool,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to enhance image");
-      }
-
-      setEnhancedResult({
-        originalUrl: enhanceImage,
-        enhancedUrl: data.enhancedUrl,
-        tool: selectedTool,
-      });
-      
-      // Increment usage after successful enhancement (costs 2 credits)
-      incrementImages();
-      incrementImages();
+      // TODO: Replace with real CodeFormer/Upscale API call
+      toast.info("Функция улучшения скоро будет доступна!", { duration: 3000 });
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      throw new Error("Функция в разработке. Скоро CodeFormer будет подключен!");
     } catch (err) {
       console.error("Enhancement error:", err);
       setError(err instanceof Error ? err.message : "Failed to enhance image");
@@ -1369,42 +1344,25 @@ const EnhancePhotoPanel = ({
     }
   };
 
-  const handleDownload = async (url: string, type: 'before' | 'after') => {
-    try {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const downloadUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = downloadUrl;
-      a.download = `synapse-${type}-${Date.now()}.png`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(downloadUrl);
-    } catch (error) {
-      console.error("Download failed:", error);
-    }
-  };
-
   const handleNewEnhancement = () => {
     setEnhancedResult(null);
     setEnhanceImage(null);
-    setSelectedTool(null);
+    setError(null);
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-full min-h-screen">
+    <div className="flex flex-col md:flex-row md:h-full md:min-h-screen">
       {/* Left Panel - Controls */}
-      <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222] p-4 md:p-6 overflow-y-auto">
+      <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222] p-4 md:p-6 md:overflow-y-auto">
         <div className="space-y-5 md:space-y-6">
           {/* Header */}
           <div>
             <h2 className="font-mono text-xl md:text-2xl font-semibold text-white mb-1 flex items-center gap-3">
-              <span className="text-2xl">✨</span>
-              Enhance Photo
+              <Wand2 className="w-6 h-6 text-purple-400" />
+              Улучшить фото
             </h2>
             <p className="text-sm text-[#666]">
-              Works with blurry, old, or B&W photos
+              Увеличение разрешения и восстановление деталей
             </p>
           </div>
 
@@ -1419,13 +1377,14 @@ const EnhancePhotoPanel = ({
           <div className="space-y-2">
             <label className="text-sm font-medium text-[#888]">
               Ваше фото
-              <span className="text-indigo-400 ml-1">*</span>
+              <span className="text-purple-400 ml-1">*</span>
             </label>
             <ImageUpload
               image={enhanceImage}
               onImageChange={(img) => {
                 setEnhanceImage(img);
                 setEnhancedResult(null);
+                setError(null);
               }}
               required
               disabled={isEnhancing}
@@ -1435,17 +1394,22 @@ const EnhancePhotoPanel = ({
             />
           </div>
 
-          {/* Magic Tools Section */}
+          {/* What will be improved */}
           {enhanceImage && (
             <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <label className="text-sm font-medium text-[#888]">Выберите улучшение</label>
-              <EnhancementToolSelector
-                selected={selectedTool}
-                onChange={(tool) => {
-                  setSelectedTool(tool);
-                  setEnhancedResult(null);
-                }}
-              />
+              <label className="text-sm font-medium text-[#888]">Что будет улучшено</label>
+              <div className="space-y-2">
+                {[
+                  { icon: "🔍", text: "Увеличение разрешения до 4x (Upscale)" },
+                  { icon: "👤", text: "Восстановление деталей лиц (Face Restore)" },
+                  { icon: "✨", text: "Удаление шума и артефактов" },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-[#222]">
+                    <span className="text-lg">{item.icon}</span>
+                    <span className="text-sm text-white/80">{item.text}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -1468,10 +1432,10 @@ const EnhancePhotoPanel = ({
             >
               <Lock className="w-5 h-5 text-amber-400" />
               <span className="text-amber-400 font-medium text-sm text-center">
-                Free enhancements exhausted
+                Лимит улучшений исчерпан
               </span>
               <span className="text-amber-400/60 text-xs group-hover:text-amber-400 transition-colors">
-                Upgrade →
+                Пополнить →
               </span>
             </button>
           )}
@@ -1490,12 +1454,11 @@ const EnhancePhotoPanel = ({
               ${enhancedResult
                 ? "bg-white/10 border border-white/20 text-white hover:bg-white/15"
                 : canEnhance
-                  ? "bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40"
+                  ? "bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 text-white shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40"
                   : "bg-[#222] text-[#555] cursor-not-allowed"
               }
             `}
           >
-            {/* Shimmer effect */}
             {canEnhance && !enhancedResult && (
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
             )}
@@ -1504,31 +1467,33 @@ const EnhancePhotoPanel = ({
               {isEnhancing ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Улучшаем...</span>
+                  <span>Улучшаем качество...</span>
                 </>
               ) : enhancedResult ? (
                 <>
                   <Sparkles className="w-5 h-5" />
                   <span>Улучшить ещё фото</span>
                 </>
-              ) : atLimit ? (
-                <>
-                  <Lock className="w-5 h-5 text-[#555]" />
-                  <span>Обновите для улучшения</span>
-                </>
               ) : (
                 <>
                   <Wand2 className={`w-5 h-5 ${canEnhance ? "text-white/90" : "text-[#555]"}`} />
-                  <span>Улучшить фото ⚡</span>
+                  <span>Улучшить качество</span>
                 </>
               )}
             </div>
           </button>
 
+          {/* Tech note */}
+          <div className="p-3 rounded-xl bg-purple-500/5 border border-purple-500/20">
+            <p className="text-xs text-purple-300/70 text-center">
+              Powered by CodeFormer + Real-ESRGAN
+            </p>
+          </div>
+
           {/* Credits Note */}
           <div className="flex items-center justify-center gap-2 py-3 px-4 rounded-lg bg-white/[0.02] border border-[#222]">
             <span className="text-xs text-[#666]">
-              Расход: <span className="text-indigo-400 font-medium">2 кредита</span> за улучшение
+              Расход: <span className="text-purple-400 font-medium">2 кредита</span> за улучшение
             </span>
             <span className="text-[#444]">•</span>
             <span className={`text-xs ${atLimit ? "text-red-400" : "text-[#666]"}`}>
@@ -1540,10 +1505,9 @@ const EnhancePhotoPanel = ({
         </div>
       </div>
 
-      {/* Right Panel - Results */}
-      <div className="flex-1 p-4 md:p-6 overflow-y-auto">
+      {/* Right Panel - Result preview */}
+      <div className="md:flex-1 p-4 md:p-6 md:overflow-y-auto md:min-h-0">
         <div className="max-w-2xl mx-auto">
-          {/* Header */}
           <div className="mb-6">
             <h3 className="font-mono text-lg font-semibold text-white">Результат</h3>
             <p className="text-sm text-[#666]">
@@ -1551,25 +1515,23 @@ const EnhancePhotoPanel = ({
             </p>
           </div>
 
-          {/* Enhanced Result */}
           {enhancedResult ? (
-            <BeforeAfterComparison result={enhancedResult} onDownload={handleDownload} />
+            <BeforeAfterComparison result={enhancedResult} onDownload={() => {}} />
           ) : (
-            /* Empty State */
-            <div className="flex flex-col items-center justify-center h-[40vh] md:h-[60vh] text-center px-4">
-              <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-[#333] flex items-center justify-center mb-4 md:mb-6">
+            <div className="flex flex-col items-center justify-center py-20 md:h-[60vh] text-center px-4">
+              <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-br from-purple-500/10 to-indigo-500/10 border border-[#333] flex items-center justify-center mb-4 md:mb-6">
                 <Wand2 className="w-8 h-8 md:w-10 md:h-10 text-[#444]" />
               </div>
               <h3 className="text-base md:text-lg font-medium text-white/80 mb-2">
                 {enhanceImage 
-                  ? "Выберите инструмент улучшения"
+                  ? "Нажмите «Улучшить качество»"
                   : "Загрузите фото для улучшения"
                 }
               </h3>
               <p className="text-sm text-[#666] max-w-xs">
                 {enhanceImage 
-                  ? "Выберите Face Restore, Colorize или Beauty Retouch для преображения фото"
-                  : "Наш ИИ восстановит размытые лица, добавит цвет к ч/б фото или применит ретушь"
+                  ? "ИИ увеличит разрешение, восстановит детали лиц и удалит артефакты"
+                  : "Загрузите размытое, старое или низкокачественное фото — ИИ улучшит его"
                 }
               </p>
             </div>
@@ -1809,10 +1771,10 @@ const GeneratePanel = ({
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
   const mobileVariantRef = useRef<HTMLDivElement | null>(null);
 
-  const isNanaBanana = selectedEngine === "nana-banana";
+  const isImagen3 = selectedEngine === "imagen-3";
   const isFreeEngine = selectedEngine === "flux-schnell";
   const atFreeDailyLimit = isFreeEngine && freeImageCountToday >= MAX_FREE_IMAGE_PER_DAY;
-  const effectiveAtLimit = isNanaBanana ? atLimit : (isFreeEngine ? atFreeDailyLimit : atLimit);
+  const effectiveAtLimit = isImagen3 ? atLimit : (isFreeEngine ? atFreeDailyLimit : atLimit);
 
   // Check if image-to-image mode is ready
   const isImg2ImgReady = mode === "text-to-image" || (mode === "image-to-image" && referenceImage);
@@ -1869,7 +1831,7 @@ const GeneratePanel = ({
       return;
     }
     
-    if (isNanaBanana) {
+    if (isImagen3) {
       if (!checkImageLimit()) return;
     } else if (isFreeEngine) {
       if (!checkFreeImageDailyLimit()) return;
@@ -1912,10 +1874,9 @@ const GeneratePanel = ({
           prompt: prompt.trim(),
           aspectRatio,
           numImages: imageCount,
-          style: isNanaBanana ? "niji-v6" : selectedStyle,
+          style: selectedStyle,
           mode,
           referenceImage: mode === "image-to-image" ? referenceImage : null,
-          specializedEngine: isNanaBanana ? "niji-v6" : null,
           engine: selectedEngine,
         }),
       });
@@ -1940,7 +1901,6 @@ const GeneratePanel = ({
           body: text.substring(0, 1000), // Первые 1000 символов для отладки
           requestBody: {
             engine: selectedEngine,
-            specializedEngine: isNanaBanana ? "niji-v6" : null,
             mode,
             promptLength: prompt.trim().length,
           },
@@ -1999,7 +1959,7 @@ const GeneratePanel = ({
         }
 
         // Charge credits
-        if (isNanaBanana) {
+        if (isImagen3) {
           incrementImages();
         } else if (isFreeEngine) {
           incrementFreeImageDaily();
@@ -2128,10 +2088,10 @@ const GeneratePanel = ({
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-full min-h-screen">
-      {/* Left Panel - Controls: scrollable + sticky bottom bar */}
-      <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222] flex flex-col min-h-0">
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 min-h-0 max-h-[calc(100vh-180px)] md:max-h-none pb-48 md:pb-24">
+    <div className="flex flex-col md:flex-row md:h-full md:min-h-screen">
+      {/* Left Panel - Controls */}
+      <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222] md:flex md:flex-col md:min-h-0">
+        <div className="overflow-x-hidden p-4 md:p-6 md:flex-1 md:overflow-y-auto md:min-h-0 pb-48 md:pb-24">
           <div className="space-y-3 md:space-y-4 pb-4">
           {/* Header */}
           <div className="flex items-start justify-between">
@@ -2260,11 +2220,10 @@ const GeneratePanel = ({
             </div>
           </div>
 
-          {/* Style Selector — не применяется при выборе Nana Banana */}
-          <div className={`space-y-1.5 ${isNanaBanana ? "opacity-60" : ""}`} data-tour="style-selector">
-            <label className="text-xs font-medium text-[#888] flex items-center gap-2">
+          {/* Style Selector */}
+          <div className="space-y-1.5" data-tour="style-selector">
+            <label className="text-xs font-medium text-[#888]">
               Стиль
-              {isNanaBanana && <span className="text-[10px] text-amber-400/80">(не применяется)</span>}
             </label>
             <StyleSelector selected={selectedStyle} onChange={setSelectedStyle} />
           </div>
@@ -2503,7 +2462,7 @@ const GeneratePanel = ({
       </div>
 
       {/* Right Panel - Variants + Gallery */}
-      <div className="flex-1 p-4 md:p-6 pb-40 md:pb-6 overflow-y-auto min-h-0" data-tour="gallery">
+      <div className="md:flex-1 p-4 md:p-6 pb-40 md:pb-6 md:overflow-y-auto md:min-h-0" data-tour="gallery">
 
         {/* Variant Grid (desktop only — mobile version is in left panel) */}
         {variantResult && (
@@ -2595,7 +2554,7 @@ export const ImageStudio = () => {
   const atLimit = !canGenerateImage;
 
   return (
-    <div className="h-full">
+    <div className="md:h-full">
       {/* Top-level Mode Toggle */}
       <div className="p-4 md:p-6 pb-0">
         <StudioModeToggle mode={studioMode} onChange={setStudioMode} />
