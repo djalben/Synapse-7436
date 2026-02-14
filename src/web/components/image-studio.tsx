@@ -1448,8 +1448,17 @@ const EnhancePhotoPanel = ({
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [enhancedResult, setEnhancedResult] = useState<EnhancedResult | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const enhanceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const canEnhance = enhanceImage && !isEnhancing && !atLimit;
+  // Checkbox options
+  const [optUpscale, setOptUpscale] = useState(true);
+  const [optFaceRestore, setOptFaceRestore] = useState(true);
+  const [optBrightness, setOptBrightness] = useState(false);
+
+  const anyOptionSelected = optUpscale || optFaceRestore || optBrightness;
+  const canEnhance = enhanceImage && !isEnhancing && !atLimit && anyOptionSelected;
 
   const handleEnhance = async () => {
     if (!canEnhance) return;
@@ -1457,17 +1466,46 @@ const EnhancePhotoPanel = ({
     
     setIsEnhancing(true);
     setError(null);
+    setElapsedTime(0);
+    setStatusMessage("Отправляем фото на обработку...");
+
+    const startTime = Date.now();
+    if (enhanceTimerRef.current) clearInterval(enhanceTimerRef.current);
+    enhanceTimerRef.current = setInterval(() => {
+      setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
 
     try {
-      // TODO: Replace with real CodeFormer/Upscale API call
-      toast.info("Функция улучшения скоро будет доступна!", { duration: 3000 });
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      throw new Error("Функция в разработке. Скоро CodeFormer будет подключен!");
+      const response = await fetch("/api/enhance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          image: enhanceImage,
+          options: { upscale: optUpscale, faceRestore: optFaceRestore, brightness: optBrightness },
+        }),
+      });
+
+      setStatusMessage("Обрабатываем результат...");
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({ error: "Server error" })) as { error?: string };
+        throw new Error(data.error || "Enhancement failed");
+      }
+
+      const data = await response.json() as { originalUrl: string; enhancedUrl: string; processingTime: number };
+      setEnhancedResult({
+        originalUrl: data.originalUrl,
+        enhancedUrl: data.enhancedUrl,
+        tool: "face-restore",
+      });
+      incrementImages();
     } catch (err) {
       console.error("Enhancement error:", err);
       setError(err instanceof Error ? err.message : "Failed to enhance image");
     } finally {
       setIsEnhancing(false);
+      setStatusMessage(null);
+      if (enhanceTimerRef.current) clearInterval(enhanceTimerRef.current);
     }
   };
 
@@ -1477,20 +1515,26 @@ const EnhancePhotoPanel = ({
     setError(null);
   };
 
+  const enhanceOptions = [
+    { key: "upscale" as const, label: "Upscale 4K", desc: "Увеличение разрешения и резкости", icon: "🔍", checked: optUpscale, toggle: setOptUpscale },
+    { key: "faceRestore" as const, label: "Face Restoration", desc: "Восстановление деталей лица", icon: "👤", checked: optFaceRestore, toggle: setOptFaceRestore },
+    { key: "brightness" as const, label: "Brightness & Contrast", desc: "Профессиональное освещение", icon: "☀️", checked: optBrightness, toggle: setOptBrightness },
+  ];
+
   return (
     <div className="h-full flex flex-col md:flex-row">
       {/* Left Panel - Controls */}
       <div className="w-full md:w-[35%] md:min-w-[360px] border-b md:border-b-0 md:border-r border-[#222] flex flex-col min-h-0">
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 min-h-0">
-        <div className="space-y-5 md:space-y-6">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 min-h-0 pb-48 md:pb-24">
+        <div className="space-y-4 md:space-y-5">
           {/* Header */}
           <div>
             <h2 className="font-mono text-xl md:text-2xl font-semibold text-white mb-1 flex items-center gap-3">
-              <Wand2 className="w-6 h-6 text-purple-400" />
+              <Wand2 className="w-6 h-6 text-indigo-400" />
               Улучшить фото
             </h2>
             <p className="text-sm text-[#666]">
-              Увеличение разрешения и восстановление деталей
+              ИИ-апскейл, восстановление лиц и коррекция света
             </p>
           </div>
 
@@ -1501,11 +1545,11 @@ const EnhancePhotoPanel = ({
             </div>
           )}
 
-          {/* Upload Zone */}
+          {/* Upload Zone — wide, symmetric */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-[#888]">
               Ваше фото
-              <span className="text-purple-400 ml-1">*</span>
+              <span className="text-indigo-400 ml-1">*</span>
             </label>
             <ImageUpload
               image={enhanceImage}
@@ -1522,24 +1566,50 @@ const EnhancePhotoPanel = ({
             />
           </div>
 
-          {/* What will be improved */}
-          {enhanceImage && (
-            <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <label className="text-sm font-medium text-[#888]">Что будет улучшено</label>
-              <div className="space-y-2">
-                {[
-                  { icon: "🔍", text: "Увеличение разрешения до 4x (Upscale)" },
-                  { icon: "👤", text: "Восстановление деталей лиц (Face Restore)" },
-                  { icon: "✨", text: "Удаление шума и артефактов" },
-                ].map((item, i) => (
-                  <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-[#222]">
-                    <span className="text-lg">{item.icon}</span>
-                    <span className="text-sm text-white/80">{item.text}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* Enhancement Options — interactive checkboxes */}
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-[#888]">Настройки улучшения</label>
+            {enhanceOptions.map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => opt.toggle(!opt.checked)}
+                disabled={isEnhancing}
+                className={`
+                  w-full flex items-center gap-3 p-3.5 rounded-xl text-left
+                  transition-all duration-200 group
+                  ${opt.checked
+                    ? "bg-indigo-500/10 border border-indigo-500/30"
+                    : "bg-white/[0.02] border border-[#222] hover:border-[#444] hover:bg-white/[0.04]"
+                  }
+                  ${isEnhancing ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
+                `}
+              >
+                {/* Checkbox */}
+                <div className={`
+                  w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0
+                  transition-all duration-200
+                  ${opt.checked
+                    ? "bg-indigo-500 border-indigo-500"
+                    : "border-[#444] group-hover:border-[#666]"
+                  }
+                `}>
+                  {opt.checked && (
+                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </div>
+                <span className="text-lg shrink-0">{opt.icon}</span>
+                <div className="min-w-0">
+                  <p className={`text-sm font-medium ${opt.checked ? "text-white" : "text-white/70"}`}>
+                    {opt.label}
+                  </p>
+                  <p className="text-[11px] text-[#666] leading-tight">{opt.desc}</p>
+                </div>
+              </button>
+            ))}
+          </div>
 
           {/* Limit warning */}
           {atLimit && (
@@ -1552,37 +1622,42 @@ const EnhancePhotoPanel = ({
                 w-full p-3 md:p-4 rounded-xl
                 bg-gradient-to-r from-red-500/10 via-amber-500/10 to-red-500/10
                 border border-red-500/30
-                flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3
+                flex items-center justify-center gap-2
                 group transition-all duration-300
-                hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/10
+                hover:border-amber-500/50
                 active:scale-[0.98]
               "
             >
-              <Lock className="w-5 h-5 text-amber-400" />
-              <span className="text-amber-400 font-medium text-sm text-center">
-                Лимит улучшений исчерпан
-              </span>
-              <span className="text-amber-400/60 text-xs group-hover:text-amber-400 transition-colors">
-                Пополнить →
-              </span>
+              <Lock className="w-4 h-4 text-amber-400" />
+              <span className="text-amber-400 font-medium text-sm">Лимит улучшений исчерпан</span>
             </button>
           )}
 
-          {/* Enhance Button */}
+          {/* Credits */}
+          <div className="flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-white/[0.02] border border-[#222]">
+            <div className={`w-2 h-2 rounded-full ${atLimit ? "bg-red-500" : "bg-emerald-500 animate-pulse"}`} />
+            <span className={`text-xs ${atLimit ? "text-red-400" : "text-gray-400"}`}>
+              {atLimit ? "Лимит исчерпан" : <>Осталось: {Math.max(0, limits.maxImages - imageCount)}/{limits.maxImages}</>}
+            </span>
+          </div>
+        </div>
+        </div>
+      </div>
+
+      {/* Fixed Enhance Button — same pattern as Generate button */}
+      <div className="fixed bottom-0 left-0 right-0 z-[100] pointer-events-none md:left-[240px]">
+        <div className="pointer-events-auto w-full md:w-[35%] md:min-w-[360px] px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)] md:pb-4 bg-black/95 backdrop-blur-xl border-t border-white/10 shadow-[0_-4px_24px_rgba(0,0,0,0.4)]">
           <button
             onClick={enhancedResult ? handleNewEnhancement : handleEnhance}
             disabled={!enhancedResult && !canEnhance}
             className={`
-              w-full py-4 rounded-xl
-              font-medium text-base
-              transition-all duration-300
-              relative overflow-hidden
-              group
-              active:scale-[0.98]
+              pointer-events-auto w-full py-4 px-6 rounded-xl font-medium text-base cursor-pointer
+              transition-all duration-300 relative overflow-hidden
+              active:scale-[0.98] group
               ${enhancedResult
                 ? "bg-white/10 border border-white/20 text-white hover:bg-white/15"
                 : canEnhance
-                  ? "bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 text-white shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40"
+                  ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_24px_rgba(0,112,243,0.4)]"
                   : "bg-[#222] text-[#555] cursor-not-allowed"
               }
             `}
@@ -1590,62 +1665,34 @@ const EnhancePhotoPanel = ({
             {canEnhance && !enhancedResult && (
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
             )}
-            
-            <div className="relative flex items-center justify-center gap-2">
+            <span className="relative flex items-center justify-center gap-2">
               {isEnhancing ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Улучшаем качество...</span>
-                </>
+                <><Loader2 className="w-5 h-5 animate-spin" /><span>Улучшаем...</span></>
               ) : enhancedResult ? (
-                <>
-                  <Sparkles className="w-5 h-5" />
-                  <span>Улучшить ещё фото</span>
-                </>
+                <><Sparkles className="w-5 h-5" /><span>Улучшить ещё фото</span></>
               ) : (
-                <>
-                  <Wand2 className={`w-5 h-5 ${canEnhance ? "text-white/90" : "text-[#555]"}`} />
-                  <span>Улучшить качество</span>
-                </>
+                <><Sparkles className="w-5 h-5" /><span>Улучшить качество</span></>
               )}
-            </div>
+            </span>
           </button>
 
-          {/* Tech note — professional trust copy */}
-          <div className="p-4 rounded-xl bg-purple-500/5 border border-purple-500/20 space-y-2">
-            <p className="text-xs text-purple-300/80 font-medium text-center">
-              Профессиональный AI-апскейл
-            </p>
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center gap-2 text-xs text-[#888]">
-                <span className="text-purple-400">▸</span>
-                <span><span className="text-white/70 font-medium">CodeFormer</span> — восстановление и детализация лиц</span>
+          {/* Status indicator */}
+          {isEnhancing && statusMessage && (
+            <div className="flex items-center justify-center gap-3 pt-2 pb-1 animate-in fade-in duration-300">
+              <div className="flex gap-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: "0ms" }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "300ms" }} />
               </div>
-              <div className="flex items-center gap-2 text-xs text-[#888]">
-                <span className="text-purple-400">▸</span>
-                <span><span className="text-white/70 font-medium">Real-ESRGAN</span> — увеличение до 4K без потери качества</span>
-              </div>
+              <span className="text-xs text-indigo-300/80 font-medium">{statusMessage}</span>
+              <span className="text-xs text-[#555] tabular-nums">{elapsedTime}с</span>
             </div>
-          </div>
-
-          {/* Credits Note */}
-          <div className="flex items-center justify-center gap-2 py-3 px-4 rounded-lg bg-white/[0.02] border border-[#222]">
-            <span className="text-xs text-[#666]">
-              Расход: <span className="text-purple-400 font-medium">2 кредита</span> за улучшение
-            </span>
-            <span className="text-[#444]">•</span>
-            <span className={`text-xs ${atLimit ? "text-red-400" : "text-[#666]"}`}>
-              <span className={`font-medium ${atLimit ? "text-red-400" : "text-white/80"}`}>
-                {imageCount}/{limits.maxImages}
-              </span> использовано
-            </span>
-          </div>
-        </div>
+          )}
         </div>
       </div>
 
       {/* Right Panel - Result preview */}
-      <div className="flex-1 p-4 md:p-6 overflow-y-auto min-h-0">
+      <div className="flex-1 p-4 md:p-6 pb-40 md:pb-6 overflow-y-auto min-h-0">
         <div className="max-w-2xl mx-auto">
           <div className="mb-6">
             <h3 className="font-mono text-lg font-semibold text-white">Результат</h3>
@@ -1658,19 +1705,19 @@ const EnhancePhotoPanel = ({
             <BeforeAfterComparison result={enhancedResult} onDownload={() => {}} />
           ) : (
             <div className="flex flex-col items-center justify-center py-20 md:h-[60vh] text-center px-4">
-              <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-br from-purple-500/10 to-indigo-500/10 border border-[#333] flex items-center justify-center mb-4 md:mb-6">
+              <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-white/[0.02] border border-[#333] flex items-center justify-center mb-4 md:mb-6">
                 <Wand2 className="w-8 h-8 md:w-10 md:h-10 text-[#444]" />
               </div>
               <h3 className="text-base md:text-lg font-medium text-white/80 mb-2">
                 {enhanceImage 
-                  ? "Нажмите «Улучшить качество»"
+                  ? "Выберите опции и нажмите «Улучшить качество»"
                   : "Загрузите фото для улучшения"
                 }
               </h3>
               <p className="text-sm text-[#666] max-w-xs">
                 {enhanceImage 
-                  ? "ИИ увеличит разрешение, восстановит детали лиц и удалит артефакты"
-                  : "Загрузите размытое, старое или низкокачественное фото — ИИ улучшит его"
+                  ? "ИИ увеличит разрешение, восстановит детали и улучшит освещение"
+                  : "Загрузите размытое или низкокачественное фото — ИИ сделает его профессиональным"
                 }
               </p>
             </div>
