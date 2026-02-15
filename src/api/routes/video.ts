@@ -4,7 +4,7 @@ export const videoRoutes = new Hono()
 
 const REPLICATE_BASE = "https://api.replicate.com/v1"
 const REPLICATE_PREDICTIONS = `${REPLICATE_BASE}/predictions`
-const TIMEOUT_MS = 55000
+const TIMEOUT_MS = 8000  // Vercel serverless limit ~10s, keep margin
 
 // ─── Model registry: Replicate model slugs ───
 interface VideoModelConfig {
@@ -129,11 +129,19 @@ videoRoutes.post("/generate", async (c) => {
       return c.json({ error: `${modelConfig.name} не поддерживает режим ${isImageMode ? "Фото→Видео" : "Текст→Видео"}.` }, 400)
     }
 
-    // Build prompt
+    // Build prompt (magic prompt done synchronously only if fast enough)
     let finalPrompt = prompt.trim()
     if (magicPrompt) {
-      finalPrompt = await enhancePrompt(finalPrompt)
-      console.log(`[Video] Magic prompt: "${finalPrompt.slice(0, 80)}..."`)
+      try {
+        const enhanced = await Promise.race([
+          enhancePrompt(finalPrompt),
+          new Promise<string>((_, reject) => setTimeout(() => reject("timeout"), 4000)),
+        ])
+        finalPrompt = enhanced
+        console.log(`[Video] Magic prompt: "${finalPrompt.slice(0, 80)}..."`)
+      } catch {
+        console.log(`[Video] Magic prompt skipped (timeout)`)
+      }
     }
     finalPrompt += (CAMERA_MOTION[cameraMotion] || "")
     finalPrompt += ", cinematic quality, smooth motion, professional video"
@@ -176,12 +184,13 @@ videoRoutes.post("/generate", async (c) => {
     const modelsUrl = `${REPLICATE_BASE}/models/${replicateModel}/predictions`
     console.log(`[Video] POST ${modelsUrl}`)
 
+    // Fire-and-forget: create prediction, do NOT wait for completion
+    // Replicate returns immediately with {id, status: "starting"}
     const response = await fetchWithTimeout(modelsUrl, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        "Prefer": "wait",
       },
       body: JSON.stringify({ input }),
     }, TIMEOUT_MS)
@@ -198,24 +207,14 @@ videoRoutes.post("/generate", async (c) => {
     const data = await response.json() as {
       id: string
       status: string
-      output?: string | string[] | { url: string }
-      urls?: { get: string }
     }
 
-    console.log(`[Video] Prediction id=${data.id} status=${data.status}`)
+    console.log(`[Video] Prediction created: id=${data.id} status=${data.status}`)
 
-    // If already completed (Prefer: wait might return result)
-    let videoUrl: string | null = null
-    if (data.status === "succeeded" && data.output) {
-      if (typeof data.output === "string") videoUrl = data.output
-      else if (Array.isArray(data.output)) videoUrl = data.output[0]
-      else if (typeof data.output === "object" && "url" in data.output) videoUrl = data.output.url
-    }
-
+    // Return immediately — frontend will poll GET /status/:id
     return c.json({
       id: data.id,
-      status: videoUrl ? "completed" : "processing",
-      url: videoUrl,
+      status: "processing",
       model,
       prompt: prompt.trim(),
       createdAt: new Date().toISOString(),
@@ -244,7 +243,7 @@ videoRoutes.get("/status/:id", async (c) => {
     const response = await fetchWithTimeout(`${REPLICATE_PREDICTIONS}/${predictionId}`, {
       method: "GET",
       headers: { "Authorization": `Bearer ${apiKey}` },
-    }, 15000)
+    }, TIMEOUT_MS)
 
     if (!response.ok) {
       console.error(`[Video] Status error: ${response.status}`)

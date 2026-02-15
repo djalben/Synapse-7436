@@ -401,16 +401,14 @@ export const MotionLab = () => {
       const data = await res.json() as {
         id?: string;
         status?: string;
-        url?: string;
         error?: string;
       };
       if (!res.ok) throw new Error(data.error || "Ошибка генерации");
+      if (!data.id) throw new Error("Нет ID задачи.");
 
-      let videoUrl = data.url;
-      if (!videoUrl && data.id && data.status === "processing") {
-        videoUrl = await pollForVideo(data.id);
-      }
-      if (!videoUrl) throw new Error("Нет URL видео.");
+      // Backend returns immediately with {id, status: "processing"}
+      // Now poll GET /status/:id every 3s until succeeded/failed
+      const videoUrl = await pollForVideo(data.id);
 
       setProgress(100);
       const newVideo: GeneratedVideo = {
