@@ -2,20 +2,54 @@ import { Hono } from "hono"
 
 export const videoRoutes = new Hono()
 
-// FAL.ai Kling v1.5 endpoints (OpenRouter does NOT support video generation)
-const FAL_TEXT2VIDEO = "https://queue.fal.run/fal-ai/kling-video/v1.5/pro/text-to-video"
-const FAL_IMG2VIDEO = "https://queue.fal.run/fal-ai/kling-video/v1.5/pro/image-to-video"
+const REPLICATE_API = "https://api.replicate.com/v1/predictions"
 const TIMEOUT_MS = 55000
 
-// Animation preset prompt mapping
-const PRESET_PROMPTS: Record<string, string> = {
-  "smile-blink": "person smiles warmly, natural eye blinks, subtle head movement, genuine expression",
-  "wave-hello": "person waves hand, friendly expression, natural arm movement, welcoming gesture",
-  "look-around": "person looks left then right, curious expression, natural head turn, subtle movement",
-  "old-film": "vintage film effect, sepia tones, film grain, slow deliberate movement, nostalgic aesthetic",
+// ─── Model registry: Replicate model slugs ───
+interface VideoModelConfig {
+  name: string
+  text: string | null   // Replicate model for text-to-video (null = not supported)
+  image: string | null  // Replicate model for image-to-video (null = not supported)
+  defaultInput?: Record<string, unknown>
 }
 
-/** Promise.race timeout */
+const MODEL_REGISTRY: Record<string, VideoModelConfig> = {
+  "wan-2.2": {
+    name: "Wan 2.2 Fast",
+    text: "wan-ai/wan2.1-t2v-480p",
+    image: "wan-ai/wan2.1-i2v-480p-720p",
+  },
+  "kling-2.6": {
+    name: "Kling 2.6 Pro",
+    text: "kling-ai/kling-v2-pro",
+    image: "kling-ai/kling-v2-pro",
+  },
+  "veo-3.1": {
+    name: "Google Veo 3.1",
+    text: "google-deepmind/veo-3",
+    image: null,
+    defaultInput: { generate_audio: true },
+  },
+}
+
+// Camera motion prompt suffixes
+const CAMERA_MOTION: Record<string, string> = {
+  static: "",
+  "zoom-in": ", camera slowly zooms in, smooth dolly forward",
+  "zoom-out": ", camera slowly zooms out, smooth dolly back",
+  pan: ", camera pans smoothly from left to right, cinematic pan",
+  orbit: ", camera orbits slowly around the subject, 360 rotation",
+  tilt: ", camera tilts upward, smooth vertical pan, reveal shot",
+}
+
+function getReplicateKey(): string | undefined {
+  return process.env.REPLICATE_API_TOKEN
+}
+
+function getOpenRouterKey(): string | undefined {
+  return process.env.OPENROUTER_API_KEY
+}
+
 function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<Response> {
   return Promise.race([
     fetch(url, init),
@@ -25,85 +59,142 @@ function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<R
   ])
 }
 
-function getFalKey(): string | undefined {
-  return process.env.FAL_KEY
-}
-
-// ─── POST /generate — queue video generation on FAL.ai, return request_id
-videoRoutes.post("/generate", async (c) => {
-  const startTime = Date.now()
-  console.log("[Video] POST /generate start")
+// ─── Magic Prompt: enhance user description via GPT-4o-mini ───
+async function enhancePrompt(raw: string): Promise<string> {
+  const key = getOpenRouterKey()
+  if (!key) return raw
 
   try {
-    const falKey = getFalKey()
-    if (!falKey) {
-      console.error("[Video] FAL_KEY missing")
-      return c.json({ error: "Video generation service not configured. Set FAL_KEY in environment." }, 503)
-    }
-
-    const { prompt, duration = 5, aspectRatio = "16:9", image } = await c.req.json()
-
-    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
-      return c.json({ error: "Please describe your video scene." }, 400)
-    }
-
-    const validDurations = [5, 10]
-    const finalDuration = validDurations.includes(duration) ? duration : 5
-
-    // Build enhanced prompt
-    let enhancedPrompt = prompt.trim()
-    enhancedPrompt += ", cinematic quality, smooth motion, professional video"
-
-    console.log(`[Video] Prompt: "${enhancedPrompt.slice(0, 80)}..." duration=${finalDuration}s`)
-
-    // Choose endpoint: text-to-video or image-to-video
-    const endpoint = image ? FAL_IMG2VIDEO : FAL_TEXT2VIDEO
-    const body: Record<string, unknown> = {
-      prompt: enhancedPrompt,
-      duration: String(finalDuration),
-      aspect_ratio: aspectRatio,
-    }
-    if (image) {
-      body.image_url = image
-    }
-
-    console.log(`[Video] Sending to FAL.ai... endpoint=${image ? "img2video" : "text2video"}`)
-    const response = await fetchWithTimeout(endpoint, {
+    const res = await fetchWithTimeout("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Key ${falKey}`,
+        "Authorization": `Bearer ${key}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        model: "openai/gpt-4o-mini",
+        max_tokens: 300,
+        messages: [
+          {
+            role: "system",
+            content: "You are a cinematic video prompt engineer. Expand the user's short description into a detailed, vivid video generation prompt in English. Keep it under 200 words. Focus on camera movement, lighting, mood, and visual details. Output ONLY the enhanced prompt, nothing else.",
+          },
+          { role: "user", content: raw },
+        ],
+      }),
+    }, 10000)
+
+    if (!res.ok) return raw
+    const data = await res.json() as any
+    const enhanced = data?.choices?.[0]?.message?.content?.trim()
+    return enhanced || raw
+  } catch {
+    return raw
+  }
+}
+
+// ─── POST /generate — create video via Replicate ───
+videoRoutes.post("/generate", async (c) => {
+  const startTime = Date.now()
+  console.log("[Video] POST /generate")
+
+  try {
+    const apiKey = getReplicateKey()
+    if (!apiKey) {
+      return c.json({ error: "REPLICATE_API_TOKEN not configured." }, 503)
+    }
+
+    const {
+      prompt,
+      model = "wan-2.2",
+      mode = "text",        // "text" | "image"
+      image,                // base64 or URL for image-to-video
+      aspectRatio = "16:9",
+      cameraMotion = "static",
+      magicPrompt = false,
+      duration = 5,
+    } = await c.req.json()
+
+    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+      return c.json({ error: "Опишите сцену для видео." }, 400)
+    }
+
+    const modelConfig = MODEL_REGISTRY[model]
+    if (!modelConfig) {
+      return c.json({ error: `Unknown model: ${model}` }, 400)
+    }
+
+    const isImageMode = mode === "image" && image
+    const replicateModel = isImageMode ? modelConfig.image : modelConfig.text
+    if (!replicateModel) {
+      return c.json({ error: `${modelConfig.name} не поддерживает режим ${isImageMode ? "Фото→Видео" : "Текст→Видео"}.` }, 400)
+    }
+
+    // Build prompt
+    let finalPrompt = prompt.trim()
+    if (magicPrompt) {
+      finalPrompt = await enhancePrompt(finalPrompt)
+      console.log(`[Video] Magic prompt: "${finalPrompt.slice(0, 80)}..."`)
+    }
+    finalPrompt += (CAMERA_MOTION[cameraMotion] || "")
+    finalPrompt += ", cinematic quality, smooth motion, professional video"
+
+    // Build Replicate input
+    const input: Record<string, unknown> = {
+      prompt: finalPrompt,
+      aspect_ratio: aspectRatio,
+      duration,
+      ...modelConfig.defaultInput,
+    }
+    if (isImageMode && image) {
+      input.image = image
+      input.start_image = image  // Kling uses start_image
+    }
+
+    console.log(`[Video] Model=${replicateModel} mode=${isImageMode ? "i2v" : "t2v"} aspect=${aspectRatio} cam=${cameraMotion}`)
+
+    const response = await fetchWithTimeout(REPLICATE_API, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "Prefer": "wait",
+      },
+      body: JSON.stringify({ model: replicateModel, input }),
     }, TIMEOUT_MS)
 
     const elapsed = Date.now() - startTime
-    console.log(`[Video] FAL responded: ${response.status} in ${elapsed}ms`)
+    console.log(`[Video] Replicate responded: ${response.status} in ${elapsed}ms`)
 
     if (!response.ok) {
       const errText = await response.text()
-      console.error(`[Video] FAL error: ${errText}`)
-      return c.json({ error: "Video generation failed. Please try again.", detail: errText }, 500)
+      console.error(`[Video] Replicate error: ${errText}`)
+      return c.json({ error: "Генерация видео не удалась. Попробуйте снова.", detail: errText }, 500)
     }
 
     const data = await response.json() as {
-      request_id?: string;
-      status?: string;
+      id: string
+      status: string
+      output?: string | string[] | { url: string }
+      urls?: { get: string }
     }
 
-    console.log(`[Video] Queued: request_id=${data.request_id} status=${data.status}`)
+    console.log(`[Video] Prediction id=${data.id} status=${data.status}`)
 
-    if (!data.request_id) {
-      console.error("[Video] No request_id in response:", JSON.stringify(data).slice(0, 300))
-      return c.json({ error: "Unexpected response from video service." }, 500)
+    // If already completed (Prefer: wait might return result)
+    let videoUrl: string | null = null
+    if (data.status === "succeeded" && data.output) {
+      if (typeof data.output === "string") videoUrl = data.output
+      else if (Array.isArray(data.output)) videoUrl = data.output[0]
+      else if (typeof data.output === "object" && "url" in data.output) videoUrl = data.output.url
     }
 
     return c.json({
-      id: data.request_id,
-      status: "processing",
+      id: data.id,
+      status: videoUrl ? "completed" : "processing",
+      url: videoUrl,
+      model,
       prompt: prompt.trim(),
-      duration: finalDuration,
-      endpoint: image ? "img2video" : "text2video",
       createdAt: new Date().toISOString(),
     })
 
@@ -112,164 +203,72 @@ videoRoutes.post("/generate", async (c) => {
     console.error(`[Video] Error after ${elapsed}ms:`, err)
     const msg = err instanceof Error ? err.message : String(err)
     if (msg.includes("TIMEOUT")) {
-      return c.json({ error: "Video generation is taking longer than expected. Please try again." }, 504)
+      return c.json({ error: "Генерация занимает слишком долго. Попробуйте снова." }, 504)
     }
-    return c.json({ error: "Video generation failed.", detail: msg }, 500)
+    return c.json({ error: "Генерация видео не удалась.", detail: msg }, 500)
   }
 })
 
-// ─── GET /status/:id — poll FAL.ai for generation result
+// ─── GET /status/:id — poll Replicate prediction status ───
 videoRoutes.get("/status/:id", async (c) => {
-  const requestId = c.req.param("id")
-  const endpoint = c.req.query("endpoint") || "text2video"
-  console.log(`[Video] GET /status/${requestId}`)
+  const predictionId = c.req.param("id")
+  console.log(`[Video] GET /status/${predictionId}`)
 
   try {
-    const falKey = getFalKey()
-    if (!falKey) {
-      return c.json({ error: "Service not configured." }, 503)
-    }
+    const apiKey = getReplicateKey()
+    if (!apiKey) return c.json({ error: "Service not configured." }, 503)
 
-    // Determine which FAL endpoint was used
-    const baseUrl = endpoint === "img2video" ? FAL_IMG2VIDEO : FAL_TEXT2VIDEO
-    const statusUrl = `${baseUrl}/requests/${requestId}/status`
-
-    const response = await fetchWithTimeout(statusUrl, {
+    const response = await fetchWithTimeout(`${REPLICATE_API}/${predictionId}`, {
       method: "GET",
-      headers: {
-        "Authorization": `Key ${falKey}`,
-      },
+      headers: { "Authorization": `Bearer ${apiKey}` },
     }, 15000)
 
     if (!response.ok) {
-      const errText = await response.text()
-      console.error(`[Video] Status check error: ${response.status} ${errText}`)
-      if (response.status === 404) {
-        return c.json({ id: requestId, status: "processing" })
-      }
-      return c.json({ error: "Failed to check status.", detail: errText }, 500)
+      console.error(`[Video] Status error: ${response.status}`)
+      return c.json({ id: predictionId, status: "processing" })
     }
 
     const data = await response.json() as {
-      status: string; // IN_QUEUE, IN_PROGRESS, COMPLETED
-      response_url?: string;
+      id: string
+      status: string // starting, processing, succeeded, failed, canceled
+      output?: string | string[] | { url: string }
+      error?: string
+      logs?: string
     }
 
-    console.log(`[Video] Status for ${requestId}: ${data.status}`)
+    console.log(`[Video] Status ${predictionId}: ${data.status}`)
 
-    // If completed, fetch the actual result
-    if (data.status === "COMPLETED") {
-      const resultUrl = `${baseUrl}/requests/${requestId}`
-      const resultRes = await fetchWithTimeout(resultUrl, {
-        method: "GET",
-        headers: { "Authorization": `Key ${falKey}` },
-      }, 15000)
+    if (data.status === "succeeded" && data.output) {
+      let videoUrl: string | null = null
+      if (typeof data.output === "string") videoUrl = data.output
+      else if (Array.isArray(data.output)) videoUrl = data.output[0]
+      else if (typeof data.output === "object" && "url" in data.output) videoUrl = data.output.url
 
-      if (resultRes.ok) {
-        const result = await resultRes.json() as {
-          video?: { url?: string };
-        }
-
-        const videoUrl = result.video?.url
-        if (videoUrl) {
-          console.log(`[Video] Completed: ${videoUrl.slice(0, 60)}...`)
-          return c.json({ id: requestId, status: "completed", url: videoUrl })
-        }
+      if (videoUrl) {
+        return c.json({ id: predictionId, status: "completed", url: videoUrl })
       }
-
-      return c.json({ id: requestId, status: "failed", error: "Could not retrieve video." })
     }
 
-    if (data.status === "FAILED") {
-      return c.json({ id: requestId, status: "failed", error: "Video generation failed on server." })
+    if (data.status === "failed" || data.status === "canceled") {
+      return c.json({ id: predictionId, status: "failed", error: data.error || "Генерация не удалась." })
     }
 
-    // IN_QUEUE or IN_PROGRESS
-    return c.json({ id: requestId, status: "processing" })
+    // starting / processing
+    return c.json({ id: predictionId, status: "processing" })
 
   } catch (err) {
     console.error(`[Video] Status check error:`, err)
-    return c.json({ id: requestId, status: "processing" })
+    return c.json({ id: predictionId, status: "processing" })
   }
 })
 
-// ─── POST /animate — portrait animation (image-to-video with preset)
-videoRoutes.post("/animate", async (c) => {
-  try {
-    console.log("[Video] POST /animate start")
-
-    const falKey = getFalKey()
-    if (!falKey) {
-      return c.json({ error: "Video generation service not configured. Set FAL_KEY." }, 503)
-    }
-
-    const { image, preset, duration, prompt: userPrompt } = await c.req.json()
-
-    if (!image || typeof image !== "string") {
-      return c.json({ error: "Please upload an image to animate." }, 400)
-    }
-
-    if (!preset || !PRESET_PROMPTS[preset]) {
-      return c.json({ error: "Please select an animation style." }, 400)
-    }
-
-    const validDurations = [5, 10]
-    const finalDuration = validDurations.includes(duration) ? duration : 5
-
-    const animationPrompt = PRESET_PROMPTS[preset]
-    const fullPrompt =
-      typeof userPrompt === "string" && userPrompt.trim()
-        ? userPrompt.trim()
-        : `Animate this portrait: ${animationPrompt}`
-
-    const response = await fetchWithTimeout(FAL_IMG2VIDEO, {
-      method: "POST",
-      headers: {
-        "Authorization": `Key ${falKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        prompt: fullPrompt,
-        image_url: image,
-        duration: String(finalDuration),
-        aspect_ratio: "9:16",
-      }),
-    }, TIMEOUT_MS)
-
-    if (!response.ok) {
-      const errText = await response.text()
-      console.error(`[Video] Animate error: ${errText}`)
-      return c.json({ error: "Animation failed. Please try again." }, 500)
-    }
-
-    const data = await response.json() as { request_id?: string }
-
-    if (!data.request_id) {
-      return c.json({ error: "Unexpected response from animation service." }, 500)
-    }
-
-    return c.json({
-      id: data.request_id,
-      status: "processing",
-      endpoint: "img2video",
-      preset,
-      duration: finalDuration,
-      createdAt: new Date().toISOString(),
-    })
-
-  } catch (err) {
-    console.error("[Video] Animate error:", err)
-    return c.json({ error: "Animation failed. Please try again later." }, 500)
-  }
-})
-
-// ─── GET / — health check
+// ─── GET / — health check ───
 videoRoutes.get("/", (c) => {
   return c.json({
     status: "ok",
     service: "video",
-    provider: "fal.ai",
-    model: "kling-v1.5-pro",
-    configured: !!getFalKey(),
+    provider: "replicate",
+    models: Object.keys(MODEL_REGISTRY),
+    configured: !!getReplicateKey(),
   })
 })
