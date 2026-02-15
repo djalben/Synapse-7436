@@ -492,8 +492,16 @@ async function apiSaveMessages(convId: string, msgs: StoredMessage[], title?: st
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messages: msgs, title, model }),
     })
+    if (!res.ok) {
+      console.error(`[chat] save failed: ${res.status} for conv ${convId} (${msgs.length} msgs)`)
+    } else {
+      console.log(`[chat] saved ${msgs.length} messages for conv ${convId}`)
+    }
     return res.ok
-  } catch { return false }
+  } catch (err) {
+    console.error(`[chat] save exception for conv ${convId}:`, err)
+    return false
+  }
 }
 
 async function apiDeleteConversation(convId: string): Promise<boolean> {
@@ -672,43 +680,50 @@ const ChatSession = ({ conversationId, initialMessages, selectedModel, onModelCh
     : undefined
 
   const { messages, sendMessage, status, error } = useChat({
-    initialMessages: reconstructedInitial,
+    messages: reconstructedInitial,
     transport: new DefaultChatTransport({
       api: "/api/chat",
       body: () => ({ model: selectedModelRef.current }),
       headers: () => ({ "X-User-Plan": userPlan }),
     }),
-    onFinish: (message) => {
+    onFinish: ({ message: finishedMsg, messages: allMessages }) => {
       incrementMessageDaily()
       incrementMessages()
 
-      const allMsgs = [...messages, message]
-      const stored: StoredMessage[] = allMsgs.map(m => ({
+      const stored: StoredMessage[] = allMessages.map(m => ({
         id: m.id,
         role: m.role,
         content: m.parts
-          .filter((p): p is { type: "text"; text: string } => p.type === "text")
-          .map(p => p.text)
+          .filter((p: any) => p.type === "text")
+          .map((p: any) => p.text)
           .join(""),
       }))
 
-      const firstUser = allMsgs.find(m => m.role === "user")
+      const firstUser = allMessages.find(m => m.role === "user")
       const firstUserText = firstUser
-        ? firstUser.parts.filter((p): p is { type: "text"; text: string } => p.type === "text").map(p => p.text).join("")
+        ? firstUser.parts.filter((p: any) => p.type === "text").map((p: any) => p.text).join("")
         : undefined
 
       onMessagesUpdate(convIdRef.current, stored, firstUserText)
       savedRef.current = true
 
       // Also persist to global history
-      const userMessages = allMsgs.filter(m => m.role === "user")
+      const userMessages = allMessages.filter(m => m.role === "user")
       const lastUserMessage = userMessages[userMessages.length - 1]
-      if (lastUserMessage && message.content) {
+      const finishedText = finishedMsg.parts
+        .filter((p: any) => p.type === "text")
+        .map((p: any) => p.text)
+        .join("")
+      if (lastUserMessage && finishedText) {
+        const lastUserText = lastUserMessage.parts
+          .filter((p: any) => p.type === "text")
+          .map((p: any) => p.text)
+          .join("")
         addToHistory({
           type: "chat",
-          prompt: typeof lastUserMessage.content === "string" ? lastUserMessage.content : "",
+          prompt: lastUserText,
           model: selectedModelRef.current,
-          result: typeof message.content === "string" ? message.content : "",
+          result: finishedText,
           credits: 0,
         })
       }
@@ -939,6 +954,7 @@ export const ChatInterface = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [selectedModel, setSelectedModel] = useState("deepseek-r1")
   const [chatKey, setChatKey] = useState(0)
+  const [loadingConv, setLoadingConv] = useState(false)
   const dbAvailableRef = useRef(false)
   const { userPlan = "free" } = useUsage()
 
@@ -1015,11 +1031,17 @@ export const ChatInterface = () => {
 
     // If messages aren't loaded yet, fetch from DB FIRST before switching
     if (conv && conv.messages.length === 0 && dbAvailableRef.current) {
-      const msgs = await apiLoadMessages(id)
-      if (msgs && msgs.length > 0) {
-        setConversations(prev =>
-          prev.map(c => c.id === id ? { ...c, messages: msgs } : c)
-        )
+      setLoadingConv(true)
+      try {
+        const msgs = await apiLoadMessages(id)
+        console.log(`[chat] loaded ${msgs?.length ?? 0} messages for conv ${id}`)
+        if (msgs && msgs.length > 0) {
+          setConversations(prev =>
+            prev.map(c => c.id === id ? { ...c, messages: msgs } : c)
+          )
+        }
+      } finally {
+        setLoadingConv(false)
       }
     }
 
@@ -1088,7 +1110,15 @@ export const ChatInterface = () => {
       )}
 
       {/* Chat session — flex-1, shrinks when sidebar opens */}
-      <div className="flex-1 min-w-0 h-full">
+      <div className="flex-1 min-w-0 h-full relative">
+        {loadingConv && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="flex items-center gap-3 text-white/70 text-sm">
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white/80 rounded-full animate-spin" />
+              Загрузка истории...
+            </div>
+          </div>
+        )}
         <ChatSession
           key={chatKey}
           conversationId={activeConvId}
