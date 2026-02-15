@@ -73,13 +73,44 @@ const CAMERA_MOTIONS: { id: CameraMotion; label: string; icon: typeof Minus }[] 
   { id: "tilt", label: "Наклон", icon: ArrowUp },
 ];
 
-// ─── Progress steps for smart button ───
-const PROGRESS_STEPS = [
-  { pct: 10, label: "Отправка..." },
-  { pct: 30, label: "В очереди..." },
-  { pct: 80, label: "Генерация..." },
-  { pct: 100, label: "Готово!" },
-];
+// ─── Model-aware progress config ───
+interface ProgressConfig {
+  steps: { pct: number; delay: number; label: string }[];
+  hint: string;
+}
+
+const PROGRESS_BY_MODEL: Record<VideoModelId, ProgressConfig> = {
+  "wan-2.2": {
+    steps: [
+      { pct: 10, delay: 0, label: "Отправка..." },
+      { pct: 30, delay: 2000, label: "В очереди..." },
+      { pct: 60, delay: 6000, label: "Генерация кадров..." },
+      { pct: 80, delay: 15000, label: "Финализация..." },
+    ],
+    hint: "Быстрая генерация • ~30 сек",
+  },
+  "kling-2.6": {
+    steps: [
+      { pct: 10, delay: 0, label: "Отправка..." },
+      { pct: 20, delay: 5000, label: "В очереди..." },
+      { pct: 45, delay: 20000, label: "Анимация лиц..." },
+      { pct: 65, delay: 50000, label: "Рендеринг движения..." },
+      { pct: 80, delay: 90000, label: "Аудио-трек..." },
+    ],
+    hint: "Анимация лиц • ~2 мин",
+  },
+  "veo-3.1": {
+    steps: [
+      { pct: 10, delay: 0, label: "Отправка..." },
+      { pct: 15, delay: 8000, label: "В очереди Google..." },
+      { pct: 30, delay: 25000, label: "Рендеринг 4K кадров..." },
+      { pct: 50, delay: 60000, label: "Нейросеть рисует детали..." },
+      { pct: 70, delay: 100000, label: "Синтез звуковой дорожки..." },
+      { pct: 80, delay: 130000, label: "Финализация..." },
+    ],
+    hint: "Рендеринг 4K кадров • ~2.5 мин",
+  },
+};
 
 // ─── Upload Dropzone ───
 const UploadDropzone = ({ onUpload, disabled }: { onUpload: (img: string) => void; disabled?: boolean }) => {
@@ -126,10 +157,12 @@ const UploadDropzone = ({ onUpload, disabled }: { onUpload: (img: string) => voi
 };
 
 // ─── Video Player ───
-const VideoPlayer = ({ video, isGenerating, progress }: {
+const VideoPlayer = ({ video, isGenerating, progress, progressHint, progressLabel }: {
   video: GeneratedVideo | null;
   isGenerating: boolean;
   progress: number;
+  progressHint?: string;
+  progressLabel?: string;
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
@@ -160,7 +193,6 @@ const VideoPlayer = ({ video, isGenerating, progress }: {
 
   // Generating state
   if (isGenerating) {
-    const stepLabel = PROGRESS_STEPS.find(s => s.pct >= progress)?.label || "Генерация...";
     return (
       <div className="relative aspect-video rounded-2xl overflow-hidden bg-gradient-to-br from-[#0a0a0a] to-[#111] border border-[#222]">
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
@@ -172,15 +204,18 @@ const VideoPlayer = ({ video, isGenerating, progress }: {
             </div>
           </div>
           <div className="relative text-center">
-            <p className="text-white/90 font-medium">{stepLabel}</p>
+            <p className="text-white/90 font-medium">{progressLabel || "Генерация..."}</p>
             <p className="text-indigo-300/50 text-sm mt-1">{progress}%</p>
           </div>
           <div className="relative w-48 h-1.5 rounded-full bg-white/10 overflow-hidden">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-1000"
+              className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-[2000ms]"
               style={{ width: `${progress}%` }}
             />
           </div>
+          {progressHint && (
+            <p className="relative text-[11px] text-[#555] mt-1">{progressHint}</p>
+          )}
         </div>
       </div>
     );
@@ -306,16 +341,21 @@ export const MotionLab = () => {
     if (mode === "image" && !selectedModel.supportsImage) setMode("text");
   }, [model, mode, selectedModel.supportsImage]);
 
-  // Progress simulation
+  // Model-aware progress simulation
+  const progressConfig = PROGRESS_BY_MODEL[model];
+  const [progressLabel, setProgressLabel] = useState("");
+
   const simulateProgress = useCallback(() => {
-    setProgress(10);
-    const timers = [
-      setTimeout(() => setProgress(30), 3000),
-      setTimeout(() => setProgress(50), 8000),
-      setTimeout(() => setProgress(80), 15000),
-    ];
+    const cfg = PROGRESS_BY_MODEL[model];
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    for (const step of cfg.steps) {
+      timers.push(setTimeout(() => {
+        setProgress(step.pct);
+        setProgressLabel(step.label);
+      }, step.delay));
+    }
     return () => timers.forEach(clearTimeout);
-  }, []);
+  }, [model]);
 
   // Poll for video status
   const pollForVideo = async (taskId: string): Promise<string> => {
@@ -643,7 +683,7 @@ export const MotionLab = () => {
                   {isGenerating ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      {PROGRESS_STEPS.find(s => s.pct >= progress)?.label || "Генерация..."} {progress}%
+                      {progressLabel || "Генерация..."} {progress}%
                     </>
                   ) : (
                     <>
@@ -709,7 +749,7 @@ export const MotionLab = () => {
               <Film className="w-4 h-4 text-[#666]" />
               Предпросмотр
             </h3>
-            <VideoPlayer video={currentVideo} isGenerating={isGenerating} progress={progress} />
+            <VideoPlayer video={currentVideo} isGenerating={isGenerating} progress={progress} progressHint={isGenerating ? progressConfig.hint : undefined} progressLabel={progressLabel} />
           </div>
 
           {/* Recent */}

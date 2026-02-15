@@ -17,19 +17,18 @@ interface VideoModelConfig {
 const MODEL_REGISTRY: Record<string, VideoModelConfig> = {
   "wan-2.2": {
     name: "Wan 2.2 Fast",
-    text: "wan-ai/wan2.1-t2v-480p",
-    image: "wan-ai/wan2.1-i2v-480p-720p",
+    text: "wan-ai/wan-2.1-t2v-480p",
+    image: "wan-ai/wan-2.1-t2v-480p",
   },
   "kling-2.6": {
     name: "Kling 2.6 Pro",
-    text: "kling-ai/kling-v2-pro",
-    image: "kling-ai/kling-v2-pro",
+    text: "kuaishou/kling-v2.1-pro",
+    image: "kuaishou/kling-v2.1-pro",
   },
   "veo-3.1": {
     name: "Google Veo 3.1",
     text: "google-deepmind/veo-3",
     image: null,
-    defaultInput: { generate_audio: true },
   },
 }
 
@@ -140,16 +139,33 @@ videoRoutes.post("/generate", async (c) => {
     finalPrompt += (CAMERA_MOTION[cameraMotion] || "")
     finalPrompt += ", cinematic quality, smooth motion, professional video"
 
-    // Build Replicate input
-    const input: Record<string, unknown> = {
-      prompt: finalPrompt,
-      aspect_ratio: aspectRatio,
-      duration,
-      ...modelConfig.defaultInput,
-    }
-    if (isImageMode && image) {
-      input.image = image
-      input.start_image = image  // Kling uses start_image
+    // Build model-specific Replicate input
+    let input: Record<string, unknown> = {}
+
+    if (model === "wan-2.2") {
+      input = {
+        prompt: finalPrompt,
+        fast_mode: "Balanced",
+        sample_steps: 30,
+        frames_per_second: 16,
+        aspect_ratio: aspectRatio,
+      }
+    } else if (model === "kling-2.6") {
+      input = {
+        prompt: finalPrompt,
+        duration: 5,
+        aspect_ratio: aspectRatio,
+        generate_audio: true,
+      }
+      if (isImageMode && image) {
+        input.start_image = image
+      }
+    } else if (model === "veo-3.1") {
+      input = {
+        prompt: finalPrompt,
+      }
+    } else {
+      input = { prompt: finalPrompt }
     }
 
     console.log(`[Video] Model=${replicateModel} mode=${isImageMode ? "i2v" : "t2v"} aspect=${aspectRatio} cam=${cameraMotion}`)
