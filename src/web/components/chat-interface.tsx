@@ -42,7 +42,7 @@ const MODEL_NAMES: Record<string, string> = {
   "gpt-4o-mini": "GPT-4o mini",
   "gpt-4o": "GPT-4o",
   "claude-3.5-sonnet": "Claude 3.5 Sonnet",
-  "gpt-5-o1": "GPT-5.2",
+  "gpt-5-o1": "GPT-5.2 Chat",
 }
 
 // Typing indicator component
@@ -54,19 +54,13 @@ const TypingIndicator = () => (
   </div>
 )
 
-// Thinking / reasoning block — subtle, non-intrusive
+// Thinking / reasoning block — barely visible, non-intrusive
 const ThinkingBlock = ({ collapsed }: { collapsed?: boolean }) => {
-  if (collapsed) {
-    return (
-      <div className="flex items-center gap-1.5 px-1 py-0.5 mb-1 transition-all duration-500">
-        <span className="text-[10px] text-zinc-600">✓ Рассуждения завершены</span>
-      </div>
-    )
-  }
+  if (collapsed) return null
   return (
-    <div className="flex items-center gap-2 px-1 py-1 mb-1.5 opacity-40">
-      <span className="text-xs">🧠</span>
-      <span className="text-[11px] text-zinc-500 italic">ИИ анализирует контекст и формирует ответ...</span>
+    <div className="flex items-center gap-2 px-1 py-1 mb-1.5">
+      <span className="text-xs opacity-30">🧠</span>
+      <span className="text-[11px] text-zinc-500/30 italic">ИИ анализирует контекст и формирует ответ...</span>
     </div>
   )
 }
@@ -659,6 +653,8 @@ const ChatSession = ({ conversationId, initialMessages, selectedModel, onModelCh
   const [inputValue, setInputValue] = useState("")
   const selectedModelRef = useRef(selectedModel)
   const convIdRef = useRef(conversationId)
+  const messagesRef = useRef<any[]>([])
+  const savedRef = useRef(false)
   const {
     incrementMessageDaily,
     incrementMessages,
@@ -702,6 +698,7 @@ const ChatSession = ({ conversationId, initialMessages, selectedModel, onModelCh
         : undefined
 
       onMessagesUpdate(convIdRef.current, stored, firstUserText)
+      savedRef.current = true
 
       // Also persist to global history
       const userMessages = allMsgs.filter(m => m.role === "user")
@@ -745,9 +742,45 @@ const ChatSession = ({ conversationId, initialMessages, selectedModel, onModelCh
     userAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight <= 120
   }
 
+  // Keep messagesRef in sync
+  useEffect(() => { messagesRef.current = messages }, [messages])
+
+  // On unmount: save any unsaved messages as safety net
+  useEffect(() => {
+    return () => {
+      const msgs = messagesRef.current
+      if (msgs.length > 0 && !savedRef.current) {
+        const stored: StoredMessage[] = msgs.map((m: any) => ({
+          id: m.id,
+          role: m.role,
+          content: m.parts
+            ?.filter((p: any) => p.type === "text")
+            .map((p: any) => p.text)
+            .join("") ?? "",
+        }))
+        const firstUser = msgs.find((m: any) => m.role === "user")
+        const firstUserText = firstUser
+          ? firstUser.parts?.filter((p: any) => p.type === "text").map((p: any) => p.text).join("")
+          : undefined
+        onMessagesUpdate(convIdRef.current, stored, firstUserText)
+      }
+    }
+  }, [])
+
   const handleSendMessage = () => {
     if (!inputValue.trim() || isLoading) return
     userAtBottomRef.current = true
+
+    // Eagerly create conversation entry on first message in a new chat
+    if (!convIdRef.current && messages.length === 0) {
+      const userMsg: StoredMessage = {
+        id: `user-${Date.now()}`,
+        role: "user",
+        content: inputValue.trim(),
+      }
+      onMessagesUpdate(null, [userMsg], inputValue.trim())
+    }
+
     sendMessage({ text: inputValue })
     setInputValue("")
   }
@@ -762,14 +795,12 @@ const ChatSession = ({ conversationId, initialMessages, selectedModel, onModelCh
         onScroll={handleMessagesScroll}
         className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-4 md:px-8 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-6"
       >
-        {/* Sticky controls — inside scroll container, bg on scroll */}
+        {/* Floating controls — transparent, no background strip */}
         <div
           className={`
             sticky top-0 z-[100] -mx-4 md:-mx-8 px-4 md:px-6 py-3
             flex items-center gap-3
             pointer-events-none
-            bg-black/95 backdrop-blur-md
-            border-b border-white/[0.04]
             transition-opacity duration-700 ease-out
             ${isLoaded ? "opacity-100" : "opacity-0"}
           `}
@@ -975,6 +1006,8 @@ export const ChatInterface = () => {
   }, [selectedModel])
 
   const handleNewChat = useCallback(() => {
+    // If there's an active conversation with messages, it's already saved via onMessagesUpdate.
+    // Just switch to a blank session.
     setActiveConvId(null)
     setChatKey(k => k + 1)
   }, [])
