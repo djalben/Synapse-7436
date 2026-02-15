@@ -59,8 +59,8 @@ const ThinkingBlock = ({ collapsed }: { collapsed?: boolean }) => {
   if (collapsed) return null
   return (
     <div className="flex items-center gap-2 px-1 py-1 mb-1.5">
-      <span className="text-xs opacity-30">🧠</span>
-      <span className="text-[11px] text-zinc-500/30 italic">ИИ анализирует контекст и формирует ответ...</span>
+      <span className="text-xs opacity-20">🧠</span>
+      <span className="text-[11px] text-zinc-500/20 italic">ИИ анализирует контекст и формирует ответ...</span>
     </div>
   )
 }
@@ -1012,21 +1012,23 @@ export const ChatInterface = () => {
     setChatKey(k => k + 1)
   }, [])
 
-  const handleSelectConversation = useCallback((id: string) => {
-    // If DB is available and messages not yet loaded, fetch them
+  const handleSelectConversation = useCallback(async (id: string) => {
     const conv = conversations.find(c => c.id === id)
+
+    // If messages aren't loaded yet, fetch from DB FIRST before switching
     if (conv && conv.messages.length === 0 && dbAvailableRef.current) {
-      apiLoadMessages(id).then(msgs => {
-        if (msgs && msgs.length > 0) {
-          setConversations(prev =>
-            prev.map(c => c.id === id ? { ...c, messages: msgs } : c)
-          )
-        }
-      })
+      const msgs = await apiLoadMessages(id)
+      if (msgs && msgs.length > 0) {
+        setConversations(prev =>
+          prev.map(c => c.id === id ? { ...c, messages: msgs } : c)
+        )
+      }
     }
+
+    // Now switch — ChatSession will mount with messages already in state
+    if (conv) setSelectedModel(conv.model)
     setActiveConvId(id)
     setChatKey(k => k + 1)
-    if (conv) setSelectedModel(conv.model)
   }, [conversations])
 
   const handleDeleteConversation = useCallback((id: string) => {
@@ -1049,23 +1051,25 @@ export const ChatInterface = () => {
   const toggleSidebar = useCallback(() => setSidebarOpen(o => !o), [])
 
   return (
-    <div className="w-full h-full min-h-0 overflow-hidden relative">
-      {/* Chat history sidebar — absolute overlay on desktop */}
+    <div className="flex w-full h-full min-h-0 overflow-hidden">
+      {/* Desktop sidebar — flex child, transitions width */}
       <div
         className={`
-          hidden md:block absolute top-0 left-0 h-full z-[150]
-          transition-transform duration-300 ease-in-out
-          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+          hidden md:block flex-shrink-0 h-full overflow-hidden
+          transition-[width] duration-300 ease-in-out
+          ${sidebarOpen ? "w-72" : "w-0"}
         `}
       >
-        <ChatHistorySidebar
-          conversations={conversations}
-          activeId={activeConvId}
-          onSelect={handleSelectConversation}
-          onNew={handleNewChat}
-          onDelete={handleDeleteConversation}
-          onRename={handleRenameConversation}
-        />
+        <div className="w-72 h-full">
+          <ChatHistorySidebar
+            conversations={conversations}
+            activeId={activeConvId}
+            onSelect={handleSelectConversation}
+            onNew={handleNewChat}
+            onDelete={handleDeleteConversation}
+            onRename={handleRenameConversation}
+          />
+        </div>
       </div>
 
       {/* Mobile sidebar overlay */}
@@ -1085,8 +1089,8 @@ export const ChatInterface = () => {
         </div>
       )}
 
-      {/* Chat session — shifts right when sidebar open */}
-      <div className={`h-full transition-all duration-300 ease-in-out ${sidebarOpen ? "md:pl-72" : ""}`}>
+      {/* Chat session — flex-1, shrinks when sidebar opens */}
+      <div className="flex-1 min-w-0 h-full">
         <ChatSession
           key={chatKey}
           conversationId={activeConvId}
