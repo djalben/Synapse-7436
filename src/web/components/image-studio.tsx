@@ -1467,7 +1467,7 @@ const EnhancePhotoPanel = ({
     setIsEnhancing(true);
     setError(null);
     setElapsedTime(0);
-    setStatusMessage("Отправляем фото на обработку...");
+    setStatusMessage("Nano Banana восстанавливает текстуры...");
 
     const startTime = Date.now();
     if (enhanceTimerRef.current) clearInterval(enhanceTimerRef.current);
@@ -1485,7 +1485,7 @@ const EnhancePhotoPanel = ({
         }),
       });
 
-      setStatusMessage("Обрабатываем результат...");
+      setStatusMessage("Финализируем результат...");
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({ error: "Server error" })) as { error?: string };
@@ -1667,7 +1667,7 @@ const EnhancePhotoPanel = ({
             )}
             <span className="relative flex items-center justify-center gap-2">
               {isEnhancing ? (
-                <><Loader2 className="w-5 h-5 animate-spin" /><span>Улучшаем...</span></>
+                <><Loader2 className="w-5 h-5 animate-spin" /><span>Nano Banana работает...</span></>
               ) : enhancedResult ? (
                 <><Sparkles className="w-5 h-5" /><span>Улучшить ещё фото</span></>
               ) : (
@@ -1685,7 +1685,7 @@ const EnhancePhotoPanel = ({
                 <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "300ms" }} />
               </div>
               <span className="text-xs text-indigo-300/80 font-medium">{statusMessage}</span>
-              <span className="text-xs text-[#555] tabular-nums">{elapsedTime}с</span>
+              <span className="text-xs text-[#555] tabular-nums">{elapsedTime < 10 ? `~${Math.max(0, 10 - elapsedTime)} сек` : `${elapsedTime}с`}</span>
             </div>
           )}
         </div>

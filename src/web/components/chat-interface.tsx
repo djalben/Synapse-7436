@@ -735,48 +735,46 @@ const ChatSession = ({ conversationId, initialMessages, selectedModel, onModelCh
   const hasMessages = messages.length > 0
 
   return (
-    <div className="relative flex flex-col w-full h-full min-h-0 overflow-hidden border-none">
-      {/* Floating controls — transparent, no background strip */}
-      <div
-        className={`
-          absolute top-0 left-0 right-0 z-[100]
-          flex items-center gap-3
-          px-4 md:px-6 py-3
-          pointer-events-none
-          transition-opacity duration-700 ease-out
-          ${isLoaded ? "opacity-100" : "opacity-0"}
-        `}
-      >
-        <button
-          onClick={onToggleSidebar}
-          className="
-            pointer-events-auto
-            flex items-center justify-center
-            w-9 h-9 rounded-lg
-            bg-black/40 backdrop-blur-md border border-white/[0.08]
-            text-[#888] hover:text-white hover:bg-white/[0.08]
-            transition-all duration-200
-            flex-shrink-0
-          "
-          title={sidebarOpen ? "Скрыть историю" : "История чатов"}
-        >
-          {sidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
-        </button>
-        <div className="pointer-events-auto">
-          <ModelSelector
-            selectedModel={selectedModel}
-            onModelChange={onModelChange}
-            userPlan={userPlan as any}
-          />
-        </div>
-      </div>
-
+    <div className="flex flex-col w-full h-full min-h-0 overflow-hidden border-none">
       {/* Messages area */}
       <div
         ref={messagesContainerRef}
         onScroll={handleMessagesScroll}
-        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-4 md:px-8 pt-14 md:pt-16 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-6"
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-4 md:px-8 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-6"
       >
+        {/* Sticky floating controls — inside scroll container, respects parent width */}
+        <div
+          className={`
+            sticky top-0 z-[100] -mx-4 md:-mx-8 px-4 md:px-6 py-3
+            flex items-center gap-3
+            pointer-events-none
+            transition-opacity duration-700 ease-out
+            ${isLoaded ? "opacity-100" : "opacity-0"}
+          `}
+        >
+          <button
+            onClick={onToggleSidebar}
+            className="
+              pointer-events-auto
+              flex items-center justify-center
+              w-9 h-9 rounded-lg
+              bg-black/40 backdrop-blur-md border border-white/[0.08]
+              text-[#888] hover:text-white hover:bg-white/[0.08]
+              transition-all duration-200
+              flex-shrink-0
+            "
+            title={sidebarOpen ? "Скрыть историю" : "История чатов"}
+          >
+            {sidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
+          </button>
+          <div className="pointer-events-auto">
+            <ModelSelector
+              selectedModel={selectedModel}
+              onModelChange={onModelChange}
+              userPlan={userPlan as any}
+            />
+          </div>
+        </div>
         {!hasMessages ? (
           <div
             className={`

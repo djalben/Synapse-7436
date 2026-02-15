@@ -3,14 +3,14 @@ import { Hono } from "hono"
 export const enhanceRoutes = new Hono()
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-const ENHANCE_MODEL = "sourceful/riverflow-v2-fast"
-const TIMEOUT_MS = 45000
+const ENHANCE_MODEL = "google/gemini-2.5-flash-image"
+const TIMEOUT_MS = 20000
 
 // Prompt fragments for each enhancement option
 const OPTION_PROMPTS: Record<string, string> = {
-  upscale: "Enhance image resolution. Maintain authentic film grain and skin pores. Strictly avoid artificial smoothing or plastic skin effect.",
-  faceRestore: "Sharpen facial features naturally. Do NOT apply beauty filters. Preserve the original character, wrinkles, and skin texture.",
-  brightness: "Professional color grading. Balance shadows and highlights to look like a high-end cinematic shot.",
+  upscale: "Increase perceived resolution and sharpness. Preserve authentic film grain, skin pores, and micro-textures.",
+  faceRestore: "Restore facial detail with clinical precision. Preserve every wrinkle, pore, scar, and natural asymmetry. Do NOT beautify.",
+  brightness: "Apply professional color grading. Lift crushed shadows, recover blown highlights, balance white point like a raw photo edit.",
 }
 
 /** Promise.race timeout */
@@ -56,7 +56,7 @@ enhanceRoutes.post("/", async (c) => {
     const promptParts = selectedOptions
       .map(([key]) => OPTION_PROMPTS[key])
       .filter(Boolean)
-    const enhancePrompt = `Enhance this photo professionally. ${promptParts.join(". ")}. Keep the person's identity and expression identical. Output a high-quality photograph.`
+    const enhancePrompt = `Task: High-fidelity photorealistic image restoration. ${promptParts.join(". ")}. Strictly preserve authentic skin texture, pores, and natural hair details. Avoid any artificial smoothing or 'painting' effects. The output must look like a sharp, raw photograph. Keep the person's identity, expression, and pose identical.`
 
     console.log(`[Enhance] options=${selectedOptions.map(([k]) => k).join(",")}, prompt="${enhancePrompt.substring(0, 80)}..."`)
 
