@@ -79,15 +79,10 @@ export const UserAvatar = ({ onSettingsClick }: UserAvatarProps) => {
           <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-black" />
         </div>
 
-        {/* Name and dropdown indicator - hidden on mobile */}
-        <div className="hidden md:flex items-center gap-1">
-          <span className="text-sm text-[#888] group-hover:text-white transition-colors max-w-[100px] truncate">
-            {user.name}
-          </span>
-          <ChevronDown 
-            className={`w-4 h-4 text-[#666] transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} 
-          />
-        </div>
+        {/* Dropdown indicator only — no name text */}
+        <ChevronDown 
+          className={`hidden md:block w-3.5 h-3.5 text-[#555] transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} 
+        />
       </button>
 
       {/* Dropdown Menu */}

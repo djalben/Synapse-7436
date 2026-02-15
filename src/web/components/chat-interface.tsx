@@ -42,7 +42,7 @@ const MODEL_NAMES: Record<string, string> = {
   "gpt-4o-mini": "GPT-4o mini",
   "gpt-4o": "GPT-4o",
   "claude-3.5-sonnet": "Claude 3.5 Sonnet",
-  "gpt-5-o1": "GPT-5 Pro",
+  "gpt-5-o1": "GPT-5.2",
 }
 
 // Typing indicator component
@@ -54,19 +54,22 @@ const TypingIndicator = () => (
   </div>
 )
 
-// Thinking / reasoning block — shown while model is processing
-const ThinkingBlock = ({ collapsed }: { collapsed?: boolean }) => (
-  <div className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl mb-2 transition-all duration-500 ${
-    collapsed
-      ? "bg-white/[0.02] border border-white/[0.04]"
-      : "bg-indigo-500/[0.06] border border-indigo-500/[0.12] animate-pulse"
-  }`}>
-    <span className="text-sm">{collapsed ? "✓" : "🧠"}</span>
-    <span className={`text-xs font-medium ${collapsed ? "text-[#555]" : "text-indigo-300/90"}`}>
-      {collapsed ? "Рассуждения завершены" : "ИИ анализирует запрос и выстраивает логику ответа..."}
-    </span>
-  </div>
-)
+// Thinking / reasoning block — subtle, non-intrusive
+const ThinkingBlock = ({ collapsed }: { collapsed?: boolean }) => {
+  if (collapsed) {
+    return (
+      <div className="flex items-center gap-1.5 px-1 py-0.5 mb-1 transition-all duration-500">
+        <span className="text-[10px] text-zinc-600">✓ Рассуждения завершены</span>
+      </div>
+    )
+  }
+  return (
+    <div className="flex items-center gap-2 px-1 py-1 mb-1.5 opacity-40">
+      <span className="text-xs">🧠</span>
+      <span className="text-[11px] text-zinc-500 italic">ИИ анализирует контекст и формирует ответ...</span>
+    </div>
+  )
+}
 
 // Message component with markdown support
 interface MessageBubbleProps {
@@ -759,12 +762,14 @@ const ChatSession = ({ conversationId, initialMessages, selectedModel, onModelCh
         onScroll={handleMessagesScroll}
         className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-4 md:px-8 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-6"
       >
-        {/* Sticky floating controls — inside scroll container, respects parent width */}
+        {/* Sticky controls — inside scroll container, bg on scroll */}
         <div
           className={`
             sticky top-0 z-[100] -mx-4 md:-mx-8 px-4 md:px-6 py-3
             flex items-center gap-3
             pointer-events-none
+            bg-black/95 backdrop-blur-md
+            border-b border-white/[0.04]
             transition-opacity duration-700 ease-out
             ${isLoaded ? "opacity-100" : "opacity-0"}
           `}
@@ -1011,13 +1016,13 @@ export const ChatInterface = () => {
   const toggleSidebar = useCallback(() => setSidebarOpen(o => !o), [])
 
   return (
-    <div className="flex w-full h-full min-h-0 overflow-hidden relative">
-      {/* Chat history sidebar — slides in/out */}
+    <div className="w-full h-full min-h-0 overflow-hidden relative">
+      {/* Chat history sidebar — absolute overlay on desktop */}
       <div
         className={`
-          hidden md:flex flex-shrink-0 h-full
-          transition-all duration-300 ease-in-out overflow-hidden
-          ${sidebarOpen ? "w-72" : "w-0"}
+          hidden md:block absolute top-0 left-0 h-full z-[150]
+          transition-transform duration-300 ease-in-out
+          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
         `}
       >
         <ChatHistorySidebar
@@ -1047,8 +1052,8 @@ export const ChatInterface = () => {
         </div>
       )}
 
-      {/* Chat session — remounts on conversation switch */}
-      <div className="flex-1 min-w-0 h-full">
+      {/* Chat session — shifts right when sidebar open */}
+      <div className={`h-full transition-all duration-300 ease-in-out ${sidebarOpen ? "md:pl-72" : ""}`}>
         <ChatSession
           key={chatKey}
           conversationId={activeConvId}
