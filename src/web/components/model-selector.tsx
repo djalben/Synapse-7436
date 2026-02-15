@@ -279,27 +279,26 @@ export const ModelSelector = ({
         type="button"
         onClick={() => setOpen((o) => !o)}
         className="
-          inline-flex items-center gap-1.5
-          min-h-[36px] md:min-h-0
-          px-2.5 py-1.5 md:px-3 md:py-1.5
-          rounded-lg md:rounded-xl
-          bg-black/40 backdrop-blur-xl border border-white/10
-          text-white/95 hover:bg-white/[0.08] hover:border-white/20
+          inline-flex items-center gap-1
+          min-h-0
+          px-2 py-1 md:px-2.5 md:py-1
+          rounded-md md:rounded-lg
+          bg-black/30 backdrop-blur-xl border border-white/[0.08]
+          text-white/90 hover:bg-white/[0.06] hover:border-white/[0.15]
           transition-all duration-200
-          shadow-sm shadow-black/20
         "
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-label="Выбрать модель"
       >
-        <span className="flex items-center [&_svg]:block [&_svg]:w-3.5 [&_svg]:h-3.5 md:[&_svg]:w-4 md:[&_svg]:h-4" aria-hidden>
+        <span className="flex items-center [&_svg]:block [&_svg]:w-3 [&_svg]:h-3 md:[&_svg]:w-3.5 md:[&_svg]:h-3.5" aria-hidden>
           {selected.providerLogo}
         </span>
-        <span className="text-xs md:text-sm font-medium truncate max-w-[120px] md:max-w-[160px]">
+        <span className="text-[11px] md:text-xs font-medium truncate max-w-[100px] md:max-w-[140px]">
           {selected.name}
         </span>
         <ChevronDown
-          className={`w-3 h-3 md:w-3.5 md:h-3.5 flex-shrink-0 text-[#666] transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          className={`w-2.5 h-2.5 md:w-3 md:h-3 flex-shrink-0 text-[#555] transition-transform duration-200 ${open ? "rotate-180" : ""}`}
           aria-hidden
         />
       </button>
