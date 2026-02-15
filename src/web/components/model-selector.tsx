@@ -118,7 +118,7 @@ export const models: Model[] = [
   },
   {
     id: "gpt-5-o1",
-    backendId: "openai/gpt-5.2",
+    backendId: "openai/gpt-5.2-chat",
     name: "GPT-5 Pro",
     subtitle: "PRO STUDIO",
     description: "Максимальный интеллект. Решает невозможные задачи.",

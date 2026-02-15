@@ -54,6 +54,20 @@ const TypingIndicator = () => (
   </div>
 )
 
+// Thinking / reasoning block — shown while model is processing
+const ThinkingBlock = ({ collapsed }: { collapsed?: boolean }) => (
+  <div className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl mb-2 transition-all duration-500 ${
+    collapsed
+      ? "bg-white/[0.02] border border-white/[0.04]"
+      : "bg-indigo-500/[0.06] border border-indigo-500/[0.12] animate-pulse"
+  }`}>
+    <span className="text-sm">{collapsed ? "✓" : "🧠"}</span>
+    <span className={`text-xs font-medium ${collapsed ? "text-[#555]" : "text-indigo-300/90"}`}>
+      {collapsed ? "Рассуждения завершены" : "ИИ анализирует запрос и выстраивает логику ответа..."}
+    </span>
+  </div>
+)
+
 // Message component with markdown support
 interface MessageBubbleProps {
   role: "user" | "assistant"
@@ -710,13 +724,16 @@ const ChatSession = ({ conversationId, initialMessages, selectedModel, onModelCh
 
   useEffect(() => {
     const el = messagesContainerRef.current
-    const endEl = messagesEndRef.current
-    if (!el || !endEl) return
+    if (!el) return
     if (status === "streaming") {
-      if (userAtBottomRef.current) el.scrollTop = el.scrollHeight
-    } else {
-      endEl.scrollIntoView({ behavior: "smooth", block: "end" })
+      if (userAtBottomRef.current) {
+        requestAnimationFrame(() => { el.scrollTop = el.scrollHeight })
+      }
+    } else if (status === "submitted") {
+      requestAnimationFrame(() => { el.scrollTop = el.scrollHeight })
     }
+    // When generation finishes (status changes to 'ready'), do a single gentle scroll
+    // without smooth behavior to avoid blocking the thread
   }, [messages, status])
 
   const handleMessagesScroll = () => {
@@ -820,10 +837,19 @@ const ChatSession = ({ conversationId, initialMessages, selectedModel, onModelCh
                   <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[#1a1a1a] border border-[#333] flex items-center justify-center text-[#888]">
                     {MODEL_LOGOS[selectedModel] || <Bot className="w-4 h-4" />}
                   </div>
-                  <div className="px-4 py-2 rounded-2xl rounded-bl-md bg-[#0d0d0d]/80 border border-[#222]">
-                    <TypingIndicator />
+                  <div>
+                    <ThinkingBlock />
+                    <div className="px-4 py-2 rounded-2xl rounded-bl-md bg-[#0d0d0d]/80 border border-[#222]">
+                      <TypingIndicator />
+                    </div>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {status === "streaming" && messages.length > 0 && messages[messages.length - 1].role === "assistant" && (
+              <div className="max-w-4xl mx-auto -mt-3 mb-1">
+                <ThinkingBlock collapsed />
               </div>
             )}
 

@@ -10,7 +10,7 @@ const MODEL_MAP: Record<string, string> = {
   "gpt-4o-mini": "openai/gpt-4o-mini",
   "gpt-4o": "openai/gpt-4o",
   "claude-3.5-sonnet": "anthropic/claude-3.5-sonnet",
-  "gpt-5-o1": "openai/gpt-5.2",
+  "gpt-5-o1": "openai/gpt-5.2-chat",
 }
 
 // Credit costs per model
