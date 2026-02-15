@@ -455,13 +455,13 @@ async function apiListConversations(): Promise<ChatConversation[] | null> {
     if (!res.ok) return null
     const rows: any[] = await res.json()
     // API returns conversations without messages; load messages per-conversation lazily
-    return rows.map(r => ({
+    return rows.map((r: any) => ({
       id: r.id,
       title: r.title,
       model: r.model,
       messages: [], // loaded on demand
-      createdAt: typeof r.createdAt === "string" ? new Date(r.createdAt).getTime() : r.createdAt,
-      updatedAt: typeof r.updatedAt === "string" ? new Date(r.updatedAt).getTime() : r.updatedAt,
+      createdAt: r.created_at ? new Date(r.created_at).getTime() : (r.createdAt ? new Date(r.createdAt).getTime() : Date.now()),
+      updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : (r.updatedAt ? new Date(r.updatedAt).getTime() : Date.now()),
     }))
   } catch { return null }
 }
@@ -995,10 +995,8 @@ export const ChatInterface = () => {
           createdAt: Date.now(),
           updatedAt: Date.now(),
         }
-        // Save to API in background (create + messages)
-        apiCreateConversation({ id: newId, title, model: selectedModel }).then(() => {
-          apiSaveMessages(newId, msgs, title, selectedModel)
-        })
+        // Create conversation row in DB (messages will be saved by onFinish)
+        apiCreateConversation({ id: newId, title, model: selectedModel })
         setTimeout(() => setActiveConvId(newId), 0)
         return [newConv, ...prev]
       }

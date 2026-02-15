@@ -76,6 +76,7 @@ conversationRoutes.get("/:id/messages", async (c) => {
       WHERE conversation_id = ${convId}
       ORDER BY created_at ASC
     `
+    console.log(`[conversations] load messages convId=${convId} count=${rows.length}`)
     return c.json(rows)
   } catch (err: any) {
     console.error("[conversations] messages error:", err)
@@ -157,6 +158,17 @@ conversationRoutes.post("/:id/messages", async (c) => {
       model?: string
     }>()
 
+    console.log(`[conversations] save messages convId=${convId} count=${body.messages.length} title=${body.title ?? "(none)"}`)
+
+    // Ensure conversation exists (prevents FK violation from race condition)
+    const title = body.title || "Новый чат"
+    const model = body.model || "deepseek-r1"
+    await sql`
+      INSERT INTO conversations (id, user_id, title, model)
+      VALUES (${convId}, 'anonymous', ${title}, ${model})
+      ON CONFLICT (id) DO NOTHING
+    `
+
     // Delete old messages and insert new ones
     await sql`DELETE FROM chat_messages WHERE conversation_id = ${convId}`
 
@@ -184,6 +196,7 @@ conversationRoutes.post("/:id/messages", async (c) => {
       await sql`UPDATE conversations SET updated_at = NOW() WHERE id = ${convId}`
     }
 
+    console.log(`[conversations] saved OK convId=${convId}`)
     return c.json({ ok: true })
   } catch (err: any) {
     console.error("[conversations] save messages error:", err)
