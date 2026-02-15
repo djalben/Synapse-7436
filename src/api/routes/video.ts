@@ -17,13 +17,13 @@ interface VideoModelConfig {
 const MODEL_REGISTRY: Record<string, VideoModelConfig> = {
   "wan-2.2": {
     name: "Wan 2.2 Fast",
-    text: "wan-ai/wan-2.1-t2v-480p",
-    image: "wan-ai/wan-2.1-t2v-480p",
+    text: "wan-video/wan-2.2-t2v-fast",
+    image: "wan-video/wan-2.2-i2v-fast",
   },
   "kling-2.6": {
     name: "Kling 2.6 Pro",
-    text: "kuaishou/kling-v2.1-pro",
-    image: "kuaishou/kling-v2.1-pro",
+    text: "kwaivgi/kling-v2.6",
+    image: "kwaivgi/kling-v2.6",
   },
   "veo-3.1": {
     name: "Google Veo 3.1",
@@ -112,7 +112,6 @@ videoRoutes.post("/generate", async (c) => {
       aspectRatio = "16:9",
       cameraMotion = "static",
       magicPrompt = false,
-      duration = 5,
     } = await c.req.json()
 
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
@@ -169,6 +168,8 @@ videoRoutes.post("/generate", async (c) => {
     }
 
     console.log(`[Video] Model=${replicateModel} mode=${isImageMode ? "i2v" : "t2v"} aspect=${aspectRatio} cam=${cameraMotion}`)
+    console.log(`[Video] Calling Replicate with slug: ${replicateModel}`)
+    console.log(`[Video] Input:`, JSON.stringify(input))
 
     // Use the Models API: POST /v1/models/{owner}/{name}/predictions
     // This does NOT require a version hash — unlike POST /v1/predictions which needs {version}
