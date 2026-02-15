@@ -2,7 +2,8 @@ import { Hono } from "hono"
 
 export const videoRoutes = new Hono()
 
-const REPLICATE_API = "https://api.replicate.com/v1/predictions"
+const REPLICATE_BASE = "https://api.replicate.com/v1"
+const REPLICATE_PREDICTIONS = `${REPLICATE_BASE}/predictions`
 const TIMEOUT_MS = 55000
 
 // ─── Model registry: Replicate model slugs ───
@@ -153,14 +154,19 @@ videoRoutes.post("/generate", async (c) => {
 
     console.log(`[Video] Model=${replicateModel} mode=${isImageMode ? "i2v" : "t2v"} aspect=${aspectRatio} cam=${cameraMotion}`)
 
-    const response = await fetchWithTimeout(REPLICATE_API, {
+    // Use the Models API: POST /v1/models/{owner}/{name}/predictions
+    // This does NOT require a version hash — unlike POST /v1/predictions which needs {version}
+    const modelsUrl = `${REPLICATE_BASE}/models/${replicateModel}/predictions`
+    console.log(`[Video] POST ${modelsUrl}`)
+
+    const response = await fetchWithTimeout(modelsUrl, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
         "Prefer": "wait",
       },
-      body: JSON.stringify({ model: replicateModel, input }),
+      body: JSON.stringify({ input }),
     }, TIMEOUT_MS)
 
     const elapsed = Date.now() - startTime
@@ -218,7 +224,7 @@ videoRoutes.get("/status/:id", async (c) => {
     const apiKey = getReplicateKey()
     if (!apiKey) return c.json({ error: "Service not configured." }, 503)
 
-    const response = await fetchWithTimeout(`${REPLICATE_API}/${predictionId}`, {
+    const response = await fetchWithTimeout(`${REPLICATE_PREDICTIONS}/${predictionId}`, {
       method: "GET",
       headers: { "Authorization": `Bearer ${apiKey}` },
     }, 15000)
