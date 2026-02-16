@@ -559,20 +559,24 @@ export const AudioStudio = () => {
   // Cleanup on unmount
   useEffect(() => () => stopProgressSim(), [stopProgressSim]);
 
-  // Poll audio prediction status
-  const pollAudioStatus = async (taskId: string): Promise<string> => {
+  // Poll audio prediction status (60 × 3s = 3 min max)
+  const pollAudioStatus = async (
+    taskId: string,
+    onStatus?: (status: string) => void,
+  ): Promise<string> => {
     for (let i = 0; i < 60; i++) {
       await new Promise(r => setTimeout(r, 3000));
       try {
         const res = await fetch(`/api/audio/status/${encodeURIComponent(taskId)}`);
         const data = await res.json() as { status: string; url?: string; error?: string };
+        if (onStatus) onStatus(data.status);
         if (data.status === "completed" && data.url) return data.url;
         if (data.status === "failed") throw new Error(data.error || "Генерация не удалась.");
       } catch (err) {
         if (err instanceof Error && err.message.includes("не удалась")) throw err;
       }
     }
-    throw new Error("Таймаут генерации. Попробуйте снова.");
+    throw new Error("Таймаут генерации (3 мин). Попробуйте снова.");
   };
 
   const handleGenerate = async () => {
@@ -628,18 +632,27 @@ export const AudioStudio = () => {
       const createData = await response.json() as { id?: string; status?: string; lyrics?: string; error?: string };
       if (!createData.id) throw new Error("Нет ID задачи.");
 
-      // Phase 2: "Записываем вокал..." — polling minimax prediction
+      // Phase 2: status-aware polling with progress
+      let phase: "starting" | "processing" | "done" = "starting";
       if (mode === "music") {
         stopProgressSim();
         setGenProgress(25);
-        setStatusMessage("Записываем вокал и музыку...");
-        const simMs = duration === "30s" ? 60_000 : duration === "60s" ? 90_000 : 150_000;
-        startProgressSim(simMs, 90, 25);  // 25→90% over generation time
+        setStatusMessage("ИИ готовится к работе (прогрев)...");
+        startProgressSim(60_000, 35, 25);  // starting: slow crawl 25→35% over 60s
       } else {
         setStatusMessage("XTTS синтезирует речь...");
       }
 
-      const audioUrl = await pollAudioStatus(createData.id);
+      const audioUrl = await pollAudioStatus(createData.id, (status) => {
+        if (mode !== "music") return;
+        if (status === "processing" && phase === "starting") {
+          phase = "processing";
+          stopProgressSim();
+          setStatusMessage("Нейросеть записывает вокал...");
+          const simMs = duration === "30s" ? 40_000 : duration === "60s" ? 70_000 : 120_000;
+          startProgressSim(simMs, 92, 35);  // processing: 35→92%
+        }
+      });
       
       // Snap to 100%
       stopProgressSim();
@@ -666,13 +679,17 @@ export const AudioStudio = () => {
       setCurrentAudio(newAudio);
       setGenerations(prev => [newAudio, ...prev]);
       
-      addToHistory({
-        type: "audio",
-        prompt: mode === "music" ? savedPrompt : savedText || "",
-        model: mode === "music" ? "Minimax Music" : "XTTS-v2",
-        result: audioUrl,
-        credits: creditCost,
-      });
+      try {
+        addToHistory({
+          type: "audio",
+          prompt: mode === "music" ? savedPrompt : savedText || "",
+          model: mode === "music" ? "Bark" : "XTTS-v2",
+          result: audioUrl,
+          credits: creditCost,
+        });
+      } catch (histErr) {
+        console.warn("History save failed (non-blocking):", histErr);
+      }
       
       if (mode === "music") setMusicPrompt(""); else setVoiceText("");
     } catch (err) {
