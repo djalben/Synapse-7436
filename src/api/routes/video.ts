@@ -23,7 +23,7 @@ const MODEL_REGISTRY: Record<string, VideoModelConfig> = {
   "kling-2.6": {
     name: "Kling 2.6 Pro",
     text: "kwaivgi/kling-v2.6",
-    image: "kwaivgi/kling-v2.6",
+    image: "kwaivgi/kling-v1.5-pro",  // v1.5 for better face preservation in i2v
   },
   "veo-3.1": {
     name: "Google Veo 3.1",
@@ -129,18 +129,26 @@ videoRoutes.post("/generate", async (c) => {
       return c.json({ error: `${modelConfig.name} не поддерживает режим ${isImageMode ? "Фото→Видео" : "Текст→Видео"}.` }, 400)
     }
 
-    // Build prompt (magic prompt done synchronously only if fast enough)
+    // Build prompt with mode-aware Magic Prompt
     let finalPrompt = prompt.trim()
     if (magicPrompt) {
-      try {
-        const enhanced = await Promise.race([
-          enhancePrompt(finalPrompt),
-          new Promise<string>((_, reject) => setTimeout(() => reject("timeout"), 4000)),
-        ])
-        finalPrompt = enhanced
-        console.log(`[Video] Magic prompt: "${finalPrompt.slice(0, 80)}..."`)
-      } catch {
-        console.log(`[Video] Magic prompt skipped (timeout)`)
+      if (isImageMode) {
+        // Image mode: prepend face/identity preservation prefix (no GPT call — zero latency)
+        const facePrefix = "Highly detailed face preservation, maintain exact facial features of the uploaded photo, consistent identity, 8k resolution, photorealistic, natural skin texture, accurate likeness. "
+        finalPrompt = facePrefix + finalPrompt
+        console.log(`[Video] Magic prompt (face mode): "${finalPrompt.slice(0, 80)}..."`)
+      } else {
+        // Text mode: enhance via GPT-4o-mini with 4s budget
+        try {
+          const enhanced = await Promise.race([
+            enhancePrompt(finalPrompt),
+            new Promise<string>((_, reject) => setTimeout(() => reject("timeout"), 4000)),
+          ])
+          finalPrompt = enhanced
+          console.log(`[Video] Magic prompt (GPT): "${finalPrompt.slice(0, 80)}..."`)
+        } catch {
+          console.log(`[Video] Magic prompt skipped (timeout)`)
+        }
       }
     }
     finalPrompt += (CAMERA_MOTION[cameraMotion] || "")
@@ -158,14 +166,24 @@ videoRoutes.post("/generate", async (c) => {
         aspect_ratio: aspectRatio,
       }
     } else if (model === "kling-2.6") {
-      input = {
-        prompt: finalPrompt,
-        duration: 5,
-        aspect_ratio: aspectRatio,
-        generate_audio: true,
-      }
       if (isImageMode && image) {
-        input.start_image = image
+        // i2v via kling-v1.5-pro: max fidelity settings
+        input = {
+          prompt: finalPrompt,
+          start_image: image,
+          duration: 5,
+          aspect_ratio: aspectRatio,
+          prompt_optimizer: false,  // don't let Kling rewrite our prompt
+          cfg_scale: 0.9,          // high faithfulness to source image
+        }
+      } else {
+        // t2v via kling-v2.6
+        input = {
+          prompt: finalPrompt,
+          duration: 5,
+          aspect_ratio: aspectRatio,
+          generate_audio: true,
+        }
       }
     } else if (model === "veo-3.1") {
       input = {
