@@ -42,21 +42,53 @@ interface GeneratedVideo {
   createdAt: string;
 }
 
-// ─── Model data ───
+// ─── Model data (mode-aware names) ───
 interface VideoModelData {
   id: VideoModelId;
   name: string;
   subtitle: string;
+  nameByMode?: Partial<Record<VideoMode, string>>;
+  subtitleByMode?: Partial<Record<VideoMode, string>>;
   accent: string;
   bgClass: string;
   supportsImage: boolean;
 }
 
 const VIDEO_MODELS: VideoModelData[] = [
-  { id: "wan-2.2", name: "Wan 2.2 Fast", subtitle: "Быстрый • ~30 сек", accent: "text-emerald-400", bgClass: "from-emerald-500/20 to-emerald-600/10", supportsImage: true },
-  { id: "kling-2.6", name: "Kling 2.6 Pro", subtitle: "Качество • ~2 мин", accent: "text-blue-400", bgClass: "from-blue-500/20 to-blue-600/10", supportsImage: true },
-  { id: "veo-3.1", name: "Google Veo 3.1", subtitle: "Флагман • аудио", accent: "text-purple-400", bgClass: "from-purple-500/20 to-purple-600/10", supportsImage: false },
+  {
+    id: "wan-2.2",
+    name: "Wan 2.2 (Ultra Fast)",
+    subtitle: "Быстрый • ~30 сек",
+    accent: "text-emerald-400",
+    bgClass: "from-emerald-500/20 to-emerald-600/10",
+    supportsImage: true,
+  },
+  {
+    id: "kling-2.6",
+    name: "Kling 2.6 Pro (Motion & Audio)",
+    subtitle: "Динамика + звук • ~2 мин",
+    nameByMode: { image: "Kling 1.5 Pro (Fidelity 99%)" },
+    subtitleByMode: { image: "Макс. сохранение лица • ~2 мин" },
+    accent: "text-blue-400",
+    bgClass: "from-blue-500/20 to-blue-600/10",
+    supportsImage: true,
+  },
+  {
+    id: "veo-3.1",
+    name: "Google Veo 3 (Cinematic 4K)",
+    subtitle: "Флагман Google • аудио",
+    accent: "text-purple-400",
+    bgClass: "from-purple-500/20 to-purple-600/10",
+    supportsImage: false,
+  },
 ];
+
+function getModelDisplay(m: VideoModelData, currentMode: VideoMode) {
+  return {
+    name: m.nameByMode?.[currentMode] ?? m.name,
+    subtitle: m.subtitleByMode?.[currentMode] ?? m.subtitle,
+  };
+}
 
 const ASPECT_RATIOS: { id: AspectRatio; label: string; icon: typeof Monitor }[] = [
   { id: "16:9", label: "Кино", icon: Monitor },
@@ -485,8 +517,8 @@ export const MotionLab = () => {
                       <Film className={`w-4 h-4 ${selectedModel.accent}`} />
                     </div>
                     <div>
-                      <span className="text-sm font-medium text-white">{selectedModel.name}</span>
-                      <span className="text-xs text-[#555] block">{selectedModel.subtitle}</span>
+                      <span className="text-sm font-medium text-white">{getModelDisplay(selectedModel, mode).name}</span>
+                      <span className="text-xs text-[#555] block">{getModelDisplay(selectedModel, mode).subtitle}</span>
                     </div>
                   </div>
                   <ChevronDown className={`w-4 h-4 text-[#555] transition-transform ${modelOpen ? "rotate-180" : ""}`} />
@@ -507,8 +539,8 @@ export const MotionLab = () => {
                           <Film className={`w-4 h-4 ${m.accent}`} />
                         </div>
                         <div className="text-left">
-                          <span className="text-sm font-medium text-white">{m.name}</span>
-                          <span className="text-xs text-[#555] block">{m.subtitle}</span>
+                          <span className="text-sm font-medium text-white">{getModelDisplay(m, mode).name}</span>
+                          <span className="text-xs text-[#555] block">{getModelDisplay(m, mode).subtitle}</span>
                           {!m.supportsImage && <span className="text-[10px] text-amber-400">Только текст</span>}
                         </div>
                         {m.id === model && <div className="ml-auto w-2 h-2 rounded-full bg-indigo-500" />}
@@ -517,6 +549,9 @@ export const MotionLab = () => {
                   </div>
                 )}
               </div>
+              {model === "kling-2.6" && mode === "image" && (
+                <p className="text-[11px] text-blue-400/60 mt-1.5 pl-1">Оптимизировано для максимального сохранения черт лица из фото</p>
+              )}
             </div>
 
             {/* Photo Upload (image mode) */}
