@@ -6,7 +6,11 @@ const REPLICATE_API = "https://api.replicate.com/v1"
 const REPLICATE_PREDICTIONS = `${REPLICATE_API}/predictions`
 const MINIMAX_MODEL = "minimax/music-01"      // Top-tier vocal+music generation
 const XTTS_VERSION = "684bc3855b37866c0c65add2ff39c78f3dea3f4ff103a436465326e0f438d55e"
-const TIMEOUT_MS = 8000  // Vercel limit ~10s
+
+// ─── Budget-based timeouts (total must stay under Vercel 10s) ───
+const TOTAL_BUDGET_MS = 8000   // hard ceiling for the whole handler
+const LLM_TIMEOUT_MS  = 4000  // GPT-4o-mini lyrics step
+const POLL_TIMEOUT_MS  = 5000 // status check timeout
 
 // Genre → style prompt for minimax
 const GENRE_PROMPTS: Record<string, string> = {
@@ -36,11 +40,12 @@ function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<R
   ])
 }
 
-// ─── Generate song lyrics via GPT-4o-mini ───
+// ─── Generate song lyrics via GPT-4o-mini (fast, with fallback) ───
 async function generateLyrics(
   keywords: string,
   genre: string,
-  durationSec: number
+  durationSec: number,
+  timeoutMs: number = LLM_TIMEOUT_MS
 ): Promise<string> {
   const key = getOpenRouterKey()
   if (!key) {
@@ -68,7 +73,7 @@ async function generateLyrics(
         },
         body: JSON.stringify({
           model: "openai/gpt-4o-mini",
-          max_tokens: 400,
+          max_tokens: 300,
           temperature: 0.9,
           messages: [
             {
@@ -79,11 +84,11 @@ async function generateLyrics(
           ],
         }),
       },
-      6000  // 6s timeout for LLM step
+      timeoutMs
     )
 
     if (!res.ok) {
-      console.error(`[Audio] Lyrics LLM error: ${res.status}`)
+      console.error(`[Audio] Lyrics LLM status=${res.status}`)
       return keywords
     }
     const data = (await res.json()) as { choices?: { message?: { content?: string } }[] }
@@ -91,19 +96,20 @@ async function generateLyrics(
     if (!lyrics) return keywords
     return lyrics.slice(0, maxChars)
   } catch (err) {
-    console.error("[Audio] Lyrics generation error:", err)
-    return keywords  // fallback: use raw keywords
+    console.error("[Audio] Lyrics generation failed (fallback to keywords):", err instanceof Error ? err.message : err)
+    return keywords  // fallback: raw keywords become lyrics
   }
 }
 
-// ─── POST /music — 2-step: LLM lyrics → minimax/music-01 ───
-audioRoutes.post("/music", async (c) => {
+// ─── POST /generate — 2-step async: GPT lyrics → minimax fire-and-forget ───
+// Also aliased as /music for backward compat
+const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (data: any, status?: number) => Response }) => {
   const t0 = Date.now()
-  console.log("[Audio] POST /music")
+  const elapsed = () => Date.now() - t0
 
   try {
     const apiToken = getApiToken()
-    if (!apiToken) return c.json({ error: "Сервис аудио не настроен." }, 503)
+    if (!apiToken) return c.json({ error: "Сервис аудио не настроен (REPLICATE_API_TOKEN)." }, 503)
 
     const { prompt, duration, genre } = await c.req.json()
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
@@ -114,18 +120,20 @@ audioRoutes.post("/music", async (c) => {
     const durationSec = Math.min(Math.max(duration || 60, 30), 120)
     const stylePrompt = GENRE_PROMPTS[genreName] || GENRE_PROMPTS["Поп"]!
 
-    // Step 1: Generate lyrics via GPT-4o-mini
-    console.log(`[Audio] Step 1 — lyrics: "${prompt.trim().slice(0, 40)}..." genre=${genreName} dur=${durationSec}s`)
-    const lyrics = await generateLyrics(prompt.trim(), genreName, durationSec)
-    console.log(`[Audio] Lyrics ready: ${lyrics.length} chars in ${Date.now() - t0}ms`)
+    // ── Step 1: Generate lyrics via GPT-4o-mini (budget: 4s, fallback: raw keywords) ──
+    console.log(`[Audio] Step 1/2 — GPT lyrics: keywords="${prompt.trim().slice(0, 50)}" genre=${genreName} dur=${durationSec}s`)
+    const lyricsTimeout = Math.min(LLM_TIMEOUT_MS, TOTAL_BUDGET_MS - elapsed() - 2000)
+    const lyrics = await generateLyrics(prompt.trim(), genreName, durationSec, Math.max(lyricsTimeout, 2000))
+    console.log(`[Audio] Lyrics OK: ${lyrics.length}c in ${elapsed()}ms`)
 
-    // Step 2: Fire minimax/music-01 prediction (lyrics + style prompt)
+    // ── Step 2: Fire minimax/music-01 prediction (budget: remaining, min 2s) ──
+    const fireTimeout = Math.max(2000, TOTAL_BUDGET_MS - elapsed() - 500)
     const input: Record<string, unknown> = {
       prompt: stylePrompt,
       lyrics,
     }
 
-    console.log(`[Audio] Step 2 — ${MINIMAX_MODEL}: style="${stylePrompt.slice(0, 50)}", lyrics=${lyrics.length}c`)
+    console.log(`[Audio] Step 2/2 — ${MINIMAX_MODEL}: style="${stylePrompt.slice(0, 40)}" lyrics=${lyrics.length}c timeout=${fireTimeout}ms`)
 
     const response = await fetchWithTimeout(
       `${REPLICATE_API}/models/${MINIMAX_MODEL}/predictions`,
@@ -134,22 +142,35 @@ audioRoutes.post("/music", async (c) => {
         headers: {
           Authorization: `Bearer ${apiToken}`,
           "Content-Type": "application/json",
+          Prefer: "respond-async",
         },
         body: JSON.stringify({ input }),
       },
-      TIMEOUT_MS
+      fireTimeout
     )
 
-    console.log(`[Audio] Minimax: ${response.status} in ${Date.now() - t0}ms`)
+    const responseText = await response.text()
+    console.log(`[Audio] Replicate ${response.status} in ${elapsed()}ms: ${responseText.slice(0, 200)}`)
 
     if (!response.ok) {
-      const errText = await response.text()
-      console.error(`[Audio] Minimax error: ${errText}`)
-      return c.json({ error: "Генерация музыки не удалась.", detail: errText }, 500)
+      console.error(`[Audio] Replicate error body: ${responseText}`)
+      return c.json({ error: "Генерация музыки не удалась.", detail: responseText.slice(0, 300) }, 500)
     }
 
-    const data = (await response.json()) as { id: string; status: string }
-    console.log(`[Audio] Prediction: id=${data.id} status=${data.status}`)
+    let data: { id?: string; status?: string }
+    try {
+      data = JSON.parse(responseText)
+    } catch {
+      console.error(`[Audio] Cannot parse Replicate response`)
+      return c.json({ error: "Ошибка ответа сервиса." }, 500)
+    }
+
+    if (!data.id) {
+      console.error(`[Audio] No prediction ID in response`)
+      return c.json({ error: "Не получен ID задачи." }, 500)
+    }
+
+    console.log(`[Audio] ✓ Prediction ${data.id} (${data.status}) — total ${elapsed()}ms`)
 
     return c.json({
       id: data.id,
@@ -160,12 +181,15 @@ audioRoutes.post("/music", async (c) => {
       duration: durationSec,
     })
   } catch (error) {
-    console.error(`[Audio] Music error after ${Date.now() - t0}ms:`, error)
     const msg = error instanceof Error ? error.message : String(error)
+    console.error(`[Audio] GENERATE FAILED after ${elapsed()}ms: ${msg}`)
     if (msg.includes("TIMEOUT")) return c.json({ error: "Сервис не отвечает. Попробуйте снова." }, 504)
-    return c.json({ error: "Генерация не удалась." }, 500)
+    return c.json({ error: "Генерация не удалась. Попробуйте снова." }, 500)
   }
-})
+}
+
+audioRoutes.post("/generate", (c) => generateHandler(c as any))
+audioRoutes.post("/music", (c) => generateHandler(c as any))
 
 // ─── POST /tts — create XTTS-v2 prediction (fire-and-forget) ───
 audioRoutes.post("/tts", async (c) => {
@@ -204,7 +228,7 @@ audioRoutes.post("/tts", async (c) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ version: XTTS_VERSION, input }),
-    }, TIMEOUT_MS)
+    }, POLL_TIMEOUT_MS)
 
     console.log(`[Audio] XTTS Replicate: ${response.status} in ${Date.now() - t0}ms`)
 
@@ -243,7 +267,7 @@ audioRoutes.get("/status/:id", async (c) => {
     const response = await fetchWithTimeout(`${REPLICATE_PREDICTIONS}/${predictionId}`, {
       method: "GET",
       headers: { "Authorization": `Bearer ${apiToken}` },
-    }, TIMEOUT_MS)
+    }, POLL_TIMEOUT_MS)
 
     if (!response.ok) {
       console.error(`[Audio] Status error: ${response.status}`)

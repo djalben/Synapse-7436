@@ -593,7 +593,7 @@ export const AudioStudio = () => {
         startProgressSim(6_000, 25);  // 0→25% over ~6s (LLM + fire)
 
         const durationSeconds = duration === "30s" ? 30 : duration === "60s" ? 60 : 120;
-        response = await fetch("/api/audio/music", {
+        response = await fetch("/api/audio/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
