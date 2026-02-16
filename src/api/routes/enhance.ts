@@ -4,7 +4,7 @@ export const enhanceRoutes = new Hono()
 
 const REPLICATE_BASE = "https://api.replicate.com/v1"
 const REPLICATE_PREDICTIONS = `${REPLICATE_BASE}/predictions`
-const CODEFORMER_SLUG = "sczhou/codeformer"
+const CODEFORMER_SLUG = "lucataco/codeformer"
 const TIMEOUT_MS = 8000  // Vercel limit ~10s
 
 function getReplicateKey(): string | undefined {
