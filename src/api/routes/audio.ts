@@ -4,7 +4,7 @@ export const audioRoutes = new Hono()
 
 const REPLICATE_API = "https://api.replicate.com/v1"
 const REPLICATE_PREDICTIONS = `${REPLICATE_API}/predictions`
-const MINIMAX_MODEL = "minimax/music-01"      // Top-tier vocal+music generation
+const ACESTEP_MODEL = "lucataco/ace-step"     // Text-to-song: tags + lyrics, no reference audio needed
 const XTTS_VERSION = "684bc3855b37866c0c65add2ff39c78f3dea3f4ff103a436465326e0f438d55e"
 
 // ─── Budget-based timeouts (total must stay under Vercel 10s) ───
@@ -12,15 +12,15 @@ const TOTAL_BUDGET_MS = 8000   // hard ceiling for the whole handler
 const LLM_TIMEOUT_MS  = 4000  // GPT-4o-mini lyrics step
 const POLL_TIMEOUT_MS  = 5000 // status check timeout
 
-// Genre → style prompt for minimax
-const GENRE_PROMPTS: Record<string, string> = {
-  "Поп":         "upbeat pop song, catchy melody, modern production, polished vocals",
-  "Электроника": "electronic dance track, driving synths, energetic beat, pulsing bass",
-  "Хип-Хоп":    "hip-hop track, rhythmic flow, 808 bass, trap hi-hats, bold delivery",
-  "Классика":    "classical-inspired piece, orchestral arrangement, elegant strings",
-  "Рок":         "rock song, electric guitars, powerful drums, raw energy, distortion",
-  "Джаз":        "jazz piece, smooth saxophone, swing rhythm, groovy walking bass",
-  "Эмбиент":     "ambient soundscape, atmospheric pads, ethereal, dreamy textures",
+// Genre → comma-separated tags for ACE-Step
+const GENRE_TAGS: Record<string, string> = {
+  "Поп":         "pop, catchy melody, modern production, polished vocals, upbeat",
+  "Электроника": "electronic, EDM, driving synths, energetic beat, pulsing bass",
+  "Хип-Хоп":    "hip-hop, rap, rhythmic flow, 808 bass, trap hi-hats, bold delivery",
+  "Классика":    "classical, orchestral, elegant strings, piano, cinematic",
+  "Рок":         "rock, electric guitars, powerful drums, raw energy, distortion",
+  "Джаз":        "jazz, smooth saxophone, swing rhythm, groovy walking bass, piano",
+  "Эмбиент":     "ambient, atmospheric pads, ethereal, dreamy textures, chill",
 }
 
 function getApiToken(): string | undefined {
@@ -119,10 +119,10 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
 
     const genreName: string = genre || "Поп"
     const gender: string = vocalGender === "male" ? "male" : "female"
-    const durationSec = Math.min(Math.max(duration || 60, 30), 120)
-    const genreStyle = GENRE_PROMPTS[genreName] || GENRE_PROMPTS["Поп"]!
-    const genderTag = gender === "male" ? "Male Vocalist" : "Female Vocalist"
-    const stylePrompt = `[${genderTag}], ${genreStyle}`
+    const durationSec = Math.min(Math.max(duration || 60, 30), 240)  // ACE-Step supports up to 240s
+    const genreTags = GENRE_TAGS[genreName] || GENRE_TAGS["Поп"]!
+    const vocalTag = gender === "male" ? "male vocals" : "female vocals"
+    const tags = `${vocalTag}, ${genreTags}`
 
     console.log(`[Audio] Creating track with gender: ${gender}`)
 
@@ -131,25 +131,26 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
     const lyricsTimeout = Math.min(LLM_TIMEOUT_MS, TOTAL_BUDGET_MS - elapsed() - 2000)
     let lyrics = await generateLyrics(prompt.trim(), genreName, durationSec, gender, Math.max(lyricsTimeout, 2000))
 
-    // Guarantee lyrics are never empty / too short for minimax (min 10 chars)
+    // Guarantee lyrics are never empty / too short (min 10 chars)
     if (!lyrics || lyrics.trim().length < 10) {
       const kw = prompt.trim()
-      lyrics = `[verse]\n${kw}\n${kw}\n[chorus]\n${kw}, ${kw}`
+      lyrics = `[Verse]\n${kw}\n${kw}\n[Chorus]\n${kw}, ${kw}`
       console.warn(`[Audio] Lyrics too short — padded with keywords: ${lyrics.length}c`)
     }
     console.log(`[Audio] Lyrics OK: ${lyrics.length}c in ${elapsed()}ms`)
 
-    // ── Step 2: Fire minimax/music-01 prediction (budget: remaining, min 2s) ──
+    // ── Step 2: Fire ACE-Step prediction (budget: remaining, min 2s) ──
     const fireTimeout = Math.max(2000, TOTAL_BUDGET_MS - elapsed() - 500)
     const input: Record<string, unknown> = {
-      prompt: stylePrompt,
+      tags,
       lyrics,
+      duration: durationSec,
     }
 
-    console.log(`[Audio] Step 2/2 — ${MINIMAX_MODEL}: style="${stylePrompt.slice(0, 40)}" lyrics=${lyrics.length}c timeout=${fireTimeout}ms`)
+    console.log(`[Audio] Step 2/2 — ${ACESTEP_MODEL}: tags="${tags.slice(0, 60)}" lyrics=${lyrics.length}c dur=${durationSec}s timeout=${fireTimeout}ms`)
 
     const response = await fetchWithTimeout(
-      `${REPLICATE_API}/models/${MINIMAX_MODEL}/predictions`,
+      `${REPLICATE_API}/models/${ACESTEP_MODEL}/predictions`,
       {
         method: "POST",
         headers: {
