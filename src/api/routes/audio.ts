@@ -2,31 +2,29 @@ import { Hono } from "hono"
 
 export const audioRoutes = new Hono()
 
-const REPLICATE_PREDICTIONS = "https://api.replicate.com/v1/predictions"
-const MUSICGEN_VERSION = "671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb"
+const REPLICATE_API = "https://api.replicate.com/v1"
+const REPLICATE_PREDICTIONS = `${REPLICATE_API}/predictions`
+const MINIMAX_MODEL = "minimax/music-01"      // Top-tier vocal+music generation
 const XTTS_VERSION = "684bc3855b37866c0c65add2ff39c78f3dea3f4ff103a436465326e0f438d55e"
 const TIMEOUT_MS = 8000  // Vercel limit ~10s
 
-// Genre → [tag prefix, mood hint]
-const GENRE_MAP: Record<string, { tag: string; mood: string; style: string }> = {
-  "Поп":        { tag: "Pop",         mood: "Upbeat, Catchy",   style: "catchy pop melody, modern production, polished mix" },
-  "Электроника": { tag: "Electronic",  mood: "Energetic",        style: "electronic dance music, synths, driving beat, four-on-the-floor" },
-  "Хип-Хоп":    { tag: "Hip-Hop",     mood: "Rhythmic, Bold",   style: "hip-hop beat, 808 bass, trap hi-hats, rhythmic flow" },
-  "Классика":    { tag: "Classical",   mood: "Elegant",          style: "orchestral arrangement, strings, classical instrumentation" },
-  "Рок":         { tag: "Rock",        mood: "Powerful",         style: "electric guitars, drums, rock energy, distortion" },
-  "Джаз":        { tag: "Jazz",        mood: "Smooth, Groovy",   style: "jazz chords, swing rhythm, saxophone, smooth bass" },
-  "Эмбиент":     { tag: "Ambient",     mood: "Relaxing, Dreamy", style: "atmospheric pads, ambient soundscape, reverb, ethereal" },
-  // fallback keys (English, lowercase) for backward compat
-  pop:           { tag: "Pop",         mood: "Upbeat, Catchy",   style: "catchy pop melody, modern production" },
-  electronic:    { tag: "Electronic",  mood: "Energetic",        style: "electronic dance music, synths, driving beat" },
-  "hip-hop":     { tag: "Hip-Hop",     mood: "Rhythmic",         style: "hip-hop beat, bass-heavy, rhythmic" },
-  classical:     { tag: "Classical",   mood: "Elegant",          style: "orchestral arrangement, classical instrumentation" },
-  rock:          { tag: "Rock",        mood: "Powerful",         style: "electric guitars, drums, rock energy" },
-  ambient:       { tag: "Ambient",     mood: "Relaxing",         style: "atmospheric, ambient soundscape, relaxing" },
+// Genre → style prompt for minimax
+const GENRE_PROMPTS: Record<string, string> = {
+  "Поп":         "upbeat pop song, catchy melody, modern production, polished vocals",
+  "Электроника": "electronic dance track, driving synths, energetic beat, pulsing bass",
+  "Хип-Хоп":    "hip-hop track, rhythmic flow, 808 bass, trap hi-hats, bold delivery",
+  "Классика":    "classical-inspired piece, orchestral arrangement, elegant strings",
+  "Рок":         "rock song, electric guitars, powerful drums, raw energy, distortion",
+  "Джаз":        "jazz piece, smooth saxophone, swing rhythm, groovy walking bass",
+  "Эмбиент":     "ambient soundscape, atmospheric pads, ethereal, dreamy textures",
 }
 
 function getApiToken(): string | undefined {
   return process.env.REPLICATE_API_TOKEN
+}
+
+function getOpenRouterKey(): string | undefined {
+  return process.env.OPENROUTER_API_KEY
 }
 
 function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<Response> {
@@ -38,7 +36,67 @@ function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<R
   ])
 }
 
-// ─── POST /music — create MusicGen prediction (fire-and-forget) ───
+// ─── Generate song lyrics via GPT-4o-mini ───
+async function generateLyrics(
+  keywords: string,
+  genre: string,
+  durationSec: number
+): Promise<string> {
+  const key = getOpenRouterKey()
+  if (!key) {
+    console.warn("[Audio] No OPENROUTER_API_KEY — using keywords as lyrics")
+    return keywords
+  }
+
+  const structure =
+    durationSec <= 30
+      ? "1 short verse (4-6 lines)"
+      : durationSec <= 60
+        ? "1 verse + 1 chorus (8-12 lines total)"
+        : "2 verses + 1 chorus + 1 bridge (16-20 lines total)"
+
+  const maxChars = 400  // minimax/music-01 lyrics limit
+
+  try {
+    const res = await fetchWithTimeout(
+      "https://openrouter.ai/api/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "openai/gpt-4o-mini",
+          max_tokens: 400,
+          temperature: 0.9,
+          messages: [
+            {
+              role: "system",
+              content: `You are a professional hit songwriter. Write song lyrics in English.\nGenre: ${genre || "pop"}\nStructure: ${structure}\nRules:\n- Use section tags on separate lines: [verse], [chorus], [bridge]\n- Keep total lyrics UNDER ${maxChars} characters\n- Make lyrics catchy, emotional, and easy to sing\n- Use vivid imagery and a memorable hook in the chorus\n- Output ONLY the lyrics text, no title, no explanations`,
+            },
+            { role: "user", content: `Write a song about: ${keywords}` },
+          ],
+        }),
+      },
+      6000  // 6s timeout for LLM step
+    )
+
+    if (!res.ok) {
+      console.error(`[Audio] Lyrics LLM error: ${res.status}`)
+      return keywords
+    }
+    const data = (await res.json()) as { choices?: { message?: { content?: string } }[] }
+    const lyrics = data?.choices?.[0]?.message?.content?.trim()
+    if (!lyrics) return keywords
+    return lyrics.slice(0, maxChars)
+  } catch (err) {
+    console.error("[Audio] Lyrics generation error:", err)
+    return keywords  // fallback: use raw keywords
+  }
+}
+
+// ─── POST /music — 2-step: LLM lyrics → minimax/music-01 ───
 audioRoutes.post("/music", async (c) => {
   const t0 = Date.now()
   console.log("[Audio] POST /music")
@@ -47,78 +105,64 @@ audioRoutes.post("/music", async (c) => {
     const apiToken = getApiToken()
     if (!apiToken) return c.json({ error: "Сервис аудио не настроен." }, 503)
 
-    const { prompt, duration, instrumental, genre, vocalGender } = await c.req.json()
+    const { prompt, duration, genre } = await c.req.json()
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
-      return c.json({ error: "Пожалуйста, опишите музыку." }, 400)
+      return c.json({ error: "Опишите тему вашей песни." }, 400)
     }
 
-    // ── Build structured prompt ──
-    const parts: string[] = []
+    const genreName: string = genre || "Поп"
+    const durationSec = Math.min(Math.max(duration || 60, 30), 120)
+    const stylePrompt = GENRE_PROMPTS[genreName] || GENRE_PROMPTS["Поп"]!
 
-    // 1. Genre & mood tags at the front
-    const g = genre ? GENRE_MAP[genre] : null
-    if (g) {
-      parts.push(`[Genre: ${g.tag}]`)
-      parts.push(`[Mood: ${g.mood}]`)
-      parts.push(g.style)
+    // Step 1: Generate lyrics via GPT-4o-mini
+    console.log(`[Audio] Step 1 — lyrics: "${prompt.trim().slice(0, 40)}..." genre=${genreName} dur=${durationSec}s`)
+    const lyrics = await generateLyrics(prompt.trim(), genreName, durationSec)
+    console.log(`[Audio] Lyrics ready: ${lyrics.length} chars in ${Date.now() - t0}ms`)
+
+    // Step 2: Fire minimax/music-01 prediction (lyrics + style prompt)
+    const input: Record<string, unknown> = {
+      prompt: stylePrompt,
+      lyrics,
     }
 
-    // 2. Vocal / instrumental tag
-    if (instrumental) {
-      parts.push("instrumental only, no vocals")
-    } else {
-      const gender = vocalGender === "female" ? "female" : "male"
-      parts.push(`Song with clear ${gender} leading vocals, singing lyrics melodically, catchy vocal hook`)
-    }
+    console.log(`[Audio] Step 2 — ${MINIMAX_MODEL}: style="${stylePrompt.slice(0, 50)}", lyrics=${lyrics.length}c`)
 
-    // 3. User description
-    parts.push(prompt.trim())
-
-    const enhancedPrompt = parts.join(", ")
-
-    // Duration: MusicGen large supports up to ~120s
-    const durationSeconds = Math.min(Math.max(duration || 30, 5), 120)
-
-    const input = {
-      prompt: enhancedPrompt,
-      duration: durationSeconds,
-      model_version: "stereo-large" as const,
-      output_format: "mp3" as const,
-    }
-
-    console.log(`[Audio] MusicGen input: prompt="${enhancedPrompt.slice(0, 60)}...", dur=${durationSeconds}s`)
-
-    const response = await fetchWithTimeout(REPLICATE_PREDICTIONS, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiToken}`,
-        "Content-Type": "application/json",
+    const response = await fetchWithTimeout(
+      `${REPLICATE_API}/models/${MINIMAX_MODEL}/predictions`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ input }),
       },
-      body: JSON.stringify({ version: MUSICGEN_VERSION, input }),
-    }, TIMEOUT_MS)
+      TIMEOUT_MS
+    )
 
-    console.log(`[Audio] MusicGen Replicate: ${response.status} in ${Date.now() - t0}ms`)
+    console.log(`[Audio] Minimax: ${response.status} in ${Date.now() - t0}ms`)
 
     if (!response.ok) {
       const errText = await response.text()
-      console.error(`[Audio] MusicGen error: ${errText}`)
+      console.error(`[Audio] Minimax error: ${errText}`)
       return c.json({ error: "Генерация музыки не удалась.", detail: errText }, 500)
     }
 
-    const data = await response.json() as { id: string; status: string }
-    console.log(`[Audio] MusicGen prediction: id=${data.id} status=${data.status}`)
+    const data = (await response.json()) as { id: string; status: string }
+    console.log(`[Audio] Prediction: id=${data.id} status=${data.status}`)
 
     return c.json({
       id: data.id,
       status: "processing",
       type: "music",
+      lyrics,
       prompt: prompt.trim(),
-      duration: durationSeconds,
+      duration: durationSec,
     })
   } catch (error) {
-    console.error(`[Audio] MusicGen error after ${Date.now() - t0}ms:`, error)
+    console.error(`[Audio] Music error after ${Date.now() - t0}ms:`, error)
     const msg = error instanceof Error ? error.message : String(error)
-    if (msg.includes("TIMEOUT")) return c.json({ error: "Сервис не отвечает." }, 504)
+    if (msg.includes("TIMEOUT")) return c.json({ error: "Сервис не отвечает. Попробуйте снова." }, 504)
     return c.json({ error: "Генерация не удалась." }, 500)
   }
 })

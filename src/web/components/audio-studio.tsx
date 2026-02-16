@@ -20,9 +20,7 @@ import { useUsage } from "./usage-context";
 import { addToHistory } from "./placeholder-pages";
 
 type AudioMode = "music" | "voice";
-type MusicType = "instrumental" | "lyrics";
 type Duration = "30s" | "60s" | "2min";
-type VocalGender = "male" | "female";
 
 interface Voice {
   id: string;
@@ -44,6 +42,7 @@ interface GeneratedAudio {
   id: string;
   type: "music" | "voice";
   prompt?: string;
+  lyrics?: string;
   text?: string;
   duration: string;
   createdAt: Date;
@@ -228,7 +227,7 @@ const AudioPlayer = ({
             {audio.type === "music" ? audio.prompt : audio.text}
           </p>
           <p className="text-xs text-[#666] mt-1">
-            {audio.type === "music" ? "MusicGen · Музыка" : "XTTS-v2 · Озвучка"} • {totalTime !== "0:00" ? totalTime : audio.duration}
+            {audio.type === "music" ? "Minimax Music · Песня" : "XTTS-v2 · Озвучка"} • {totalTime !== "0:00" ? totalTime : audio.duration}
           </p>
         </div>
       ) : (
@@ -515,9 +514,7 @@ const VoiceCloneModal = ({
 
 export const AudioStudio = () => {
   const [mode, setMode] = useState<AudioMode>("music");
-  const [musicType, setMusicType] = useState<MusicType>("lyrics");
   const [duration, setDuration] = useState<Duration>("60s");
-  const [vocalGender, setVocalGender] = useState<VocalGender>("male");
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
   const [selectedVoice, setSelectedVoice] = useState<Voice>(presetVoices[0]);
   const [clonedVoices, setClonedVoices] = useState<Voice[]>([]);
@@ -540,14 +537,15 @@ export const AudioStudio = () => {
   const creditCost = mode === "music" ? CREDIT_COST_MUSIC : CREDIT_COST_VOICE;
   const { creditBalance, checkCredits, deductCredits } = useUsage();
 
-  // Smooth progress simulation: ramps from 0 → targetPct over durationMs
-  const startProgressSim = useCallback((durationMs: number, targetPct: number) => {
+  // Smooth progress simulation: ramps from startPct → targetPct over durationMs
+  const startProgressSim = useCallback((durationMs: number, targetPct: number, startPct: number = 0) => {
     if (progressRef.current) clearInterval(progressRef.current);
     const t0 = Date.now();
-    setGenProgress(0);
+    setGenProgress(startPct);
     progressRef.current = setInterval(() => {
       const elapsed = Date.now() - t0;
-      const pct = Math.min(targetPct, (elapsed / durationMs) * targetPct);
+      const range = targetPct - startPct;
+      const pct = Math.min(targetPct, startPct + (elapsed / durationMs) * range);
       setGenProgress(Math.round(pct));
     }, 200);
   }, []);
@@ -580,25 +578,20 @@ export const AudioStudio = () => {
     setIsGenerating(true);
     setError(null);
     setGenProgress(0);
-
-    // Start progress simulation: scale to chosen duration
-    if (mode === "music") {
-      const simMs = duration === "30s" ? 60_000 : duration === "60s" ? 90_000 : 150_000;
-      setStatusMessage("MusicGen запускается...");
-      startProgressSim(simMs, 80);
-    } else {
-      setStatusMessage("XTTS запускается...");
-      startProgressSim(15_000, 80);
-    }
     
     try {
       let response: Response;
       
       if (mode === "music") {
         if (!musicPrompt.trim()) {
-          setIsGenerating(false); setStatusMessage(null); stopProgressSim(); setGenProgress(0);
+          setIsGenerating(false); setStatusMessage(null); setGenProgress(0);
           return;
         }
+
+        // Phase 1: "Сочиняем текст..." — backend calls GPT + fires minimax
+        setStatusMessage("Сочиняем текст песни...");
+        startProgressSim(6_000, 25);  // 0→25% over ~6s (LLM + fire)
+
         const durationSeconds = duration === "30s" ? 30 : duration === "60s" ? 60 : 120;
         response = await fetch("/api/audio/music", {
           method: "POST",
@@ -606,16 +599,17 @@ export const AudioStudio = () => {
           body: JSON.stringify({
             prompt: musicPrompt.trim(),
             duration: durationSeconds,
-            instrumental: musicType === "instrumental",
             genre: selectedGenre || undefined,
-            vocalGender: musicType === "lyrics" ? vocalGender : undefined,
           }),
         });
       } else {
         if (!voiceText.trim()) {
-          setIsGenerating(false); setStatusMessage(null); stopProgressSim(); setGenProgress(0);
+          setIsGenerating(false); setStatusMessage(null); setGenProgress(0);
           return;
         }
+        setStatusMessage("XTTS запускается...");
+        startProgressSim(15_000, 80);
+
         response = await fetch("/api/audio/tts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -628,10 +622,20 @@ export const AudioStudio = () => {
         throw new Error(errorData.error || "Ошибка генерации аудио");
       }
       
-      const createData = await response.json() as { id?: string; status?: string; error?: string };
+      const createData = await response.json() as { id?: string; status?: string; lyrics?: string; error?: string };
       if (!createData.id) throw new Error("Нет ID задачи.");
 
-      setStatusMessage(mode === "music" ? "MusicGen генерирует трек..." : "XTTS синтезирует речь...");
+      // Phase 2: "Записываем вокал..." — polling minimax prediction
+      if (mode === "music") {
+        stopProgressSim();
+        setGenProgress(25);
+        setStatusMessage("Записываем вокал и музыку...");
+        const simMs = duration === "30s" ? 60_000 : duration === "60s" ? 90_000 : 150_000;
+        startProgressSim(simMs, 90, 25);  // 25→90% over generation time
+      } else {
+        setStatusMessage("XTTS синтезирует речь...");
+      }
+
       const audioUrl = await pollAudioStatus(createData.id);
       
       // Snap to 100%
@@ -647,6 +651,7 @@ export const AudioStudio = () => {
         id: createData.id,
         type: mode,
         prompt: mode === "music" ? savedPrompt : undefined,
+        lyrics: mode === "music" ? createData.lyrics : undefined,
         text: mode === "voice" ? savedText : undefined,
         duration: mode === "music"
           ? (duration === "30s" ? "0:30" : duration === "60s" ? "1:00" : "2:00")
@@ -661,7 +666,7 @@ export const AudioStudio = () => {
       addToHistory({
         type: "audio",
         prompt: mode === "music" ? savedPrompt : savedText || "",
-        model: mode === "music" ? "MusicGen" : "XTTS-v2",
+        model: mode === "music" ? "Minimax Music" : "XTTS-v2",
         result: audioUrl,
         credits: creditCost,
       });
@@ -674,7 +679,6 @@ export const AudioStudio = () => {
       stopProgressSim();
       setIsGenerating(false);
       setStatusMessage(null);
-      // Keep genProgress at 100 briefly, then reset after animation
       setTimeout(() => setGenProgress(0), 1500);
     }
   };
@@ -740,96 +744,24 @@ export const AudioStudio = () => {
           </button>
         </div>
 
-        {/* Music Generator Controls */}
+        {/* Music Generator Controls — simplified: keywords + genre + duration */}
         {mode === "music" && (
           <div className="space-y-6">
-            {/* Prompt */}
+            {/* Keywords Input */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-[#888]">Опишите вашу песню</label>
+              <label className="block text-xs font-medium text-[#888]">О чём будет ваша песня?</label>
               <textarea
                 value={musicPrompt}
                 onChange={(e) => setMusicPrompt(e.target.value)}
-                placeholder="энергичная поп-песня о летней любви, электронный бит с запоминающейся мелодией..."
-                className="w-full h-32 px-4 py-3 rounded-xl bg-white/[0.03] border border-[#333] text-white placeholder-[#555] resize-none focus:border-indigo-500/50 focus:outline-none transition-colors"
+                placeholder="летняя любовь, танцы на закате, свобода и ветер..."
+                className="w-full h-24 px-4 py-3 rounded-xl bg-white/[0.03] border border-[#333] text-white placeholder-[#555] resize-none focus:border-indigo-500/50 focus:outline-none transition-colors"
               />
-              <div className="flex justify-between mt-2">
-                <span className="text-xs text-[#666]">Подробное описание даёт лучший результат</span>
-                <span className="text-xs text-[#666]">{musicPrompt.length}/500</span>
-              </div>
+              <p className="text-[11px] text-[#555]">AI напишет текст песни и запишет вокал по вашим ключевым словам</p>
             </div>
 
-            {/* Music Type Toggle */}
+            {/* Genre Select */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-[#888]">Тип</label>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setMusicType("lyrics")}
-                  className={`
-                    flex-1 py-2.5 px-4 rounded-xl text-sm font-medium
-                    transition-all duration-300 border
-                    ${musicType === "lyrics"
-                      ? "bg-indigo-500/20 border-indigo-500/50 text-white"
-                      : "bg-white/[0.02] border-[#333] text-[#888] hover:text-white hover:border-[#444]"
-                    }
-                  `}
-                >
-                  С вокалом
-                </button>
-                <button
-                  onClick={() => setMusicType("instrumental")}
-                  className={`
-                    flex-1 py-2.5 px-4 rounded-xl text-sm font-medium
-                    transition-all duration-300 border
-                    ${musicType === "instrumental"
-                      ? "bg-indigo-500/20 border-indigo-500/50 text-white"
-                      : "bg-white/[0.02] border-[#333] text-[#888] hover:text-white hover:border-[#444]"
-                    }
-                  `}
-                >
-                  Инструментал
-                </button>
-              </div>
-            </div>
-
-            {/* Vocal Gender Selector — visible only when "С вокалом" selected */}
-            {musicType === "lyrics" && (
-              <div className="space-y-1.5 animate-in fade-in duration-200">
-                <label className="block text-xs font-medium text-[#888]">Голос вокала</label>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setVocalGender("male")}
-                    className={`
-                      flex-1 py-2.5 px-4 rounded-xl text-sm font-medium
-                      transition-all duration-300 border
-                      ${vocalGender === "male"
-                        ? "bg-indigo-500/20 border-indigo-500/50 text-white"
-                        : "bg-white/[0.02] border-[#333] text-[#888] hover:text-white hover:border-[#444]"
-                      }
-                    `}
-                  >
-                    Мужской вокал
-                  </button>
-                  <button
-                    onClick={() => setVocalGender("female")}
-                    className={`
-                      flex-1 py-2.5 px-4 rounded-xl text-sm font-medium
-                      transition-all duration-300 border
-                      ${vocalGender === "female"
-                        ? "bg-indigo-500/20 border-indigo-500/50 text-white"
-                        : "bg-white/[0.02] border-[#333] text-[#888] hover:text-white hover:border-[#444]"
-                      }
-                    `}
-                  >
-                    Женский вокал
-                  </button>
-                </div>
-                <p className="text-[11px] text-indigo-400/60">MusicGen добавит вокальную партию в трек</p>
-              </div>
-            )}
-
-            {/* Genre Quick Select */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-[#888]">Жанр (опционально)</label>
+              <label className="block text-xs font-medium text-[#888]">Жанр</label>
               <div className="flex flex-wrap gap-2">
                 {genres.map((genre) => (
                   <button
@@ -871,7 +803,17 @@ export const AudioStudio = () => {
                   </button>
                 ))}
               </div>
-              <p className="text-[11px] text-indigo-400/60 mt-1">Более длинные треки требуют больше времени на генерацию</p>
+              <p className="text-[11px] text-indigo-400/60 mt-1">
+                {duration === "30s" ? "1 куплет" : duration === "60s" ? "Куплет + припев" : "2 куплета + припев + бридж"}
+              </p>
+            </div>
+
+            {/* How it works hint */}
+            <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10">
+              <p className="text-[11px] text-indigo-300/70 leading-relaxed">
+                <span className="font-medium text-indigo-300">Как это работает:</span> AI сочиняет текст песни по вашим словам, 
+                затем Minimax записывает полноценный трек с вокалом и аранжировкой.
+              </p>
             </div>
           </div>
         )}
@@ -1015,12 +957,12 @@ export const AudioStudio = () => {
               {isGenerating ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>{genProgress}% — {mode === "music" ? "Создание..." : "Синтез..."}</span>
+                  <span>{genProgress}% — {statusMessage || "Обработка..."}</span>
                 </>
               ) : mode === "music" ? (
                 <>
                   <Sparkles className="w-4 h-4" />
-                  <span>Создать музыку</span>
+                  <span>Создать песню</span>
                 </>
               ) : (
                 <>
@@ -1031,7 +973,7 @@ export const AudioStudio = () => {
             </span>
           </button>
           <p className="text-center text-[#555] text-xs mt-2">
-            {mode === "music" ? <><span className="text-indigo-400 font-medium">{CREDIT_COST_MUSIC}</span> кредитов за трек</> : <><span className="text-indigo-400 font-medium">{CREDIT_COST_VOICE}</span> кредита за запрос</>} · Осталось: <span className="text-white/90">{creditBalance.toFixed(0)}</span>
+            {mode === "music" ? <><span className="text-indigo-400 font-medium">{CREDIT_COST_MUSIC}</span> кредитов за песню</> : <><span className="text-indigo-400 font-medium">{CREDIT_COST_VOICE}</span> кредита за запрос</>} · Осталось: <span className="text-white/90">{creditBalance.toFixed(0)}</span>
           </p>
         </div>
       </div>
@@ -1072,12 +1014,12 @@ export const AudioStudio = () => {
             {isGenerating ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-                <span>{genProgress}% — {mode === "music" ? "Создание..." : "Синтез..."}</span>
+                <span>{genProgress}% — {statusMessage || "Обработка..."}</span>
               </>
             ) : mode === "music" ? (
               <>
                 <Sparkles className="w-5 h-5" />
-                <span>Создать музыку</span>
+                <span>Создать песню</span>
               </>
             ) : (
               <>
