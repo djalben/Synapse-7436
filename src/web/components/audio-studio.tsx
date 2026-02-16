@@ -712,7 +712,7 @@ export const AudioStudio = () => {
         addToHistory({
           type: "audio",
           prompt: mode === "music" ? savedPrompt : savedText || "",
-          model: mode === "music" ? "Bark" : "XTTS-v2",
+          model: mode === "music" ? "ElevenLabs Music" : "XTTS-v2",
           result: audioUrl,
           credits: creditCost,
         });
@@ -884,7 +884,7 @@ export const AudioStudio = () => {
             <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10">
               <p className="text-[11px] text-indigo-300/70 leading-relaxed">
                 <span className="font-medium text-indigo-300">Как это работает:</span> AI сочиняет текст песни по вашим словам, 
-                затем Bark записывает полноценный трек с вокалом и аранжировкой.
+                затем ElevenLabs Music записывает полноценный трек с вокалом и аранжировкой.
               </p>
             </div>
           </div>

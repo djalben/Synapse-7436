@@ -4,7 +4,7 @@ export const audioRoutes = new Hono()
 
 const REPLICATE_API = "https://api.replicate.com/v1"
 const REPLICATE_PREDICTIONS = `${REPLICATE_API}/predictions`
-const BARK_VERSION = "f23937d7c80b3c0f06c5a01ec55154388647292cb9398bd7d117678bc930791a" // suno-ai/bark
+const ELEVENLABS_MUSIC = `${REPLICATE_API}/models/elevenlabs/music/predictions` // official model, always warm
 const XTTS_VERSION = "684bc3855b37866c0c65add2ff39c78f3dea3f4ff103a436465326e0f438d55e"
 
 // ─── Budget-based timeouts (total must stay under Vercel 10s) ───
@@ -12,21 +12,15 @@ const TOTAL_BUDGET_MS = 8000   // hard ceiling for the whole handler
 const LLM_TIMEOUT_MS  = 4000  // GPT-4o-mini lyrics step
 const POLL_TIMEOUT_MS  = 5000 // status check timeout
 
-// Genre → Bark style prefix
+// Genre → ElevenLabs style descriptions
 const GENRE_STYLE: Record<string, string> = {
-  "Поп":         "pop song",
-  "Электроника": "electronic dance song",
-  "Хип-Хоп":    "hip-hop track",
-  "Классика":    "classical piece",
-  "Рок":         "rock song",
-  "Джаз":        "jazz piece",
-  "Эмбиент":     "ambient track",
-}
-
-// Bark voice presets: Russian speakers (no v2/ prefix)
-const BARK_VOICES: Record<string, string> = {
-  male:   "ru_speaker_1",
-  female: "ru_speaker_4",
+  "Поп":         "upbeat pop song with catchy melody, modern production, polished vocals",
+  "Электроника": "electronic dance track with driving synths, energetic beat",
+  "Хип-Хоп":    "hip-hop track with rhythmic flow, 808 bass, trap hi-hats",
+  "Классика":    "classical-inspired piece with orchestral arrangement, elegant strings",
+  "Рок":         "rock song with electric guitars, powerful drums, raw energy",
+  "Джаз":        "jazz piece with smooth saxophone, swing rhythm, groovy bass",
+  "Эмбиент":     "ambient soundscape with atmospheric pads, ethereal textures",
 }
 
 function getApiToken(): string | undefined {
@@ -67,8 +61,7 @@ async function generateLyrics(
         ? "1 verse + 1 chorus (8-12 lines total)"
         : "2 verses + 1 chorus + 1 bridge (16-20 lines total)"
 
-  const maxChars = 600  // Bark can handle longer prompts
-  const voiceTag = gender === "male" ? "male vocals" : "female vocals"
+  const maxChars = 800
 
   try {
     const res = await fetchWithTimeout(
@@ -86,7 +79,7 @@ async function generateLyrics(
           messages: [
             {
               role: "system",
-              content: `You are a professional songwriter writing for Suno Bark TTS. Write song lyrics in English.\nGenre: ${genre || "pop"}\nVocalist: ${gender === "male" ? "Male singer" : "Female singer"} — write from a ${gender === "male" ? "male" : "female"} perspective.\nStructure: ${structure}\nRules:\n- Start with ♪ [${voiceTag}] [music] tag\n- Use Bark tags: [music], [singing], [♪], [laughs], [sighs] for emotion\n- Write the lyrics as a continuous singing prompt\n- Keep total text UNDER ${maxChars} characters\n- Make lyrics catchy, emotional, and easy to sing\n- Output ONLY the tagged lyrics, no title, no explanations\nExample format:\n♪ [${voiceTag}] [music] First line of verse... second line... [singing] Chorus line... [♪]`,
+              content: `You are a professional hit songwriter. Write song lyrics in English.\nGenre: ${genre || "pop"}\nVocalist: ${gender === "male" ? "Male singer" : "Female singer"} — write from a ${gender === "male" ? "male" : "female"} perspective.\nStructure: ${structure}\nRules:\n- Use section markers: [Verse], [Chorus], [Bridge] on separate lines\n- Keep total lyrics UNDER ${maxChars} characters\n- Make lyrics catchy, emotional, and singable\n- Use vivid imagery and a memorable hook in the chorus\n- Output ONLY the lyrics, no title, no explanations`,
             },
             { role: "user", content: `Write a ${genre || "pop"} song about: ${keywords}` },
           ],
@@ -109,7 +102,7 @@ async function generateLyrics(
   }
 }
 
-// ─── POST /generate — 2-step async: GPT lyrics → Bark fire-and-forget ───
+// ─── POST /generate — 2-step async: GPT lyrics → ElevenLabs Music fire-and-forget ───
 // Also aliased as /music for backward compat
 const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (data: any, status?: number) => Response }) => {
   const t0 = Date.now()
@@ -126,11 +119,10 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
 
     const genreName: string = genre || "Поп"
     const gender: string = vocalGender === "male" ? "male" : "female"
-    const durationSec = Math.min(Math.max(duration || 60, 30), 120)
+    const durationSec = Math.min(Math.max(duration || 60, 30), 300) // ElevenLabs supports up to 5 min
     const genreStyle = GENRE_STYLE[genreName] || GENRE_STYLE["Поп"]!
-    const historyPrompt = BARK_VOICES[gender] || BARK_VOICES.female
 
-    console.log(`[Audio] Creating track with gender: ${gender}`)
+    console.log(`[Audio] Creating track: genre=${genreName} gender=${gender} dur=${durationSec}s`)
 
     // ── Step 1: Generate lyrics via GPT-4o-mini (budget: 4s, fallback: raw keywords) ──
     console.log(`[Audio] Step 1/2 — GPT lyrics: keywords="${prompt.trim().slice(0, 50)}" genre=${genreName} gender=${gender} dur=${durationSec}s`)
@@ -140,28 +132,24 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
     // Guarantee lyrics are never empty / too short (min 10 chars)
     if (!lyrics || lyrics.trim().length < 10) {
       const kw = prompt.trim()
-      lyrics = `♪ [music] ${kw}... ${kw}... [singing] ${kw}, ${kw} [♪]`
+      lyrics = `[Verse]\n${kw}\n${kw}\n[Chorus]\n${kw}, ${kw}`
       console.warn(`[Audio] Lyrics too short — padded with keywords: ${lyrics.length}c`)
     }
     console.log(`[Audio] Lyrics OK: ${lyrics.length}c in ${elapsed()}ms`)
 
-    // ── Step 2: Fire Bark prediction (budget: remaining, min 2s) ──
+    // ── Step 2: Fire ElevenLabs Music prediction (official model, always warm) ──
     const fireTimeout = Math.max(2000, TOTAL_BUDGET_MS - elapsed() - 500)
-    // Prepend music/vocal tag so Bark "tunes in" to singing mode
-    const vocalPrefix = gender === "male" ? "[music] [male vocals]" : "[music] [female vocals]"
-    const barkPrompt = lyrics.startsWith("♪") || lyrics.startsWith("[music]") ? lyrics : `${vocalPrefix} ${lyrics}`
+    const vocalDesc = gender === "male" ? "male vocalist" : "female vocalist"
+    const musicPrompt = `A ${genreStyle} with ${vocalDesc}. About: ${prompt.trim()}. Lyrics:\n${lyrics}`
 
     const input: Record<string, unknown> = {
-      prompt: barkPrompt,
-      history_prompt: historyPrompt,
-      text_temp: 0.7,
-      waveform_temp: 0.7,
+      prompt: musicPrompt,
     }
 
-    console.log(`[Audio] Step 2/2 — bark: voice=${historyPrompt} genre=${genreStyle} lyrics=${lyrics.length}c timeout=${fireTimeout}ms`)
+    console.log(`[Audio] Step 2/2 — elevenlabs/music: prompt=${musicPrompt.length}c timeout=${fireTimeout}ms`)
 
     const response = await fetchWithTimeout(
-      REPLICATE_PREDICTIONS,
+      ELEVENLABS_MUSIC,
       {
         method: "POST",
         headers: {
@@ -169,7 +157,7 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
           "Content-Type": "application/json",
           Prefer: "respond-async",
         },
-        body: JSON.stringify({ version: BARK_VERSION, input }),
+        body: JSON.stringify({ input }),
       },
       fireTimeout
     )
