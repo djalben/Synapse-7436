@@ -144,9 +144,12 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
 
     const input: Record<string, unknown> = {
       prompt: musicPrompt,
+      music_length_ms: durationSec * 1000,
+      force_instrumental: false,
+      output_format: "mp3_standard",
     }
 
-    console.log(`[Audio] Step 2/2 — elevenlabs/music: prompt=${musicPrompt.length}c timeout=${fireTimeout}ms`)
+    console.log(`[Audio] Step 2/2 — elevenlabs/music: prompt=${musicPrompt.length}c dur=${durationSec}s (${durationSec * 1000}ms) timeout=${fireTimeout}ms`)
 
     const response = await fetchWithTimeout(
       ELEVENLABS_MUSIC,
