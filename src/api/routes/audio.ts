@@ -129,7 +129,14 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
     // ── Step 1: Generate lyrics via GPT-4o-mini (budget: 4s, fallback: raw keywords) ──
     console.log(`[Audio] Step 1/2 — GPT lyrics: keywords="${prompt.trim().slice(0, 50)}" genre=${genreName} gender=${gender} dur=${durationSec}s`)
     const lyricsTimeout = Math.min(LLM_TIMEOUT_MS, TOTAL_BUDGET_MS - elapsed() - 2000)
-    const lyrics = await generateLyrics(prompt.trim(), genreName, durationSec, gender, Math.max(lyricsTimeout, 2000))
+    let lyrics = await generateLyrics(prompt.trim(), genreName, durationSec, gender, Math.max(lyricsTimeout, 2000))
+
+    // Guarantee lyrics are never empty / too short for minimax (min 10 chars)
+    if (!lyrics || lyrics.trim().length < 10) {
+      const kw = prompt.trim()
+      lyrics = `[verse]\n${kw}\n${kw}\n[chorus]\n${kw}, ${kw}`
+      console.warn(`[Audio] Lyrics too short — padded with keywords: ${lyrics.length}c`)
+    }
     console.log(`[Audio] Lyrics OK: ${lyrics.length}c in ${elapsed()}ms`)
 
     // ── Step 2: Fire minimax/music-01 prediction (budget: remaining, min 2s) ──
@@ -301,6 +308,8 @@ audioRoutes.get("/status/:id", async (c) => {
     }
 
     if (data.status === "failed" || data.status === "canceled") {
+      console.error(`[Audio] ❌ Prediction ${predictionId} FAILED:`, data.error)
+      console.error(`[Audio] Full failed prediction data:`, JSON.stringify(data).slice(0, 500))
       return c.json({ id: predictionId, status: "failed", error: data.error || "Генерация не удалась." })
     }
 

@@ -8,8 +8,16 @@ let _sql: ReturnType<typeof postgres> | null = null
 function getSql() {
   if (_sql) return _sql
   const url = process.env.DATABASE_URL || process.env.POSTGRES_URL
-  if (!url) return null
-  _sql = postgres(url, { ssl: "prefer", connection: { application_name: "synapse" } })
+  if (!url) {
+    console.warn("[conversations] No DATABASE_URL or POSTGRES_URL — DB unavailable")
+    return null
+  }
+  _sql = postgres(url, {
+    ssl: "prefer",
+    connect_timeout: 5,
+    idle_timeout: 20,
+    connection: { application_name: "synapse" },
+  })
   return _sql
 }
 
@@ -17,28 +25,34 @@ function getSql() {
 let _migrated = false
 async function ensureTables(sql: ReturnType<typeof postgres>) {
   if (_migrated) return
-  await sql`
-    CREATE TABLE IF NOT EXISTS conversations (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL DEFAULT 'anonymous',
-      title TEXT NOT NULL DEFAULT 'Новый чат',
-      model TEXT NOT NULL DEFAULT 'deepseek-r1',
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `
-  await sql`
-    CREATE TABLE IF NOT EXISTS chat_messages (
-      id TEXT PRIMARY KEY,
-      conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-      role TEXT NOT NULL,
-      content TEXT NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `
-  await sql`CREATE INDEX IF NOT EXISTS idx_conv_user ON conversations(user_id)`
-  await sql`CREATE INDEX IF NOT EXISTS idx_msg_conv ON chat_messages(conversation_id)`
-  _migrated = true
+  try {
+    await sql`
+      CREATE TABLE IF NOT EXISTS conversations (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL DEFAULT 'anonymous',
+        title TEXT NOT NULL DEFAULT 'Новый чат',
+        model TEXT NOT NULL DEFAULT 'deepseek-r1',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `
+    await sql`
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `
+    await sql`CREATE INDEX IF NOT EXISTS idx_conv_user ON conversations(user_id)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_msg_conv ON chat_messages(conversation_id)`
+    _migrated = true
+    console.log("[conversations] Tables ensured OK")
+  } catch (err: any) {
+    console.error("[conversations] Migration failed:", err.code, err.message)
+    throw err
+  }
 }
 
 // GET /api/conversations — list all conversations for a user
@@ -57,7 +71,7 @@ conversationRoutes.get("/", async (c) => {
     `
     return c.json(rows)
   } catch (err: any) {
-    console.error("[conversations] list error:", err)
+    console.error("[conversations] list error:", err.code, err.message)
     return c.json({ error: err.message }, 500)
   }
 })
@@ -79,7 +93,7 @@ conversationRoutes.get("/:id/messages", async (c) => {
     console.log(`[conversations] load messages convId=${convId} count=${rows.length}`)
     return c.json(rows)
   } catch (err: any) {
-    console.error("[conversations] messages error:", err)
+    console.error("[conversations] messages error:", err.code, err.message)
     return c.json({ error: err.message }, 500)
   }
 })
@@ -99,7 +113,7 @@ conversationRoutes.post("/", async (c) => {
     `
     return c.json({ ok: true, id: body.id })
   } catch (err: any) {
-    console.error("[conversations] create error:", err)
+    console.error("[conversations] create error:", err.code, err.message)
     return c.json({ error: err.message }, 500)
   }
 })
@@ -123,7 +137,7 @@ conversationRoutes.put("/:id", async (c) => {
     }
     return c.json({ ok: true })
   } catch (err: any) {
-    console.error("[conversations] update error:", err)
+    console.error("[conversations] update error:", err.code, err.message)
     return c.json({ error: err.message }, 500)
   }
 })
@@ -139,7 +153,7 @@ conversationRoutes.delete("/:id", async (c) => {
     await sql`DELETE FROM conversations WHERE id = ${convId}`
     return c.json({ ok: true })
   } catch (err: any) {
-    console.error("[conversations] delete error:", err)
+    console.error("[conversations] delete error:", err.code, err.message)
     return c.json({ error: err.message }, 500)
   }
 })
@@ -199,7 +213,7 @@ conversationRoutes.post("/:id/messages", async (c) => {
     console.log(`[conversations] saved OK convId=${convId}`)
     return c.json({ ok: true })
   } catch (err: any) {
-    console.error("[conversations] save messages error:", err)
+    console.error("[conversations] save messages error:", err.code, err.message)
     return c.json({ error: err.message }, 500)
   }
 })
