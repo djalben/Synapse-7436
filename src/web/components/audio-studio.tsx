@@ -455,108 +455,123 @@ export const AudioStudio = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentAudio, setCurrentAudio] = useState<GeneratedAudio | null>(null);
   const [generations, setGenerations] = useState<GeneratedAudio[]>([]);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   
   const CREDIT_COST_MUSIC = 10;
   const CREDIT_COST_VOICE = 3;
   const creditCost = mode === "music" ? CREDIT_COST_MUSIC : CREDIT_COST_VOICE;
   const { setShowPaywall, setPaywallReason, creditBalance, checkCredits, deductCredits } = useUsage();
 
+  // Poll audio prediction status
+  const pollAudioStatus = async (taskId: string): Promise<string> => {
+    for (let i = 0; i < 60; i++) {
+      await new Promise(r => setTimeout(r, 3000));
+      try {
+        const res = await fetch(`/api/audio/status/${encodeURIComponent(taskId)}`);
+        const data = await res.json() as { status: string; url?: string; error?: string };
+        if (data.status === "completed" && data.url) return data.url;
+        if (data.status === "failed") throw new Error(data.error || "Генерация не удалась.");
+        if (i > 3) setStatusMessage(mode === "music" ? "MusicGen создаёт трек..." : "XTTS синтезирует речь...");
+        if (i > 10) setStatusMessage("Финализируем результат...");
+      } catch (err) {
+        if (err instanceof Error && err.message.includes("не удалась")) throw err;
+      }
+    }
+    throw new Error("Таймаут генерации. Попробуйте снова.");
+  };
+
   const handleGenerate = async () => {
     if (!checkCredits(creditCost)) return;
     setIsGenerating(true);
+    setError(null);
+    setStatusMessage(mode === "music" ? "MusicGen запускается..." : "XTTS запускается...");
     
     try {
       let response: Response;
-      let requestBody: Record<string, unknown>;
       
       if (mode === "music") {
-        // Генерация музыки
         if (!musicPrompt.trim()) {
-          alert("Пожалуйста, введите описание музыки");
           setIsGenerating(false);
+          setStatusMessage(null);
           return;
         }
         
-        const durationSeconds = duration === "30s" ? 30 : duration === "60s" ? 60 : 120;
-        requestBody = {
-          prompt: musicPrompt.trim(),
-          duration: durationSeconds,
-          instrumental: musicType === "instrumental",
-          genre: selectedGenre || undefined,
-        };
-        
+        // MusicGen stereo-large supports up to 30s
+        const durationSeconds = duration === "30s" ? 30 : duration === "60s" ? 30 : 30;
         response = await fetch("/api/audio/music", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(requestBody),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: musicPrompt.trim(),
+            duration: durationSeconds,
+            instrumental: musicType === "instrumental",
+            genre: selectedGenre || undefined,
+          }),
         });
       } else {
-        // Озвучка текста
         if (!voiceText.trim()) {
-          alert("Пожалуйста, введите текст для озвучки");
           setIsGenerating(false);
+          setStatusMessage(null);
           return;
         }
-        
-        requestBody = {
-          text: voiceText.trim(),
-          voice: selectedVoice.id,
-        };
         
         response = await fetch("/api/audio/tts", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(requestBody),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: voiceText.trim(),
+          }),
         });
       }
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Неизвестная ошибка" }));
+        const errorData = await response.json().catch(() => ({ error: "Неизвестная ошибка" })) as { error?: string };
         throw new Error(errorData.error || "Ошибка генерации аудио");
       }
       
-      const data = await response.json();
+      const createData = await response.json() as { id?: string; status?: string; error?: string };
+      if (!createData.id) throw new Error("Нет ID задачи.");
+
+      // Poll for completion
+      setStatusMessage(mode === "music" ? "MusicGen генерирует аудио..." : "XTTS синтезирует речь...");
+      const audioUrl = await pollAudioStatus(createData.id);
       
       // Списываем кредиты только после успешной генерации
       deductCredits(creditCost);
       
       const newAudio: GeneratedAudio = {
-        id: data.id || Date.now().toString(),
+        id: createData.id,
         type: mode,
         prompt: mode === "music" ? musicPrompt : undefined,
         text: mode === "voice" ? voiceText : undefined,
-        duration: data.duration || duration,
-        createdAt: new Date(data.createdAt || Date.now()),
-        audioUrl: data.url || data.audioUrl || "",
+        duration: duration,
+        createdAt: new Date(),
+        audioUrl,
       };
       
       setCurrentAudio(newAudio);
       setGenerations(prev => [newAudio, ...prev]);
       
-      // Сохранить в историю
       addToHistory({
         type: "audio",
         prompt: mode === "music" ? musicPrompt : voiceText || "",
-        model: mode === "music" ? "Music Generator" : "Voice Synthesizer",
-        result: newAudio.audioUrl || "",
+        model: mode === "music" ? "MusicGen" : "XTTS-v2",
+        result: audioUrl,
         credits: creditCost,
       });
       
-      // Очистить промпт после успешной генерации
       if (mode === "music") {
         setMusicPrompt("");
       } else {
         setVoiceText("");
       }
-    } catch (error) {
-      console.error("Audio generation error:", error);
-      alert(error instanceof Error ? error.message : "Ошибка генерации аудио. Попробуйте еще раз.");
+    } catch (err) {
+      console.error("Audio generation error:", err);
+      setError(err instanceof Error ? err.message : "Ошибка генерации аудио.");
     } finally {
       setIsGenerating(false);
+      setStatusMessage(null);
     }
   };
 
@@ -716,6 +731,7 @@ export const AudioStudio = () => {
                   </button>
                 ))}
               </div>
+              <p className="text-[11px] text-indigo-400/60 mt-1">MusicGen stereo-large: макс. 30 сек за генерацию</p>
             </div>
           </div>
         )}
@@ -813,19 +829,35 @@ export const AudioStudio = () => {
           </div>
         </div>
 
-        {/* Кнопка генерации — на десктопе sticky внизу левой панели (как в Изображениях/Видео) */}
-        <div className="hidden md:block sticky bottom-0 z-[50] mt-5 pt-2 pb-2 -mx-6 px-6">
+        {/* Кнопка генерации — desktop sticky bottom with blur */}
+        <div className="hidden md:block sticky bottom-0 z-50 px-6 pt-3 pb-4 bg-black/95 backdrop-blur-xl border-t border-white/10">
+          {/* Error */}
+          {error && (
+            <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/30 mb-3">
+              <p className="text-xs text-red-400">{error}</p>
+            </div>
+          )}
+          {/* Status */}
+          {isGenerating && statusMessage && (
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <div className="flex gap-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: "0ms" }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+              </div>
+              <span className="text-xs text-indigo-300/80 font-medium">{statusMessage}</span>
+            </div>
+          )}
           <button
             type="button"
             onClick={handleGenerate}
             disabled={isGenerating || (mode === "music" ? !musicPrompt.trim() : !voiceText.trim())}
             className={`
-              w-full py-4 px-6 rounded-xl font-medium text-base mb-3
+              w-full py-3.5 rounded-xl font-medium text-sm
               transition-all duration-300 relative overflow-hidden
-              active:scale-[0.98]
-              group
+              active:scale-[0.98] group
               ${!isGenerating && (mode === "music" ? musicPrompt.trim() : voiceText.trim())
-                ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_24px_rgba(0,112,243,0.4)]"
+                ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_20px_rgba(0,112,243,0.3)]"
                 : "bg-[#222] text-[#555] cursor-not-allowed"
               }
             `}
@@ -836,23 +868,23 @@ export const AudioStudio = () => {
             <span className="relative flex items-center justify-center gap-2">
               {isGenerating ? (
                 <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin" />
                   <span>{mode === "music" ? "Создание..." : "Синтез..."}</span>
                 </>
               ) : mode === "music" ? (
                 <>
-                  <Sparkles className="w-5 h-5" />
+                  <Sparkles className="w-4 h-4" />
                   <span>Создать музыку</span>
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-5 h-5" />
+                  <Sparkles className="w-4 h-4" />
                   <span>Озвучить текст</span>
                 </>
               )}
             </span>
           </button>
-          <p className="text-center text-[#666] text-xs mb-3">
+          <p className="text-center text-[#555] text-xs mt-2">
             {mode === "music" ? <><span className="text-indigo-400 font-medium">{CREDIT_COST_MUSIC}</span> кредитов за трек</> : <><span className="text-indigo-400 font-medium">{CREDIT_COST_VOICE}</span> кредита за запрос</>} · Осталось: <span className="text-white/90">{creditBalance.toFixed(0)}</span>
           </p>
         </div>

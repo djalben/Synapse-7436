@@ -1,22 +1,11 @@
 import { Hono } from "hono"
 
-// Environment variables type for Hono context
-type Env = {
-  REPLICATE_API_TOKEN?: string
-  HUGGINGFACE_API_KEY?: string
-  HF_API_TOKEN?: string
-}
+export const audioRoutes = new Hono()
 
-export const audioRoutes = new Hono<{ Bindings: Env }>()
-
-// Voice preset configurations
-const VOICE_PRESETS: Record<string, { description: string; style?: string }> = {
-  "male-professional": { description: "Professional male voice, clear and authoritative" },
-  "male-casual": { description: "Casual male voice, friendly and relaxed" },
-  "female-professional": { description: "Professional female voice, clear and confident" },
-  "female-warm": { description: "Warm female voice, friendly and approachable" },
-  "robot-futuristic": { description: "Robotic voice, futuristic AI assistant" },
-}
+const REPLICATE_PREDICTIONS = "https://api.replicate.com/v1/predictions"
+const MUSICGEN_VERSION = "671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb"
+const XTTS_VERSION = "684bc3855b37866c0c65add2ff39c78f3dea3f4ff103a436465326e0f438d55e"
+const TIMEOUT_MS = 8000  // Vercel limit ~10s
 
 // Genre style prompts for music generation
 const GENRE_STYLES: Record<string, string> = {
@@ -28,376 +17,195 @@ const GENRE_STYLES: Record<string, string> = {
   ambient: "atmospheric, ambient soundscape, relaxing",
 }
 
-// Poll Replicate for prediction result
-async function pollReplicatePrediction(predictionId: string, apiToken: string, maxAttempts = 120): Promise<{ status: string; output?: string | string[] }> {
-  
-  for (let i = 0; i < maxAttempts; i++) {
-    const response = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
+function getApiToken(): string | undefined {
+  return process.env.REPLICATE_API_TOKEN
+}
+
+function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<Response> {
+  return Promise.race([
+    fetch(url, init),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`TIMEOUT_${ms}ms`)), ms)
+    ),
+  ])
+}
+
+// ─── POST /music — create MusicGen prediction (fire-and-forget) ───
+audioRoutes.post("/music", async (c) => {
+  const t0 = Date.now()
+  console.log("[Audio] POST /music")
+
+  try {
+    const apiToken = getApiToken()
+    if (!apiToken) return c.json({ error: "Сервис аудио не настроен." }, 503)
+
+    const { prompt, duration, instrumental, genre } = await c.req.json()
+    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+      return c.json({ error: "Пожалуйста, опишите музыку." }, 400)
+    }
+
+    // Build enhanced prompt
+    let enhancedPrompt = prompt.trim()
+    if (genre && GENRE_STYLES[genre]) enhancedPrompt += `, ${GENRE_STYLES[genre]}`
+    if (instrumental) enhancedPrompt += ", instrumental only, no vocals"
+
+    // MusicGen stereo-large supports up to 30s per generation
+    const durationSeconds = Math.min(duration || 30, 30)
+
+    const input = {
+      prompt: enhancedPrompt,
+      duration: durationSeconds,
+      model_version: "stereo-large" as const,
+      output_format: "mp3" as const,
+    }
+
+    console.log(`[Audio] MusicGen input: prompt="${enhancedPrompt.slice(0, 60)}...", dur=${durationSeconds}s`)
+
+    const response = await fetchWithTimeout(REPLICATE_PREDICTIONS, {
+      method: "POST",
       headers: {
         "Authorization": `Bearer ${apiToken}`,
         "Content-Type": "application/json",
       },
-    })
-    
+      body: JSON.stringify({ version: MUSICGEN_VERSION, input }),
+    }, TIMEOUT_MS)
+
+    console.log(`[Audio] MusicGen Replicate: ${response.status} in ${Date.now() - t0}ms`)
+
     if (!response.ok) {
-      throw new Error("Failed to check prediction status")
+      const errText = await response.text()
+      console.error(`[Audio] MusicGen error: ${errText}`)
+      return c.json({ error: "Генерация музыки не удалась.", detail: errText }, 500)
     }
-    
-    const data = await response.json() as { status: string; output?: string | string[]; error?: string }
-    
-    if (data.status === "succeeded") {
-      return data
-    }
-    
-    if (data.status === "failed" || data.status === "canceled") {
-      throw new Error(data.error || "Audio generation failed")
-    }
-    
-    await new Promise(resolve => setTimeout(resolve, 2000))
-  }
-  
-  throw new Error("Audio generation timed out. Please try again.")
-}
 
-// Music generation endpoint
-audioRoutes.post("/music", async (c) => {
-  try {
-    console.log("[Audio API] Music generation request received")
+    const data = await response.json() as { id: string; status: string }
+    console.log(`[Audio] MusicGen prediction: id=${data.id} status=${data.status}`)
 
-    const { prompt, duration, instrumental, genre } = await c.req.json()
-    
-    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
-      return c.json({ error: "Please describe the music you want to create." }, 400)
-    }
-    
-    const apiToken = c.env.REPLICATE_API_TOKEN
-    
-    // Build enhanced prompt
-    let enhancedPrompt = prompt.trim()
-    
-    // Add genre style if provided
-    if (genre && GENRE_STYLES[genre]) {
-      enhancedPrompt += `, ${GENRE_STYLES[genre]}`
-    }
-    
-    // Add instrumental tag if needed
-    if (instrumental) {
-      enhancedPrompt += ", instrumental only, no vocals"
-    }
-    
-    // Map duration to model format
-    const durationMap: Record<number, number> = { 30: 30, 60: 30, 120: 30 }
-    const modelDuration = durationMap[duration] || 30
-    
-    // Try Replicate MusicGen if available
-    if (apiToken) {
-      try {
-        console.log("[Audio API] Attempting Replicate MusicGen")
-        
-        const response = await fetch("https://api.replicate.com/v1/predictions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${apiToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            version: "671ac645ce5e552cc63a54a2bbff63fcf798043ac45c6e1fda8c4b5b3cdcd0a9", // facebook/musicgen-large
-            input: {
-              prompt: enhancedPrompt,
-              duration: modelDuration,
-              model_version: "stereo-large",
-              output_format: "mp3",
-              normalization_strategy: "peak",
-            },
-          }),
-        })
-        
-        if (response.ok) {
-          const prediction = await response.json() as { id: string }
-          const result = await pollReplicatePrediction(prediction.id, apiToken, 120)
-          
-          if (result.output) {
-            const audioUrl = Array.isArray(result.output) ? result.output[0] : result.output
-            
-            console.log("[Audio API] Successfully generated music via Replicate")
-            
-            return c.json({
-              id: `music-${Date.now()}`,
-              url: audioUrl,
-              prompt: prompt.trim(),
-              duration: `${Math.floor(modelDuration / 60)}:${(modelDuration % 60).toString().padStart(2, "0")}`,
-              type: "music",
-              genre: genre || null,
-              instrumental,
-              createdAt: new Date().toISOString(),
-              creditCost: 10, // Music generation costs 10 credits
-            })
-          }
-        }
-      } catch (replicateError) {
-        console.warn("[Audio API] Replicate MusicGen failed:", replicateError)
-        // Fall through to sample response
-      }
-    } else {
-      console.warn("[Audio API] REPLICATE_API_TOKEN not configured")
-    }
-    
-    // Only return sample audio if Replicate is not configured
-    if (!apiToken) {
-      return c.json({
-        id: `music-${Date.now()}`,
-        url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
-        prompt: prompt.trim(),
-        duration: `0:${modelDuration}`,
-        type: "music",
-        genre: genre || null,
-        instrumental,
-        createdAt: new Date().toISOString(),
-        creditCost: 10,
-      })
-    }
-    
-    // Replicate is configured but generation failed - return error
-    return c.json({ error: "Music generation failed. Please try again later." }, 500)
+    return c.json({
+      id: data.id,
+      status: "processing",
+      type: "music",
+      prompt: prompt.trim(),
+      duration: durationSeconds,
+    })
   } catch (error) {
-    console.error("[Audio API] Music generation error:", error)
-    return c.json({ error: "High load on GPU servers, please try again later." }, 500)
+    console.error(`[Audio] MusicGen error after ${Date.now() - t0}ms:`, error)
+    const msg = error instanceof Error ? error.message : String(error)
+    if (msg.includes("TIMEOUT")) return c.json({ error: "Сервис не отвечает." }, 504)
+    return c.json({ error: "Генерация не удалась." }, 500)
   }
 })
 
-// Text-to-speech endpoint
+// ─── POST /tts — create XTTS-v2 prediction (fire-and-forget) ───
 audioRoutes.post("/tts", async (c) => {
+  const t0 = Date.now()
+  console.log("[Audio] POST /tts")
+
   try {
-    console.log("[Audio API] TTS request received")
+    const apiToken = getApiToken()
+    if (!apiToken) return c.json({ error: "Сервис озвучки не настроен." }, 503)
 
-    const { text, voice } = await c.req.json()
-    
+    const { text, speaker } = await c.req.json()
     if (!text || typeof text !== "string" || !text.trim()) {
-      return c.json({ error: "Please enter text to convert to speech." }, 400)
+      return c.json({ error: "Введите текст для озвучки." }, 400)
     }
-    
     if (text.length > 5000) {
-      return c.json({ error: "Text is too long. Maximum 5000 characters." }, 400)
-    }
-    
-    const voicePreset = VOICE_PRESETS[voice] || VOICE_PRESETS["female-warm"]
-    const hfToken = c.env.HUGGINGFACE_API_KEY ?? c.env.HF_API_TOKEN
-    const apiToken = c.env.REPLICATE_API_TOKEN
-
-    // Бесплатная озвучка через Hugging Face TTS (если задан токен)
-    if (hfToken) {
-      try {
-        const hfRes = await fetch("https://api-inference.huggingface.co/models/facebook/mms-tts-eng", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${hfToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ inputs: text.trim().slice(0, 500), text_inputs: text.trim().slice(0, 500) }),
-        })
-        if (hfRes.ok && hfRes.body) {
-          const audioBytes = await hfRes.arrayBuffer()
-          const b64 = btoa(String.fromCharCode(...new Uint8Array(audioBytes)))
-          const mime = hfRes.headers.get("content-type") || "audio/wav"
-          const dataUrl = `data:${mime};base64,${b64}`
-          const wordCount = text.trim().split(/\s+/).length
-          const durationSeconds = Math.ceil((wordCount / 150) * 60)
-          const durationStr = `${Math.floor(durationSeconds / 60)}:${(durationSeconds % 60).toString().padStart(2, "0")}`
-          return c.json({
-            id: `tts-hf-${Date.now()}`,
-            url: dataUrl,
-            text: text.trim(),
-            voice,
-            voiceDescription: voicePreset.description,
-            duration: durationStr,
-            type: "voice",
-            createdAt: new Date().toISOString(),
-            creditCost: 0,
-          })
-        }
-      } catch (e) {
-        console.warn("[Audio API] Hugging Face TTS failed:", e)
-      }
+      return c.json({ error: "Текст слишком длинный. Максимум 5000 символов." }, 400)
     }
 
-    // Try Replicate XTTS if available
-    if (apiToken) {
-      try {
-        console.log("[Audio API] Attempting Replicate XTTS")
-        
-        const response = await fetch("https://api.replicate.com/v1/predictions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${apiToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            version: "684bc3855b37866c0c65add2ff39c78f3dea3f4ff103a436465326e0f438d55e", // coqui/xtts-v2
-            input: {
-              text: text.trim(),
-              speaker: "en_female_01", // Default speaker
-              language: "en",
-            },
-          }),
-        })
-        
-        if (response.ok) {
-          const prediction = await response.json() as { id: string }
-          const result = await pollReplicatePrediction(prediction.id, apiToken, 60)
-          
-          if (result.output) {
-            const audioUrl = Array.isArray(result.output) ? result.output[0] : result.output
-            
-            // Estimate duration from text length (rough approximation)
-            const wordsPerMinute = 150
-            const wordCount = text.trim().split(/\s+/).length
-            const durationSeconds = Math.ceil((wordCount / wordsPerMinute) * 60)
-            const durationStr = `${Math.floor(durationSeconds / 60)}:${(durationSeconds % 60).toString().padStart(2, "0")}`
-            
-            console.log("[Audio API] Successfully generated TTS via Replicate")
-            
-            return c.json({
-              id: `tts-${Date.now()}`,
-              url: audioUrl,
-              text: text.trim(),
-              voice,
-              voiceDescription: voicePreset.description,
-              duration: durationStr,
-              type: "voice",
-              createdAt: new Date().toISOString(),
-              creditCost: 3, // TTS costs 3 credits
-            })
-          }
-        }
-      } catch (replicateError) {
-        console.warn("[Audio API] Replicate XTTS failed:", replicateError)
-        // Fall through to sample response
-      }
-    } else {
-      console.warn("[Audio API] REPLICATE_API_TOKEN and HUGGINGFACE_API_KEY not configured")
+    // XTTS-v2 exact fields from Replicate schema
+    const input: Record<string, unknown> = {
+      text: text.trim(),
+      language: "ru",
+      cleanup_voice: true,
     }
-    
-    // Only return sample audio if no API tokens are configured
-    if (!apiToken && !hfToken) {
-      const wordCount = text.trim().split(/\s+/).length
-      const durationSeconds = Math.ceil((wordCount / 150) * 60)
-      
-      return c.json({
-        id: `tts-${Date.now()}`,
-        url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
-        text: text.trim(),
-        voice,
-        voiceDescription: voicePreset.description,
-        duration: `${Math.floor(durationSeconds / 60)}:${(durationSeconds % 60).toString().padStart(2, "0")}`,
-        type: "voice",
-        createdAt: new Date().toISOString(),
-        creditCost: 3, // TTS costs 3 credits
-      })
+    // speaker = URL of user-uploaded audio for voice cloning
+    if (speaker && typeof speaker === "string") {
+      input.speaker = speaker
     }
-    
-    // API tokens are configured but generation failed - return error
-    return c.json({ error: "Text-to-speech generation failed. Please try again later." }, 500)
+
+    console.log(`[Audio] XTTS input: text="${text.trim().slice(0, 60)}...", speaker=${speaker ? "yes" : "no"}`)
+
+    const response = await fetchWithTimeout(REPLICATE_PREDICTIONS, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ version: XTTS_VERSION, input }),
+    }, TIMEOUT_MS)
+
+    console.log(`[Audio] XTTS Replicate: ${response.status} in ${Date.now() - t0}ms`)
+
+    if (!response.ok) {
+      const errText = await response.text()
+      console.error(`[Audio] XTTS error: ${errText}`)
+      return c.json({ error: "Озвучка не удалась.", detail: errText }, 500)
+    }
+
+    const data = await response.json() as { id: string; status: string }
+    console.log(`[Audio] XTTS prediction: id=${data.id} status=${data.status}`)
+
+    return c.json({
+      id: data.id,
+      status: "processing",
+      type: "voice",
+      text: text.trim(),
+    })
   } catch (error) {
-    console.error("[Audio API] TTS error:", error)
-    return c.json({ error: "High load on GPU servers, please try again later." }, 500)
+    console.error(`[Audio] XTTS error after ${Date.now() - t0}ms:`, error)
+    const msg = error instanceof Error ? error.message : String(error)
+    if (msg.includes("TIMEOUT")) return c.json({ error: "Сервис не отвечает." }, 504)
+    return c.json({ error: "Озвучка не удалась." }, 500)
   }
 })
 
-// Voice cloning endpoint
-audioRoutes.post("/clone", async (c) => {
-  try {
-    console.log("[Audio API] Voice cloning request received")
+// ─── GET /status/:id — universal poll for any audio prediction ───
+audioRoutes.get("/status/:id", async (c) => {
+  const predictionId = c.req.param("id")
+  console.log(`[Audio] GET /status/${predictionId}`)
 
-    const { referenceAudio, text, voiceName } = await c.req.json()
-    
-    if (!referenceAudio || typeof referenceAudio !== "string") {
-      return c.json({ error: "Please upload a reference audio sample to clone." }, 400)
+  try {
+    const apiToken = getApiToken()
+    if (!apiToken) return c.json({ error: "Service not configured." }, 503)
+
+    const response = await fetchWithTimeout(`${REPLICATE_PREDICTIONS}/${predictionId}`, {
+      method: "GET",
+      headers: { "Authorization": `Bearer ${apiToken}` },
+    }, TIMEOUT_MS)
+
+    if (!response.ok) {
+      console.error(`[Audio] Status error: ${response.status}`)
+      return c.json({ id: predictionId, status: "processing" })
     }
-    
-    if (!text || typeof text !== "string" || !text.trim()) {
-      return c.json({ error: "Please enter text to synthesize with the cloned voice." }, 400)
+
+    const data = await response.json() as {
+      id: string
+      status: string
+      output?: string | string[] | { url: string }
+      error?: string
     }
-    
-    if (text.length > 2000) {
-      return c.json({ error: "Text is too long. Maximum 2000 characters for voice cloning." }, 400)
-    }
-    
-    const apiToken = c.env.REPLICATE_API_TOKEN
-    
-    // Try Replicate XTTS voice cloning if available
-    if (apiToken) {
-      try {
-        console.log("[Audio API] Attempting Replicate voice cloning")
-        
-        const response = await fetch("https://api.replicate.com/v1/predictions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${apiToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            version: "684bc3855b37866c0c65add2ff39c78f3dea3f4ff103a436465326e0f438d55e", // coqui/xtts-v2
-            input: {
-              text: text.trim(),
-              speaker_wav: referenceAudio,
-              language: "en",
-            },
-          }),
-        })
-        
-        if (response.ok) {
-          const prediction = await response.json() as { id: string }
-          const result = await pollReplicatePrediction(prediction.id, apiToken, 90)
-          
-          if (result.output) {
-            const audioUrl = Array.isArray(result.output) ? result.output[0] : result.output
-            
-            const wordCount = text.trim().split(/\s+/).length
-            const durationSeconds = Math.ceil((wordCount / 150) * 60)
-            
-            console.log("[Audio API] Successfully cloned voice via Replicate")
-            
-            return c.json({
-              id: `clone-${Date.now()}`,
-              url: audioUrl,
-              text: text.trim(),
-              voiceName: voiceName || "My Cloned Voice",
-              duration: `${Math.floor(durationSeconds / 60)}:${(durationSeconds % 60).toString().padStart(2, "0")}`,
-              type: "clone",
-              createdAt: new Date().toISOString(),
-              creditCost: 30, // Voice cloning - expensive GPU operation
-            })
-          }
-        }
-      } catch (replicateError) {
-        console.warn("[Audio API] Replicate voice cloning failed:", replicateError)
-        // Fall through to sample response
+
+    console.log(`[Audio] Status ${predictionId}: ${data.status}`)
+
+    if (data.status === "succeeded" && data.output) {
+      let url: string | null = null
+      if (typeof data.output === "string") url = data.output
+      else if (Array.isArray(data.output)) url = data.output[0]
+      else if (typeof data.output === "object" && "url" in data.output) url = data.output.url
+
+      if (url) {
+        return c.json({ id: predictionId, status: "completed", url })
       }
-    } else {
-      console.warn("[Audio API] REPLICATE_API_TOKEN not configured")
     }
-    
-    // Only return sample audio if Replicate is not configured
-    if (!apiToken) {
-      const wordCount = text.trim().split(/\s+/).length
-      const durationSeconds = Math.ceil((wordCount / 150) * 60)
-      
-      return c.json({
-        id: `clone-${Date.now()}`,
-        url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
-        text: text.trim(),
-        voiceName: voiceName || "My Cloned Voice",
-        duration: `${Math.floor(durationSeconds / 60)}:${(durationSeconds % 60).toString().padStart(2, "0")}`,
-        type: "clone",
-        createdAt: new Date().toISOString(),
-        creditCost: 30, // Voice cloning - expensive GPU operation
-      })
+
+    if (data.status === "failed" || data.status === "canceled") {
+      return c.json({ id: predictionId, status: "failed", error: data.error || "Генерация не удалась." })
     }
-    
-    // Replicate is configured but generation failed - return error
-    return c.json({ error: "Voice cloning failed. Please try again later." }, 500)
-  } catch (error) {
-    console.error("[Audio API] Voice cloning error:", error)
-    return c.json({ error: "High load on GPU servers, please try again later." }, 500)
+
+    return c.json({ id: predictionId, status: "processing" })
+  } catch (err) {
+    console.error(`[Audio] Status check error:`, err)
+    return c.json({ id: predictionId, status: "processing" })
   }
 })
