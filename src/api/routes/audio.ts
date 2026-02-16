@@ -23,10 +23,10 @@ const GENRE_STYLE: Record<string, string> = {
   "Эмбиент":     "ambient track",
 }
 
-// Bark voice presets: speaker IDs for male/female
+// Bark voice presets: Russian speakers (no v2/ prefix)
 const BARK_VOICES: Record<string, string> = {
-  male:   "v2/en_speaker_6",
-  female: "v2/en_speaker_9",
+  male:   "ru_speaker_1",
+  female: "ru_speaker_4",
 }
 
 function getApiToken(): string | undefined {
@@ -147,8 +147,12 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
 
     // ── Step 2: Fire Bark prediction (budget: remaining, min 2s) ──
     const fireTimeout = Math.max(2000, TOTAL_BUDGET_MS - elapsed() - 500)
+    // Prepend music/vocal tag so Bark "tunes in" to singing mode
+    const vocalPrefix = gender === "male" ? "[music] [male vocals]" : "[music] [female vocals]"
+    const barkPrompt = lyrics.startsWith("♪") || lyrics.startsWith("[music]") ? lyrics : `${vocalPrefix} ${lyrics}`
+
     const input: Record<string, unknown> = {
-      prompt: lyrics,
+      prompt: barkPrompt,
       history_prompt: historyPrompt,
       text_temp: 0.7,
       waveform_temp: 0.7,
