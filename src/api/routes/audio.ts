@@ -45,6 +45,7 @@ async function generateLyrics(
   keywords: string,
   genre: string,
   durationSec: number,
+  gender: string = "female",
   timeoutMs: number = LLM_TIMEOUT_MS
 ): Promise<string> {
   const key = getOpenRouterKey()
@@ -78,7 +79,7 @@ async function generateLyrics(
           messages: [
             {
               role: "system",
-              content: `You are a professional hit songwriter. Write song lyrics in English.\nGenre: ${genre || "pop"}\nStructure: ${structure}\nRules:\n- Use section tags on separate lines: [verse], [chorus], [bridge]\n- Keep total lyrics UNDER ${maxChars} characters\n- Make lyrics catchy, emotional, and easy to sing\n- Use vivid imagery and a memorable hook in the chorus\n- Output ONLY the lyrics text, no title, no explanations`,
+              content: `You are a professional hit songwriter. Write song lyrics in English.\nGenre: ${genre || "pop"}\nVocalist: ${gender === "male" ? "Male singer" : "Female singer"} — write from a ${gender === "male" ? "male" : "female"} perspective.\nStructure: ${structure}\nRules:\n- Use section tags on separate lines: [verse], [chorus], [bridge]\n- Keep total lyrics UNDER ${maxChars} characters\n- Make lyrics catchy, emotional, and easy to sing\n- Use vivid imagery and a memorable hook in the chorus\n- Output ONLY the lyrics text, no title, no explanations`,
             },
             { role: "user", content: `Write a song about: ${keywords}` },
           ],
@@ -111,19 +112,24 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
     const apiToken = getApiToken()
     if (!apiToken) return c.json({ error: "Сервис аудио не настроен (REPLICATE_API_TOKEN)." }, 503)
 
-    const { prompt, duration, genre } = await c.req.json()
+    const { prompt, duration, genre, vocalGender } = await c.req.json()
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
       return c.json({ error: "Опишите тему вашей песни." }, 400)
     }
 
     const genreName: string = genre || "Поп"
+    const gender: string = vocalGender === "male" ? "male" : "female"
     const durationSec = Math.min(Math.max(duration || 60, 30), 120)
-    const stylePrompt = GENRE_PROMPTS[genreName] || GENRE_PROMPTS["Поп"]!
+    const genreStyle = GENRE_PROMPTS[genreName] || GENRE_PROMPTS["Поп"]!
+    const genderTag = gender === "male" ? "Male Vocalist" : "Female Vocalist"
+    const stylePrompt = `[${genderTag}], ${genreStyle}`
+
+    console.log(`[Audio] Creating track with gender: ${gender}`)
 
     // ── Step 1: Generate lyrics via GPT-4o-mini (budget: 4s, fallback: raw keywords) ──
-    console.log(`[Audio] Step 1/2 — GPT lyrics: keywords="${prompt.trim().slice(0, 50)}" genre=${genreName} dur=${durationSec}s`)
+    console.log(`[Audio] Step 1/2 — GPT lyrics: keywords="${prompt.trim().slice(0, 50)}" genre=${genreName} gender=${gender} dur=${durationSec}s`)
     const lyricsTimeout = Math.min(LLM_TIMEOUT_MS, TOTAL_BUDGET_MS - elapsed() - 2000)
-    const lyrics = await generateLyrics(prompt.trim(), genreName, durationSec, Math.max(lyricsTimeout, 2000))
+    const lyrics = await generateLyrics(prompt.trim(), genreName, durationSec, gender, Math.max(lyricsTimeout, 2000))
     console.log(`[Audio] Lyrics OK: ${lyrics.length}c in ${elapsed()}ms`)
 
     // ── Step 2: Fire minimax/music-01 prediction (budget: remaining, min 2s) ──
