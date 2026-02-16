@@ -4,7 +4,7 @@ export const enhanceRoutes = new Hono()
 
 const REPLICATE_BASE = "https://api.replicate.com/v1"
 const REPLICATE_PREDICTIONS = `${REPLICATE_BASE}/predictions`
-const CODEFORMER_SLUG = "lucataco/codeformer"
+const CODEFORMER_VERSION = "78f2bab438ab0ffc85a68cdfd316a2ecd3994b5dd26aa6b3d203357b45e5eb1b"
 const TIMEOUT_MS = 8000  // Vercel limit ~10s
 
 function getReplicateKey(): string | undefined {
@@ -50,28 +50,27 @@ enhanceRoutes.post("/", async (c) => {
       return c.json({ error: "Please select at least one enhancement option." }, 400)
     }
 
-    // Build CodeFormer input based on selected options
+    // Build CodeFormer input — exact field names from Replicate schema
     const input: Record<string, unknown> = {
       image,
       upscale: options.upscale ? 2 : 1,
       face_upsample: options.faceRestore !== false,  // default true
       background_enhance: true,
-      codeformer_fidelity: 0.7,  // balance between quality and fidelity
+      codeformer_fidelity: 0.7,
     }
 
-    console.log(`[Enhance] CodeFormer options=${selectedOptions.map(([k]) => k).join(",")} upscale=${input.upscale}`)
+    console.log(`[Enhance] CodeFormer input:`, JSON.stringify(input))
 
-    // Fire-and-forget: create prediction via Replicate Models API
-    const modelsUrl = `${REPLICATE_BASE}/models/${CODEFORMER_SLUG}/predictions`
-    console.log(`[Enhance] POST ${modelsUrl}`)
+    // POST /v1/predictions with version hash (no model slug in URL)
+    console.log(`[Enhance] POST ${REPLICATE_PREDICTIONS} version=${CODEFORMER_VERSION.slice(0, 12)}...`)
 
-    const response = await fetchWithTimeout(modelsUrl, {
+    const response = await fetchWithTimeout(REPLICATE_PREDICTIONS, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ input }),
+      body: JSON.stringify({ version: CODEFORMER_VERSION, input }),
     }, TIMEOUT_MS)
 
     const elapsed = Date.now() - startTime
