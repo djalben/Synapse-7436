@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import {
   Music,
   Mic,
@@ -73,20 +73,89 @@ const WaveformVisualizer = ({ isPlaying }: { isPlaying: boolean }) => {
   );
 };
 
-// Audio Player component
+// Audio Player component with real <audio> element
 const AudioPlayer = ({ 
   audio, 
   isPlaying, 
-  onPlayPause 
+  onPlayPause,
+  onEnded,
 }: { 
   audio: GeneratedAudio | null; 
   isPlaying: boolean;
   onPlayPause: () => void;
+  onEnded: () => void;
 }) => {
   const [progress, setProgress] = useState(0);
+  const [currentTime, setCurrentTime] = useState("0:00");
+  const [totalTime, setTotalTime] = useState("0:00");
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const prevUrlRef = useRef<string | null>(null);
+
+  const fmtTime = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec.toString().padStart(2, "0")}`;
+  };
+
+  // Load new audio & autoplay
+  useEffect(() => {
+    const url = audio?.audioUrl;
+    if (!url || url === prevUrlRef.current) return;
+    prevUrlRef.current = url;
+    const el = audioRef.current;
+    if (!el) return;
+    el.src = url;
+    el.load();
+    el.play().catch(() => {});
+    onPlayPause(); // sync state to playing
+  }, [audio?.audioUrl]);
+
+  // Sync play/pause with state
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el || !el.src) return;
+    if (isPlaying) el.play().catch(() => {});
+    else el.pause();
+  }, [isPlaying]);
+
+  const handleTimeUpdate = () => {
+    const el = audioRef.current;
+    if (!el || !el.duration) return;
+    setProgress((el.currentTime / el.duration) * 100);
+    setCurrentTime(fmtTime(el.currentTime));
+  };
+
+  const handleLoadedMetadata = () => {
+    const el = audioRef.current;
+    if (el && el.duration && isFinite(el.duration)) setTotalTime(fmtTime(el.duration));
+  };
+
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = audioRef.current;
+    if (!el || !el.duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    el.currentTime = pct * el.duration;
+  };
+
+  const handleDownload = () => {
+    if (!audio?.audioUrl) return;
+    const a = document.createElement("a");
+    a.href = audio.audioUrl;
+    a.download = `synapse-${audio.type}-${audio.id}.mp3`;
+    a.click();
+  };
 
   return (
     <div className="bg-white/[0.02] border border-[#333] rounded-2xl p-6 space-y-4">
+      {/* Hidden audio element */}
+      <audio
+        ref={audioRef}
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
+        onEnded={() => { setProgress(0); onEnded(); }}
+      />
+
       {/* Waveform */}
       <div className="bg-black/40 rounded-xl p-4 border border-[#222]">
         <WaveformVisualizer isPlaying={isPlaying} />
@@ -96,11 +165,11 @@ const AudioPlayer = ({
       <div className="flex items-center gap-4">
         <button
           onClick={onPlayPause}
-          disabled={!audio}
+          disabled={!audio?.audioUrl}
           className={`
             w-12 h-12 rounded-full flex items-center justify-center
             transition-all duration-300
-            ${audio 
+            ${audio?.audioUrl 
               ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_24px_rgba(0,112,243,0.4)]" 
               : "bg-white/[0.05] text-[#444] cursor-not-allowed"
             }
@@ -113,17 +182,20 @@ const AudioPlayer = ({
           )}
         </button>
 
-        {/* Timeline */}
+        {/* Timeline — clickable to seek */}
         <div className="flex-1 space-y-1">
-          <div className="h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
+          <div 
+            className="h-1.5 bg-white/[0.05] rounded-full overflow-hidden cursor-pointer"
+            onClick={handleSeek}
+          >
             <div 
               className="h-full bg-gradient-to-r from-indigo-500 to-blue-500 rounded-full transition-all duration-100"
               style={{ width: `${progress}%` }}
             />
           </div>
           <div className="flex justify-between text-xs text-[#666]">
-            <span>0:00</span>
-            <span>{audio?.duration || "0:00"}</span>
+            <span>{currentTime}</span>
+            <span>{totalTime}</span>
           </div>
         </div>
 
@@ -134,10 +206,11 @@ const AudioPlayer = ({
 
         {/* Download */}
         <button 
-          disabled={!audio}
+          onClick={handleDownload}
+          disabled={!audio?.audioUrl}
           className={`
             p-2 rounded-lg border transition-colors
-            ${audio 
+            ${audio?.audioUrl 
               ? "bg-white/[0.03] border-[#333] text-[#888] hover:text-white hover:bg-white/[0.05]" 
               : "bg-white/[0.02] border-[#222] text-[#444] cursor-not-allowed"
             }
@@ -154,7 +227,7 @@ const AudioPlayer = ({
             {audio.type === "music" ? audio.prompt : audio.text}
           </p>
           <p className="text-xs text-[#666] mt-1">
-            {audio.type === "music" ? "Генерация музыки" : "Синтез речи"} • {audio.duration}
+            {audio.type === "music" ? "MusicGen · Музыка" : "XTTS-v2 · Озвучка"} • {totalTime !== "0:00" ? totalTime : audio.duration}
           </p>
         </div>
       ) : (
@@ -455,13 +528,34 @@ export const AudioStudio = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentAudio, setCurrentAudio] = useState<GeneratedAudio | null>(null);
   const [generations, setGenerations] = useState<GeneratedAudio[]>([]);
+  const [genProgress, setGenProgress] = useState(0);       // 0-100
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
   const CREDIT_COST_MUSIC = 10;
   const CREDIT_COST_VOICE = 3;
   const creditCost = mode === "music" ? CREDIT_COST_MUSIC : CREDIT_COST_VOICE;
-  const { setShowPaywall, setPaywallReason, creditBalance, checkCredits, deductCredits } = useUsage();
+  const { creditBalance, checkCredits, deductCredits } = useUsage();
+
+  // Smooth progress simulation: ramps from 0 → targetPct over durationMs
+  const startProgressSim = useCallback((durationMs: number, targetPct: number) => {
+    if (progressRef.current) clearInterval(progressRef.current);
+    const t0 = Date.now();
+    setGenProgress(0);
+    progressRef.current = setInterval(() => {
+      const elapsed = Date.now() - t0;
+      const pct = Math.min(targetPct, (elapsed / durationMs) * targetPct);
+      setGenProgress(Math.round(pct));
+    }, 200);
+  }, []);
+
+  const stopProgressSim = useCallback(() => {
+    if (progressRef.current) { clearInterval(progressRef.current); progressRef.current = null; }
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => () => stopProgressSim(), [stopProgressSim]);
 
   // Poll audio prediction status
   const pollAudioStatus = async (taskId: string): Promise<string> => {
@@ -472,8 +566,6 @@ export const AudioStudio = () => {
         const data = await res.json() as { status: string; url?: string; error?: string };
         if (data.status === "completed" && data.url) return data.url;
         if (data.status === "failed") throw new Error(data.error || "Генерация не удалась.");
-        if (i > 3) setStatusMessage(mode === "music" ? "MusicGen создаёт трек..." : "XTTS синтезирует речь...");
-        if (i > 10) setStatusMessage("Финализируем результат...");
       } catch (err) {
         if (err instanceof Error && err.message.includes("не удалась")) throw err;
       }
@@ -485,20 +577,26 @@ export const AudioStudio = () => {
     if (!checkCredits(creditCost)) return;
     setIsGenerating(true);
     setError(null);
-    setStatusMessage(mode === "music" ? "MusicGen запускается..." : "XTTS запускается...");
+    setGenProgress(0);
+
+    // Start progress simulation: MusicGen 0→80% in 60s, XTTS 0→80% in 15s
+    if (mode === "music") {
+      setStatusMessage("MusicGen запускается...");
+      startProgressSim(60_000, 80);
+    } else {
+      setStatusMessage("XTTS запускается...");
+      startProgressSim(15_000, 80);
+    }
     
     try {
       let response: Response;
       
       if (mode === "music") {
         if (!musicPrompt.trim()) {
-          setIsGenerating(false);
-          setStatusMessage(null);
+          setIsGenerating(false); setStatusMessage(null); stopProgressSim(); setGenProgress(0);
           return;
         }
-        
-        // MusicGen stereo-large supports up to 30s
-        const durationSeconds = duration === "30s" ? 30 : duration === "60s" ? 30 : 30;
+        const durationSeconds = 30; // MusicGen stereo-large max 30s
         response = await fetch("/api/audio/music", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -511,17 +609,13 @@ export const AudioStudio = () => {
         });
       } else {
         if (!voiceText.trim()) {
-          setIsGenerating(false);
-          setStatusMessage(null);
+          setIsGenerating(false); setStatusMessage(null); stopProgressSim(); setGenProgress(0);
           return;
         }
-        
         response = await fetch("/api/audio/tts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text: voiceText.trim(),
-          }),
+          body: JSON.stringify({ text: voiceText.trim() }),
         });
       }
       
@@ -533,19 +627,24 @@ export const AudioStudio = () => {
       const createData = await response.json() as { id?: string; status?: string; error?: string };
       if (!createData.id) throw new Error("Нет ID задачи.");
 
-      // Poll for completion
-      setStatusMessage(mode === "music" ? "MusicGen генерирует аудио..." : "XTTS синтезирует речь...");
+      setStatusMessage(mode === "music" ? "MusicGen генерирует трек..." : "XTTS синтезирует речь...");
       const audioUrl = await pollAudioStatus(createData.id);
       
-      // Списываем кредиты только после успешной генерации
+      // Snap to 100%
+      stopProgressSim();
+      setGenProgress(100);
+      setStatusMessage("Готово!");
+      
       deductCredits(creditCost);
       
+      const savedPrompt = musicPrompt;
+      const savedText = voiceText;
       const newAudio: GeneratedAudio = {
         id: createData.id,
         type: mode,
-        prompt: mode === "music" ? musicPrompt : undefined,
-        text: mode === "voice" ? voiceText : undefined,
-        duration: duration,
+        prompt: mode === "music" ? savedPrompt : undefined,
+        text: mode === "voice" ? savedText : undefined,
+        duration: mode === "music" ? "0:30" : `~${Math.ceil(savedText.split(/\s+/).length / 2.5)}с`,
         createdAt: new Date(),
         audioUrl,
       };
@@ -555,23 +654,22 @@ export const AudioStudio = () => {
       
       addToHistory({
         type: "audio",
-        prompt: mode === "music" ? musicPrompt : voiceText || "",
+        prompt: mode === "music" ? savedPrompt : savedText || "",
         model: mode === "music" ? "MusicGen" : "XTTS-v2",
         result: audioUrl,
         credits: creditCost,
       });
       
-      if (mode === "music") {
-        setMusicPrompt("");
-      } else {
-        setVoiceText("");
-      }
+      if (mode === "music") setMusicPrompt(""); else setVoiceText("");
     } catch (err) {
       console.error("Audio generation error:", err);
       setError(err instanceof Error ? err.message : "Ошибка генерации аудио.");
     } finally {
+      stopProgressSim();
       setIsGenerating(false);
       setStatusMessage(null);
+      // Keep genProgress at 100 briefly, then reset after animation
+      setTimeout(() => setGenProgress(0), 1500);
     }
   };
 
@@ -829,7 +927,7 @@ export const AudioStudio = () => {
           </div>
         </div>
 
-        {/* Кнопка генерации — desktop sticky bottom with blur */}
+        {/* Кнопка генерации — desktop sticky bottom with blur + progress */}
         <div className="hidden md:block sticky bottom-0 z-50 px-6 pt-3 pb-4 bg-black/95 backdrop-blur-xl border-t border-white/10">
           {/* Error */}
           {error && (
@@ -837,15 +935,19 @@ export const AudioStudio = () => {
               <p className="text-xs text-red-400">{error}</p>
             </div>
           )}
-          {/* Status */}
-          {isGenerating && statusMessage && (
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <div className="flex gap-1">
-                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: "0ms" }} />
-                <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: "150ms" }} />
-                <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+          {/* Progress bar */}
+          {isGenerating && (
+            <div className="mb-3 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-indigo-300/80 font-medium">{statusMessage || "Обработка..."}</span>
+                <span className="text-xs text-indigo-400 font-mono font-bold">{genProgress}%</span>
               </div>
-              <span className="text-xs text-indigo-300/80 font-medium">{statusMessage}</span>
+              <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-blue-500 transition-all duration-300 ease-out"
+                  style={{ width: `${genProgress}%` }}
+                />
+              </div>
             </div>
           )}
           <button
@@ -856,9 +958,11 @@ export const AudioStudio = () => {
               w-full py-3.5 rounded-xl font-medium text-sm
               transition-all duration-300 relative overflow-hidden
               active:scale-[0.98] group
-              ${!isGenerating && (mode === "music" ? musicPrompt.trim() : voiceText.trim())
-                ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_20px_rgba(0,112,243,0.3)]"
-                : "bg-[#222] text-[#555] cursor-not-allowed"
+              ${isGenerating
+                ? "bg-indigo-600/80 text-white cursor-wait"
+                : (mode === "music" ? musicPrompt.trim() : voiceText.trim())
+                  ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_20px_rgba(0,112,243,0.3)]"
+                  : "bg-[#222] text-[#555] cursor-not-allowed"
               }
             `}
           >
@@ -869,7 +973,7 @@ export const AudioStudio = () => {
               {isGenerating ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>{mode === "music" ? "Создание..." : "Синтез..."}</span>
+                  <span>{genProgress}% — {mode === "music" ? "Создание..." : "Синтез..."}</span>
                 </>
               ) : mode === "music" ? (
                 <>
@@ -890,8 +994,23 @@ export const AudioStudio = () => {
         </div>
       </div>
 
-      {/* Фиксированная кнопка на мобильных — как в Изображениях и Видео */}
+      {/* Фиксированная кнопка на мобильных — с прогресс-баром */}
       <div className="md:hidden w-full px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)] bg-black/95 backdrop-blur-xl border-t border-white/10 shadow-[0_-4px_24px_rgba(0,0,0,0.4)] fixed bottom-0 left-0 right-0 z-50">
+        {/* Mobile progress bar */}
+        {isGenerating && (
+          <div className="mb-2 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-indigo-300/80 font-medium">{statusMessage || "Обработка..."}</span>
+              <span className="text-[11px] text-indigo-400 font-mono font-bold">{genProgress}%</span>
+            </div>
+            <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-blue-500 transition-all duration-300 ease-out"
+                style={{ width: `${genProgress}%` }}
+              />
+            </div>
+          </div>
+        )}
         <button
           type="button"
           onClick={handleGenerate}
@@ -899,20 +1018,19 @@ export const AudioStudio = () => {
           className={`
             w-full py-4 px-6 rounded-xl font-medium text-base
             transition-all duration-300 relative overflow-hidden active:scale-[0.98] group
-            ${!isGenerating && (mode === "music" ? musicPrompt.trim() : voiceText.trim())
-              ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_24px_rgba(0,112,243,0.4)]"
-              : "bg-[#222] text-[#555] cursor-not-allowed"
+            ${isGenerating
+              ? "bg-indigo-600/80 text-white cursor-wait"
+              : (mode === "music" ? musicPrompt.trim() : voiceText.trim())
+                ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_24px_rgba(0,112,243,0.4)]"
+                : "bg-[#222] text-[#555] cursor-not-allowed"
             }
           `}
         >
-          {!isGenerating && (mode === "music" ? musicPrompt.trim() : voiceText.trim()) && (
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-          )}
           <span className="relative flex items-center justify-center gap-2">
             {isGenerating ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-                <span>{mode === "music" ? "Создание..." : "Синтез..."}</span>
+                <span>{genProgress}% — {mode === "music" ? "Создание..." : "Синтез..."}</span>
               </>
             ) : mode === "music" ? (
               <>
@@ -940,6 +1058,7 @@ export const AudioStudio = () => {
           audio={currentAudio} 
           isPlaying={isPlaying}
           onPlayPause={() => setIsPlaying(!isPlaying)}
+          onEnded={() => setIsPlaying(false)}
         />
 
         {/* Recent Generations */}

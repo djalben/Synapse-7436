@@ -47,7 +47,12 @@ audioRoutes.post("/music", async (c) => {
     // Build enhanced prompt
     let enhancedPrompt = prompt.trim()
     if (genre && GENRE_STYLES[genre]) enhancedPrompt += `, ${GENRE_STYLES[genre]}`
-    if (instrumental) enhancedPrompt += ", instrumental only, no vocals"
+    if (instrumental) {
+      enhancedPrompt += ", instrumental only, no vocals"
+    } else {
+      // MusicGen is primarily instrumental; prefix helps guide toward vocal-like output
+      enhancedPrompt = `Featuring melodic human vocals, singing, ${enhancedPrompt}`
+    }
 
     // MusicGen stereo-large supports up to 30s per generation
     const durationSeconds = Math.min(duration || 30, 30)
