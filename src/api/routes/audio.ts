@@ -46,6 +46,7 @@ async function generateLyrics(
   genre: string,
   durationSec: number,
   gender: string = "female",
+  language: string = "ru",
   timeoutMs: number = LLM_TIMEOUT_MS
 ): Promise<string> {
   const key = getOpenRouterKey()
@@ -79,9 +80,9 @@ async function generateLyrics(
           messages: [
             {
               role: "system",
-              content: `You are a professional hit songwriter. Write song lyrics in English.\nGenre: ${genre || "pop"}\nVocalist: ${gender === "male" ? "Male singer" : "Female singer"} — write from a ${gender === "male" ? "male" : "female"} perspective.\nStructure: ${structure}\nRules:\n- Use section markers: [Verse], [Chorus], [Bridge] on separate lines\n- Keep total lyrics UNDER ${maxChars} characters\n- Make lyrics catchy, emotional, and singable\n- Use vivid imagery and a memorable hook in the chorus\n- Output ONLY the lyrics, no title, no explanations`,
+              content: `You are a professional hit songwriter. Write song lyrics strictly in ${language === "ru" ? "Russian" : "English"}.\nGenre: ${genre || "pop"}\nVocalist: ${gender === "male" ? "Male singer" : "Female singer"} — write from a ${gender === "male" ? "male" : "female"} perspective.\nStructure: ${structure}\nRules:\n- Write ALL lyrics in ${language === "ru" ? "Russian" : "English"} language\n- Use section markers: [Verse], [Chorus], [Bridge] on separate lines\n- Keep total lyrics UNDER ${maxChars} characters\n- Make lyrics catchy, emotional, and singable\n- Use vivid imagery and a memorable hook in the chorus\n- Output ONLY the lyrics, no title, no explanations`,
             },
-            { role: "user", content: `Write a ${genre || "pop"} song about: ${keywords}` },
+            { role: "user", content: `Write a ${genre || "pop"} song ${language === "ru" ? "in Russian" : "in English"} about: ${keywords}` },
           ],
         }),
       },
@@ -112,22 +113,23 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
     const apiToken = getApiToken()
     if (!apiToken) return c.json({ error: "Сервис аудио не настроен (REPLICATE_API_TOKEN)." }, 503)
 
-    const { prompt, duration, genre, vocalGender } = await c.req.json()
+    const { prompt, duration, genre, vocalGender, language } = await c.req.json()
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
       return c.json({ error: "Опишите тему вашей песни." }, 400)
     }
 
     const genreName: string = genre || "Поп"
     const gender: string = vocalGender === "male" ? "male" : "female"
+    const lang: string = language === "en" ? "en" : "ru"
     const durationSec = Math.min(Math.max(duration || 60, 30), 300) // ElevenLabs supports up to 5 min
     const genreStyle = GENRE_STYLE[genreName] || GENRE_STYLE["Поп"]!
 
-    console.log(`[Audio] Creating track: genre=${genreName} gender=${gender} dur=${durationSec}s`)
+    console.log(`[Audio] Creating track: genre=${genreName} gender=${gender} lang=${lang} dur=${durationSec}s`)
 
     // ── Step 1: Generate lyrics via GPT-4o-mini (budget: 4s, fallback: raw keywords) ──
     console.log(`[Audio] Step 1/2 — GPT lyrics: keywords="${prompt.trim().slice(0, 50)}" genre=${genreName} gender=${gender} dur=${durationSec}s`)
     const lyricsTimeout = Math.min(LLM_TIMEOUT_MS, TOTAL_BUDGET_MS - elapsed() - 2000)
-    let lyrics = await generateLyrics(prompt.trim(), genreName, durationSec, gender, Math.max(lyricsTimeout, 2000))
+    let lyrics = await generateLyrics(prompt.trim(), genreName, durationSec, gender, lang, Math.max(lyricsTimeout, 2000))
 
     // Guarantee lyrics are never empty / too short (min 10 chars)
     if (!lyrics || lyrics.trim().length < 10) {
@@ -140,7 +142,8 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
     // ── Step 2: Fire ElevenLabs Music prediction (official model, always warm) ──
     const fireTimeout = Math.max(2000, TOTAL_BUDGET_MS - elapsed() - 500)
     const vocalDesc = gender === "male" ? "male vocalist" : "female vocalist"
-    const musicPrompt = `A ${genreStyle} with ${vocalDesc}. About: ${prompt.trim()}. Lyrics:\n${lyrics}`
+    const langHint = lang === "ru" ? "Vocalist singing in Russian language" : "Vocalist singing in English language"
+    const musicPrompt = `A ${genreStyle} with ${vocalDesc}. ${langHint}. About: ${prompt.trim()}. Lyrics:\n${lyrics}`
 
     const input: Record<string, unknown> = {
       prompt: musicPrompt,

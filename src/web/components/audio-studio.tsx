@@ -22,6 +22,7 @@ import { addToHistory } from "./placeholder-pages";
 type AudioMode = "music" | "voice";
 type Duration = "30s" | "60s" | "2min";
 type VocalGender = "male" | "female";
+type SongLanguage = "ru" | "en";
 
 interface Voice {
   id: string;
@@ -518,6 +519,7 @@ export const AudioStudio = () => {
   const [duration, setDuration] = useState<Duration>("60s");
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
   const [vocalGender, setVocalGender] = useState<VocalGender>("female");
+  const [songLanguage, setSongLanguage] = useState<SongLanguage>("ru");
   const [selectedVoice, setSelectedVoice] = useState<Voice>(presetVoices[0]);
   const [clonedVoices, setClonedVoices] = useState<Voice[]>([]);
   const [showCloneModal, setShowCloneModal] = useState(false);
@@ -636,6 +638,7 @@ export const AudioStudio = () => {
             duration: durationSeconds,
             genre: selectedGenre || undefined,
             vocalGender,
+            language: songLanguage,
           }),
         });
       } else {
@@ -849,6 +852,29 @@ export const AudioStudio = () => {
                     `}
                   >
                     {g === "male" ? "♂ Мужской" : "♀ Женский"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Song Language */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-[#888]">Язык песни</label>
+              <div className="flex gap-2">
+                {(["ru", "en"] as SongLanguage[]).map((lang) => (
+                  <button
+                    key={lang}
+                    onClick={() => setSongLanguage(lang)}
+                    className={`
+                      flex-1 py-2 rounded-xl text-sm font-medium
+                      transition-all duration-300 border
+                      ${songLanguage === lang
+                        ? "bg-indigo-500/20 border-indigo-500/50 text-white"
+                        : "bg-white/[0.02] border-[#333] text-[#888] hover:text-white hover:border-[#444]"
+                      }
+                    `}
+                  >
+                    {lang === "ru" ? "🇷🇺 Русский" : "🇬🇧 English"}
                   </button>
                 ))}
               </div>
