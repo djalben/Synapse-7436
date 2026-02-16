@@ -4,7 +4,7 @@ export const audioRoutes = new Hono()
 
 const REPLICATE_API = "https://api.replicate.com/v1"
 const REPLICATE_PREDICTIONS = `${REPLICATE_API}/predictions`
-const ACESTEP_VERSION = "709e99a80e6030c6444558e8e7a04f35e07663e7f4c6e94e5055273397960358" // lucataco/ace-step
+const BARK_VERSION = "f23937d7c80b3c0f06c5a01ec55154388647292cb9398bd7d117678bc930791a" // suno-ai/bark
 const XTTS_VERSION = "684bc3855b37866c0c65add2ff39c78f3dea3f4ff103a436465326e0f438d55e"
 
 // ─── Budget-based timeouts (total must stay under Vercel 10s) ───
@@ -12,15 +12,21 @@ const TOTAL_BUDGET_MS = 8000   // hard ceiling for the whole handler
 const LLM_TIMEOUT_MS  = 4000  // GPT-4o-mini lyrics step
 const POLL_TIMEOUT_MS  = 5000 // status check timeout
 
-// Genre → comma-separated tags for ACE-Step
-const GENRE_TAGS: Record<string, string> = {
-  "Поп":         "pop, catchy melody, modern production, polished vocals, upbeat",
-  "Электроника": "electronic, EDM, driving synths, energetic beat, pulsing bass",
-  "Хип-Хоп":    "hip-hop, rap, rhythmic flow, 808 bass, trap hi-hats, bold delivery",
-  "Классика":    "classical, orchestral, elegant strings, piano, cinematic",
-  "Рок":         "rock, electric guitars, powerful drums, raw energy, distortion",
-  "Джаз":        "jazz, smooth saxophone, swing rhythm, groovy walking bass, piano",
-  "Эмбиент":     "ambient, atmospheric pads, ethereal, dreamy textures, chill",
+// Genre → Bark style prefix
+const GENRE_STYLE: Record<string, string> = {
+  "Поп":         "pop song",
+  "Электроника": "electronic dance song",
+  "Хип-Хоп":    "hip-hop track",
+  "Классика":    "classical piece",
+  "Рок":         "rock song",
+  "Джаз":        "jazz piece",
+  "Эмбиент":     "ambient track",
+}
+
+// Bark voice presets: speaker IDs for male/female
+const BARK_VOICES: Record<string, string> = {
+  male:   "v2/en_speaker_6",
+  female: "v2/en_speaker_9",
 }
 
 function getApiToken(): string | undefined {
@@ -61,7 +67,8 @@ async function generateLyrics(
         ? "1 verse + 1 chorus (8-12 lines total)"
         : "2 verses + 1 chorus + 1 bridge (16-20 lines total)"
 
-  const maxChars = 400  // minimax/music-01 lyrics limit
+  const maxChars = 600  // Bark can handle longer prompts
+  const voiceTag = gender === "male" ? "male vocals" : "female vocals"
 
   try {
     const res = await fetchWithTimeout(
@@ -74,14 +81,14 @@ async function generateLyrics(
         },
         body: JSON.stringify({
           model: "openai/gpt-4o-mini",
-          max_tokens: 300,
+          max_tokens: 400,
           temperature: 0.9,
           messages: [
             {
               role: "system",
-              content: `You are a professional hit songwriter. Write song lyrics in English.\nGenre: ${genre || "pop"}\nVocalist: ${gender === "male" ? "Male singer" : "Female singer"} — write from a ${gender === "male" ? "male" : "female"} perspective.\nStructure: ${structure}\nRules:\n- Use section tags on separate lines: [verse], [chorus], [bridge]\n- Keep total lyrics UNDER ${maxChars} characters\n- Make lyrics catchy, emotional, and easy to sing\n- Use vivid imagery and a memorable hook in the chorus\n- Output ONLY the lyrics text, no title, no explanations`,
+              content: `You are a professional songwriter writing for Suno Bark TTS. Write song lyrics in English.\nGenre: ${genre || "pop"}\nVocalist: ${gender === "male" ? "Male singer" : "Female singer"} — write from a ${gender === "male" ? "male" : "female"} perspective.\nStructure: ${structure}\nRules:\n- Start with ♪ [${voiceTag}] [music] tag\n- Use Bark tags: [music], [singing], [♪], [laughs], [sighs] for emotion\n- Write the lyrics as a continuous singing prompt\n- Keep total text UNDER ${maxChars} characters\n- Make lyrics catchy, emotional, and easy to sing\n- Output ONLY the tagged lyrics, no title, no explanations\nExample format:\n♪ [${voiceTag}] [music] First line of verse... second line... [singing] Chorus line... [♪]`,
             },
-            { role: "user", content: `Write a song about: ${keywords}` },
+            { role: "user", content: `Write a ${genre || "pop"} song about: ${keywords}` },
           ],
         }),
       },
@@ -102,7 +109,7 @@ async function generateLyrics(
   }
 }
 
-// ─── POST /generate — 2-step async: GPT lyrics → minimax fire-and-forget ───
+// ─── POST /generate — 2-step async: GPT lyrics → Bark fire-and-forget ───
 // Also aliased as /music for backward compat
 const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (data: any, status?: number) => Response }) => {
   const t0 = Date.now()
@@ -119,10 +126,9 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
 
     const genreName: string = genre || "Поп"
     const gender: string = vocalGender === "male" ? "male" : "female"
-    const durationSec = Math.min(Math.max(duration || 60, 30), 240)  // ACE-Step supports up to 240s
-    const genreTags = GENRE_TAGS[genreName] || GENRE_TAGS["Поп"]!
-    const vocalTag = gender === "male" ? "male vocals" : "female vocals"
-    const tags = `${vocalTag}, ${genreTags}`
+    const durationSec = Math.min(Math.max(duration || 60, 30), 120)
+    const genreStyle = GENRE_STYLE[genreName] || GENRE_STYLE["Поп"]!
+    const historyPrompt = BARK_VOICES[gender] || BARK_VOICES.female
 
     console.log(`[Audio] Creating track with gender: ${gender}`)
 
@@ -134,20 +140,21 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
     // Guarantee lyrics are never empty / too short (min 10 chars)
     if (!lyrics || lyrics.trim().length < 10) {
       const kw = prompt.trim()
-      lyrics = `[Verse]\n${kw}\n${kw}\n[Chorus]\n${kw}, ${kw}`
+      lyrics = `♪ [music] ${kw}... ${kw}... [singing] ${kw}, ${kw} [♪]`
       console.warn(`[Audio] Lyrics too short — padded with keywords: ${lyrics.length}c`)
     }
     console.log(`[Audio] Lyrics OK: ${lyrics.length}c in ${elapsed()}ms`)
 
-    // ── Step 2: Fire ACE-Step prediction (budget: remaining, min 2s) ──
+    // ── Step 2: Fire Bark prediction (budget: remaining, min 2s) ──
     const fireTimeout = Math.max(2000, TOTAL_BUDGET_MS - elapsed() - 500)
     const input: Record<string, unknown> = {
-      tags,
-      lyrics,
-      duration: durationSec,
+      prompt: lyrics,
+      history_prompt: historyPrompt,
+      text_temp: 0.7,
+      waveform_temp: 0.7,
     }
 
-    console.log(`[Audio] Step 2/2 — ace-step: tags="${tags.slice(0, 60)}" lyrics=${lyrics.length}c dur=${durationSec}s timeout=${fireTimeout}ms`)
+    console.log(`[Audio] Step 2/2 — bark: voice=${historyPrompt} genre=${genreStyle} lyrics=${lyrics.length}c timeout=${fireTimeout}ms`)
 
     const response = await fetchWithTimeout(
       REPLICATE_PREDICTIONS,
@@ -158,7 +165,7 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
           "Content-Type": "application/json",
           Prefer: "respond-async",
         },
-        body: JSON.stringify({ version: ACESTEP_VERSION, input }),
+        body: JSON.stringify({ version: BARK_VERSION, input }),
       },
       fireTimeout
     )
@@ -291,17 +298,18 @@ audioRoutes.get("/status/:id", async (c) => {
     const data = await response.json() as {
       id: string
       status: string
-      output?: string | string[] | { url: string }
+      output?: string | string[] | { audio_out?: string; url?: string }
       error?: string
     }
 
-    console.log(`[Audio] Status ${predictionId}: ${data.status}`)
+    console.log(`[Audio] Status ${predictionId}: ${data.status} output=${JSON.stringify(data.output).slice(0, 200)}`)
 
     if (data.status === "succeeded" && data.output) {
       let url: string | null = null
       if (typeof data.output === "string") url = data.output
       else if (Array.isArray(data.output)) url = data.output[0]
-      else if (typeof data.output === "object" && "url" in data.output) url = data.output.url
+      else if (typeof data.output === "object" && data.output.audio_out) url = data.output.audio_out
+      else if (typeof data.output === "object" && data.output.url) url = data.output.url
 
       if (url) {
         return c.json({ id: predictionId, status: "completed", url })
