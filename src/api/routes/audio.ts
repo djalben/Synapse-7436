@@ -4,7 +4,7 @@ export const audioRoutes = new Hono()
 
 const REPLICATE_API = "https://api.replicate.com/v1"
 const REPLICATE_PREDICTIONS = `${REPLICATE_API}/predictions`
-const ACESTEP_MODEL = "lucataco/ace-step"     // Text-to-song: tags + lyrics, no reference audio needed
+const ACESTEP_VERSION = "709e99a80e6030c6444558e8e7a04f35e07663e7f4c6e94e5055273397960358" // lucataco/ace-step
 const XTTS_VERSION = "684bc3855b37866c0c65add2ff39c78f3dea3f4ff103a436465326e0f438d55e"
 
 // ─── Budget-based timeouts (total must stay under Vercel 10s) ───
@@ -147,10 +147,10 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
       duration: durationSec,
     }
 
-    console.log(`[Audio] Step 2/2 — ${ACESTEP_MODEL}: tags="${tags.slice(0, 60)}" lyrics=${lyrics.length}c dur=${durationSec}s timeout=${fireTimeout}ms`)
+    console.log(`[Audio] Step 2/2 — ace-step: tags="${tags.slice(0, 60)}" lyrics=${lyrics.length}c dur=${durationSec}s timeout=${fireTimeout}ms`)
 
     const response = await fetchWithTimeout(
-      `${REPLICATE_API}/models/${ACESTEP_MODEL}/predictions`,
+      REPLICATE_PREDICTIONS,
       {
         method: "POST",
         headers: {
@@ -158,7 +158,7 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
           "Content-Type": "application/json",
           Prefer: "respond-async",
         },
-        body: JSON.stringify({ input }),
+        body: JSON.stringify({ version: ACESTEP_VERSION, input }),
       },
       fireTimeout
     )
