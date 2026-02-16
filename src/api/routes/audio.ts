@@ -326,9 +326,32 @@ audioRoutes.get("/status/:id", async (c) => {
       return c.json({ id: predictionId, status: "failed", error: data.error || "Генерация не удалась." })
     }
 
-    return c.json({ id: predictionId, status: "processing" })
+    // Pass through actual Replicate status (starting / processing) so frontend can react
+    return c.json({ id: predictionId, status: data.status === "starting" ? "starting" : "processing" })
   } catch (err) {
     console.error(`[Audio] Status check error:`, err)
     return c.json({ id: predictionId, status: "processing" })
+  }
+})
+
+// ─── POST /cancel/:id — cancel a Replicate prediction to save credits ───
+audioRoutes.post("/cancel/:id", async (c) => {
+  const predictionId = c.req.param("id")
+  console.log(`[Audio] POST /cancel/${predictionId}`)
+
+  try {
+    const apiToken = getApiToken()
+    if (!apiToken) return c.json({ error: "Service not configured." }, 503)
+
+    const response = await fetchWithTimeout(`${REPLICATE_PREDICTIONS}/${predictionId}/cancel`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${apiToken}` },
+    }, 5000)
+
+    console.log(`[Audio] Cancel ${predictionId}: ${response.status}`)
+    return c.json({ id: predictionId, canceled: response.ok })
+  } catch (err) {
+    console.error(`[Audio] Cancel error:`, err)
+    return c.json({ id: predictionId, canceled: false })
   }
 })

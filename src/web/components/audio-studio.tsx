@@ -559,21 +559,47 @@ export const AudioStudio = () => {
   // Cleanup on unmount
   useEffect(() => () => stopProgressSim(), [stopProgressSim]);
 
+  // Cancel a prediction on Replicate to save credits
+  const cancelPrediction = async (taskId: string) => {
+    try {
+      await fetch(`/api/audio/cancel/${encodeURIComponent(taskId)}`, { method: "POST" });
+      console.log(`[Audio] Canceled prediction ${taskId}`);
+    } catch { /* best-effort */ }
+  };
+
   // Poll audio prediction status (60 × 3s = 3 min max)
+  // Auto-cancels if stuck in 'starting' > 45s to save credits
   const pollAudioStatus = async (
     taskId: string,
     onStatus?: (status: string) => void,
   ): Promise<string> => {
+    const startedAt = Date.now();
+    let everProcessing = false;
+
     for (let i = 0; i < 60; i++) {
       await new Promise(r => setTimeout(r, 3000));
       try {
         const res = await fetch(`/api/audio/status/${encodeURIComponent(taskId)}`);
+        if (!res.ok) throw new Error(`Сервер вернул ошибку ${res.status}. Попробуйте позже.`);
         const data = await res.json() as { status: string; url?: string; error?: string };
         if (onStatus) onStatus(data.status);
+
         if (data.status === "completed" && data.url) return data.url;
         if (data.status === "failed") throw new Error(data.error || "Генерация не удалась.");
+
+        if (data.status === "processing") everProcessing = true;
+
+        // Auto-cancel: stuck in 'starting' (cold start) > 45s
+        if (data.status === "starting" && !everProcessing && Date.now() - startedAt > 45_000) {
+          await cancelPrediction(taskId);
+          throw new Error("Модель долго запускается (cold start). Запрос отменён для экономии кредитов. Попробуйте снова через минуту.");
+        }
       } catch (err) {
-        if (err instanceof Error && err.message.includes("не удалась")) throw err;
+        if (err instanceof Error && (
+          err.message.includes("не удалась") ||
+          err.message.includes("ошибку") ||
+          err.message.includes("отменён")
+        )) throw err;
       }
     }
     throw new Error("Таймаут генерации (3 мин). Попробуйте снова.");
@@ -581,9 +607,12 @@ export const AudioStudio = () => {
 
   const handleGenerate = async () => {
     if (!checkCredits(creditCost)) return;
+    // Clean slate: clear ALL previous state
     setIsGenerating(true);
     setError(null);
     setGenProgress(0);
+    setStatusMessage(null);
+    setCurrentAudio(null);
     
     try {
       let response: Response;
