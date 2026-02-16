@@ -1460,6 +1460,25 @@ const EnhancePhotoPanel = ({
   const anyOptionSelected = optUpscale || optFaceRestore || optBrightness;
   const canEnhance = enhanceImage && !isEnhancing && !atLimit && anyOptionSelected;
 
+  // Poll enhance prediction status
+  const pollEnhanceStatus = async (taskId: string): Promise<string> => {
+    for (let i = 0; i < 60; i++) {
+      await new Promise(r => setTimeout(r, 3000));
+      try {
+        const res = await fetch(`/api/enhance/status/${encodeURIComponent(taskId)}`);
+        const data = await res.json() as { status: string; enhancedUrl?: string; error?: string };
+        if (data.status === "completed" && data.enhancedUrl) return data.enhancedUrl;
+        if (data.status === "failed") throw new Error(data.error || "Улучшение не удалось.");
+        // Update status message based on elapsed time
+        if (i > 5) setStatusMessage("CodeFormer обрабатывает детали лица...");
+        if (i > 15) setStatusMessage("Финализируем результат...");
+      } catch (err) {
+        if (err instanceof Error && err.message.includes("не удалось")) throw err;
+      }
+    }
+    throw new Error("Таймаут улучшения. Попробуйте снова.");
+  };
+
   const handleEnhance = async () => {
     if (!canEnhance) return;
     if (!checkImageLimit()) return;
@@ -1467,7 +1486,7 @@ const EnhancePhotoPanel = ({
     setIsEnhancing(true);
     setError(null);
     setElapsedTime(0);
-    setStatusMessage("Nano Banana восстанавливает текстуры...");
+    setStatusMessage("CodeFormer запускается...");
 
     const startTime = Date.now();
     if (enhanceTimerRef.current) clearInterval(enhanceTimerRef.current);
@@ -1476,6 +1495,7 @@ const EnhancePhotoPanel = ({
     }, 1000);
 
     try {
+      // Step 1: Create prediction (returns immediately with id)
       const response = await fetch("/api/enhance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1485,17 +1505,21 @@ const EnhancePhotoPanel = ({
         }),
       });
 
-      setStatusMessage("Финализируем результат...");
-
       if (!response.ok) {
         const data = await response.json().catch(() => ({ error: "Server error" })) as { error?: string };
         throw new Error(data.error || "Enhancement failed");
       }
 
-      const data = await response.json() as { originalUrl: string; enhancedUrl: string; processingTime: number };
+      const createData = await response.json() as { id?: string; status?: string; originalUrl?: string; error?: string };
+      if (!createData.id) throw new Error("Нет ID задачи.");
+
+      // Step 2: Poll for completion
+      setStatusMessage("CodeFormer восстанавливает текстуры...");
+      const enhancedUrl = await pollEnhanceStatus(createData.id);
+
       setEnhancedResult({
-        originalUrl: data.originalUrl,
-        enhancedUrl: data.enhancedUrl,
+        originalUrl: enhanceImage!,
+        enhancedUrl,
         tool: "face-restore",
       });
       incrementImages();
@@ -1667,7 +1691,7 @@ const EnhancePhotoPanel = ({
             )}
             <span className="relative flex items-center justify-center gap-2">
               {isEnhancing ? (
-                <><Loader2 className="w-5 h-5 animate-spin" /><span>Nano Banana работает...</span></>
+                <><Loader2 className="w-5 h-5 animate-spin" /><span>CodeFormer работает...</span></>
               ) : enhancedResult ? (
                 <><Sparkles className="w-5 h-5" /><span>Улучшить ещё фото</span></>
               ) : (

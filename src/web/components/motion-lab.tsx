@@ -477,8 +477,8 @@ export const MotionLab = () => {
     <div className="flex flex-col lg:flex-row h-full min-h-screen">
       {/* ─── Left Panel: Controls ─── */}
       <div className="w-full lg:w-[42%] border-b lg:border-b-0 lg:border-r border-[#222] flex flex-col min-h-0">
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-36 md:pb-6 flex flex-col">
-          <div className="space-y-5 flex-1">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-36 md:pb-6">
+          <div className="space-y-5">
 
             {/* Header */}
             <div>
@@ -694,48 +694,48 @@ export const MotionLab = () => {
               </div>
             )}
 
-            {/* Generate Button — desktop, pushed to bottom */}
-            <div className="hidden md:block mt-auto pt-4">
-              <button
-                onClick={handleGenerate}
-                disabled={!isReady || isGenerating}
-                className={`
-                  w-full py-3.5 rounded-xl font-medium text-sm transition-all duration-300
-                  relative overflow-hidden active:scale-[0.98] group
-                  ${isReady && !isGenerating
-                    ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_20px_rgba(0,112,243,0.3)]"
-                    : "bg-[#222] text-[#555] cursor-not-allowed"
-                  }
-                `}
-              >
-                {isGenerating && (
-                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-blue-600">
-                    <div
-                      className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-blue-500 transition-all duration-1000"
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                )}
-                <span className="relative flex items-center justify-center gap-2">
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      {progressLabel || "Генерация..."} {progress}%
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4" />
-                      Создать видео
-                    </>
-                  )}
-                </span>
-              </button>
-              <p className="text-center text-[#555] text-xs mt-2">
-                {effectiveVideoCountToday}/{limits.maxVideos} видео сегодня
-              </p>
-            </div>
-
           </div>
+        </div>
+
+        {/* Generate Button — desktop, sticky bottom */}
+        <div className="hidden md:block sticky bottom-0 z-50 px-6 pt-3 pb-4 bg-black/95 backdrop-blur-xl border-t border-white/10">
+          <button
+            onClick={handleGenerate}
+            disabled={!isReady || isGenerating}
+            className={`
+              w-full py-3.5 rounded-xl font-medium text-sm transition-all duration-300
+              relative overflow-hidden active:scale-[0.98] group
+              ${isReady && !isGenerating
+                ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_20px_rgba(0,112,243,0.3)]"
+                : "bg-[#222] text-[#555] cursor-not-allowed"
+              }
+            `}
+          >
+            {isGenerating && (
+              <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-blue-600">
+                <div
+                  className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-blue-500 transition-all duration-1000"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            )}
+            <span className="relative flex items-center justify-center gap-2">
+              {isGenerating ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {progressLabel || "Генерация..."} {progress}%
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  Создать видео
+                </>
+              )}
+            </span>
+          </button>
+          <p className="text-center text-[#555] text-xs mt-2">
+            {effectiveVideoCountToday}/{limits.maxVideos} видео сегодня
+          </p>
         </div>
       </div>
 

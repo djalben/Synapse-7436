@@ -2,35 +2,33 @@ import { Hono } from "hono"
 
 export const enhanceRoutes = new Hono()
 
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-const ENHANCE_MODEL = "google/gemini-2.5-flash-image"
-const TIMEOUT_MS = 20000
+const REPLICATE_BASE = "https://api.replicate.com/v1"
+const REPLICATE_PREDICTIONS = `${REPLICATE_BASE}/predictions`
+const CODEFORMER_SLUG = "sczhou/codeformer"
+const TIMEOUT_MS = 8000  // Vercel limit ~10s
 
-// Prompt fragments for each enhancement option
-const OPTION_PROMPTS: Record<string, string> = {
-  upscale: "Increase perceived resolution and sharpness. Preserve authentic film grain, skin pores, and micro-textures.",
-  faceRestore: "Restore facial detail with clinical precision. Preserve every wrinkle, pore, scar, and natural asymmetry. Do NOT beautify.",
-  brightness: "Apply professional color grading. Lift crushed shadows, recover blown highlights, balance white point like a raw photo edit.",
+function getReplicateKey(): string | undefined {
+  return process.env.REPLICATE_API_TOKEN
 }
 
-/** Promise.race timeout */
 function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<Response> {
   return Promise.race([
     fetch(url, init),
     new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms)
+      setTimeout(() => reject(new Error(`TIMEOUT_${ms}ms`)), ms)
     ),
   ])
 }
 
+// ─── POST / — create CodeFormer prediction (fire-and-forget) ───
 enhanceRoutes.post("/", async (c) => {
   const startTime = Date.now()
-  console.log("[Enhance] POST start")
+  console.log("[Enhance] POST /enhance")
 
   try {
-    const apiKey = process.env.OPENROUTER_API_KEY
+    const apiKey = getReplicateKey()
     if (!apiKey) {
-      console.error("[Enhance] OPENROUTER_API_KEY missing")
+      console.error("[Enhance] REPLICATE_API_TOKEN missing")
       return c.json({ error: "Enhancement service is not available." }, 503)
     }
 
@@ -42,7 +40,7 @@ enhanceRoutes.post("/", async (c) => {
     }
 
     const image = body.image
-    if (!image || typeof image !== "string" || !image.startsWith("data:image/")) {
+    if (!image || typeof image !== "string") {
       return c.json({ error: "Please upload an image to enhance." }, 400)
     }
 
@@ -52,63 +50,107 @@ enhanceRoutes.post("/", async (c) => {
       return c.json({ error: "Please select at least one enhancement option." }, 400)
     }
 
-    // Build prompt from selected checkboxes
-    const promptParts = selectedOptions
-      .map(([key]) => OPTION_PROMPTS[key])
-      .filter(Boolean)
-    const enhancePrompt = `Task: High-fidelity photorealistic image restoration. ${promptParts.join(". ")}. Strictly preserve authentic skin texture, pores, and natural hair details. Avoid any artificial smoothing or 'painting' effects. The output must look like a sharp, raw photograph. Keep the person's identity, expression, and pose identical.`
+    // Build CodeFormer input based on selected options
+    const input: Record<string, unknown> = {
+      image,
+      upscale: options.upscale ? 2 : 1,
+      face_upsample: options.faceRestore !== false,  // default true
+      background_enhance: true,
+      codeformer_fidelity: 0.7,  // balance between quality and fidelity
+    }
 
-    console.log(`[Enhance] options=${selectedOptions.map(([k]) => k).join(",")}, prompt="${enhancePrompt.substring(0, 80)}..."`)
+    console.log(`[Enhance] CodeFormer options=${selectedOptions.map(([k]) => k).join(",")} upscale=${input.upscale}`)
 
-    // Multimodal message: text + image (same structure as Nano Banana Pro)
-    const messageContent = [
-      { type: "text", text: enhancePrompt },
-      { type: "image_url", image_url: { url: image } },
-    ]
+    // Fire-and-forget: create prediction via Replicate Models API
+    const modelsUrl = `${REPLICATE_BASE}/models/${CODEFORMER_SLUG}/predictions`
+    console.log(`[Enhance] POST ${modelsUrl}`)
 
-    const response = await fetchWithTimeout(OPENROUTER_URL, {
+    const response = await fetchWithTimeout(modelsUrl, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": process.env.VITE_BASE_URL || "https://synapse.app",
-        "X-Title": "Synapse",
       },
-      body: JSON.stringify({
-        model: ENHANCE_MODEL,
-        messages: [{ role: "user", content: messageContent }],
-        modalities: ["image"],
-        stream: false,
-      }),
+      body: JSON.stringify({ input }),
+    }, TIMEOUT_MS)
+
+    const elapsed = Date.now() - startTime
+    console.log(`[Enhance] Replicate responded: ${response.status} in ${elapsed}ms`)
+
+    if (!response.ok) {
+      const errText = await response.text()
+      console.error(`[Enhance] Replicate error: ${errText}`)
+      return c.json({ error: "Улучшение не удалось. Попробуйте снова.", detail: errText }, 500)
+    }
+
+    const data = await response.json() as { id: string; status: string }
+    console.log(`[Enhance] Prediction created: id=${data.id} status=${data.status}`)
+
+    // Return immediately — frontend will poll GET /status/:id
+    return c.json({
+      id: data.id,
+      status: "processing",
+      originalUrl: image,
+    })
+
+  } catch (error) {
+    const elapsed = Date.now() - startTime
+    console.error(`[Enhance] Error after ${elapsed}ms:`, error)
+    const msg = error instanceof Error ? error.message : String(error)
+    if (msg.includes("TIMEOUT")) {
+      return c.json({ error: "Сервис не отвечает. Попробуйте снова." }, 504)
+    }
+    return c.json({ error: "Улучшение не удалось." }, 500)
+  }
+})
+
+// ─── GET /status/:id — poll CodeFormer prediction status ───
+enhanceRoutes.get("/status/:id", async (c) => {
+  const predictionId = c.req.param("id")
+  console.log(`[Enhance] GET /status/${predictionId}`)
+
+  try {
+    const apiKey = getReplicateKey()
+    if (!apiKey) return c.json({ error: "Service not configured." }, 503)
+
+    const response = await fetchWithTimeout(`${REPLICATE_PREDICTIONS}/${predictionId}`, {
+      method: "GET",
+      headers: { "Authorization": `Bearer ${apiKey}` },
     }, TIMEOUT_MS)
 
     if (!response.ok) {
-      const errText = await response.text().catch(() => "?")
-      console.error(`[Enhance] OpenRouter error ${response.status}: ${errText.slice(0, 500)}`)
-      return c.json({ error: "Enhancement failed. Please try again." }, 500)
+      console.error(`[Enhance] Status error: ${response.status}`)
+      return c.json({ id: predictionId, status: "processing" })
     }
 
     const data = await response.json() as {
-      choices?: Array<{ message?: { images?: Array<{ image_url?: { url?: string } }> } }>
-    }
-    const enhancedUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url
-
-    if (!enhancedUrl) {
-      console.error("[Enhance] No image in response")
-      return c.json({ error: "No enhanced image was returned. Try again." }, 500)
+      id: string
+      status: string
+      output?: string | string[] | { url: string }
+      error?: string
     }
 
-    const processingTime = Date.now() - startTime
-    console.log(`[Enhance] Done in ${processingTime}ms`)
+    console.log(`[Enhance] Status ${predictionId}: ${data.status}`)
 
-    return c.json({
-      originalUrl: image,
-      enhancedUrl,
-      processingTime,
-      creditCost: 2,
-    })
-  } catch (error) {
-    console.error(`[Enhance] Error after ${Date.now() - startTime}ms:`, error)
-    return c.json({ error: "Enhancement is taking longer than expected. Please try again." }, 500)
+    if (data.status === "succeeded" && data.output) {
+      let enhancedUrl: string | null = null
+      if (typeof data.output === "string") enhancedUrl = data.output
+      else if (Array.isArray(data.output)) enhancedUrl = data.output[0]
+      else if (typeof data.output === "object" && "url" in data.output) enhancedUrl = data.output.url
+
+      if (enhancedUrl) {
+        return c.json({ id: predictionId, status: "completed", enhancedUrl })
+      }
+    }
+
+    if (data.status === "failed" || data.status === "canceled") {
+      return c.json({ id: predictionId, status: "failed", error: data.error || "Улучшение не удалось." })
+    }
+
+    return c.json({ id: predictionId, status: "processing" })
+
+  } catch (err) {
+    console.error(`[Enhance] Status check error:`, err)
+    return c.json({ id: predictionId, status: "processing" })
   }
 })
