@@ -22,6 +22,7 @@ import { addToHistory } from "./placeholder-pages";
 type AudioMode = "music" | "voice";
 type MusicType = "instrumental" | "lyrics";
 type Duration = "30s" | "60s" | "2min";
+type VocalGender = "male" | "female";
 
 interface Voice {
   id: string;
@@ -516,6 +517,7 @@ export const AudioStudio = () => {
   const [mode, setMode] = useState<AudioMode>("music");
   const [musicType, setMusicType] = useState<MusicType>("lyrics");
   const [duration, setDuration] = useState<Duration>("60s");
+  const [vocalGender, setVocalGender] = useState<VocalGender>("male");
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
   const [selectedVoice, setSelectedVoice] = useState<Voice>(presetVoices[0]);
   const [clonedVoices, setClonedVoices] = useState<Voice[]>([]);
@@ -579,10 +581,11 @@ export const AudioStudio = () => {
     setError(null);
     setGenProgress(0);
 
-    // Start progress simulation: MusicGen 0→80% in 60s, XTTS 0→80% in 15s
+    // Start progress simulation: scale to chosen duration
     if (mode === "music") {
+      const simMs = duration === "30s" ? 60_000 : duration === "60s" ? 90_000 : 150_000;
       setStatusMessage("MusicGen запускается...");
-      startProgressSim(60_000, 80);
+      startProgressSim(simMs, 80);
     } else {
       setStatusMessage("XTTS запускается...");
       startProgressSim(15_000, 80);
@@ -596,7 +599,7 @@ export const AudioStudio = () => {
           setIsGenerating(false); setStatusMessage(null); stopProgressSim(); setGenProgress(0);
           return;
         }
-        const durationSeconds = 30; // MusicGen stereo-large max 30s
+        const durationSeconds = duration === "30s" ? 30 : duration === "60s" ? 60 : 120;
         response = await fetch("/api/audio/music", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -605,6 +608,7 @@ export const AudioStudio = () => {
             duration: durationSeconds,
             instrumental: musicType === "instrumental",
             genre: selectedGenre || undefined,
+            vocalGender: musicType === "lyrics" ? vocalGender : undefined,
           }),
         });
       } else {
@@ -644,7 +648,9 @@ export const AudioStudio = () => {
         type: mode,
         prompt: mode === "music" ? savedPrompt : undefined,
         text: mode === "voice" ? savedText : undefined,
-        duration: mode === "music" ? "0:30" : `~${Math.ceil(savedText.split(/\s+/).length / 2.5)}с`,
+        duration: mode === "music"
+          ? (duration === "30s" ? "0:30" : duration === "60s" ? "1:00" : "2:00")
+          : `~${Math.ceil(savedText.split(/\s+/).length / 2.5)}с`,
         createdAt: new Date(),
         audioUrl,
       };
@@ -785,6 +791,42 @@ export const AudioStudio = () => {
               </div>
             </div>
 
+            {/* Vocal Gender Selector — visible only when "С вокалом" selected */}
+            {musicType === "lyrics" && (
+              <div className="space-y-1.5 animate-in fade-in duration-200">
+                <label className="block text-xs font-medium text-[#888]">Голос вокала</label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setVocalGender("male")}
+                    className={`
+                      flex-1 py-2.5 px-4 rounded-xl text-sm font-medium
+                      transition-all duration-300 border
+                      ${vocalGender === "male"
+                        ? "bg-indigo-500/20 border-indigo-500/50 text-white"
+                        : "bg-white/[0.02] border-[#333] text-[#888] hover:text-white hover:border-[#444]"
+                      }
+                    `}
+                  >
+                    Мужской вокал
+                  </button>
+                  <button
+                    onClick={() => setVocalGender("female")}
+                    className={`
+                      flex-1 py-2.5 px-4 rounded-xl text-sm font-medium
+                      transition-all duration-300 border
+                      ${vocalGender === "female"
+                        ? "bg-indigo-500/20 border-indigo-500/50 text-white"
+                        : "bg-white/[0.02] border-[#333] text-[#888] hover:text-white hover:border-[#444]"
+                      }
+                    `}
+                  >
+                    Женский вокал
+                  </button>
+                </div>
+                <p className="text-[11px] text-indigo-400/60">MusicGen добавит вокальную партию в трек</p>
+              </div>
+            )}
+
             {/* Genre Quick Select */}
             <div className="space-y-1.5">
               <label className="block text-xs font-medium text-[#888]">Жанр (опционально)</label>
@@ -829,7 +871,7 @@ export const AudioStudio = () => {
                   </button>
                 ))}
               </div>
-              <p className="text-[11px] text-indigo-400/60 mt-1">MusicGen stereo-large: макс. 30 сек за генерацию</p>
+              <p className="text-[11px] text-indigo-400/60 mt-1">Более длинные треки требуют больше времени на генерацию</p>
             </div>
           </div>
         )}

@@ -7,14 +7,22 @@ const MUSICGEN_VERSION = "671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36
 const XTTS_VERSION = "684bc3855b37866c0c65add2ff39c78f3dea3f4ff103a436465326e0f438d55e"
 const TIMEOUT_MS = 8000  // Vercel limit ~10s
 
-// Genre style prompts for music generation
-const GENRE_STYLES: Record<string, string> = {
-  pop: "catchy pop melody, upbeat rhythm, modern production",
-  electronic: "electronic dance music, synths, driving beat",
-  "hip-hop": "hip-hop beat, bass-heavy, rhythmic",
-  classical: "orchestral arrangement, classical instrumentation",
-  rock: "electric guitars, drums, rock energy",
-  ambient: "atmospheric, ambient soundscape, relaxing",
+// Genre → [tag prefix, mood hint]
+const GENRE_MAP: Record<string, { tag: string; mood: string; style: string }> = {
+  "Поп":        { tag: "Pop",         mood: "Upbeat, Catchy",   style: "catchy pop melody, modern production, polished mix" },
+  "Электроника": { tag: "Electronic",  mood: "Energetic",        style: "electronic dance music, synths, driving beat, four-on-the-floor" },
+  "Хип-Хоп":    { tag: "Hip-Hop",     mood: "Rhythmic, Bold",   style: "hip-hop beat, 808 bass, trap hi-hats, rhythmic flow" },
+  "Классика":    { tag: "Classical",   mood: "Elegant",          style: "orchestral arrangement, strings, classical instrumentation" },
+  "Рок":         { tag: "Rock",        mood: "Powerful",         style: "electric guitars, drums, rock energy, distortion" },
+  "Джаз":        { tag: "Jazz",        mood: "Smooth, Groovy",   style: "jazz chords, swing rhythm, saxophone, smooth bass" },
+  "Эмбиент":     { tag: "Ambient",     mood: "Relaxing, Dreamy", style: "atmospheric pads, ambient soundscape, reverb, ethereal" },
+  // fallback keys (English, lowercase) for backward compat
+  pop:           { tag: "Pop",         mood: "Upbeat, Catchy",   style: "catchy pop melody, modern production" },
+  electronic:    { tag: "Electronic",  mood: "Energetic",        style: "electronic dance music, synths, driving beat" },
+  "hip-hop":     { tag: "Hip-Hop",     mood: "Rhythmic",         style: "hip-hop beat, bass-heavy, rhythmic" },
+  classical:     { tag: "Classical",   mood: "Elegant",          style: "orchestral arrangement, classical instrumentation" },
+  rock:          { tag: "Rock",        mood: "Powerful",         style: "electric guitars, drums, rock energy" },
+  ambient:       { tag: "Ambient",     mood: "Relaxing",         style: "atmospheric, ambient soundscape, relaxing" },
 }
 
 function getApiToken(): string | undefined {
@@ -39,23 +47,37 @@ audioRoutes.post("/music", async (c) => {
     const apiToken = getApiToken()
     if (!apiToken) return c.json({ error: "Сервис аудио не настроен." }, 503)
 
-    const { prompt, duration, instrumental, genre } = await c.req.json()
+    const { prompt, duration, instrumental, genre, vocalGender } = await c.req.json()
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
       return c.json({ error: "Пожалуйста, опишите музыку." }, 400)
     }
 
-    // Build enhanced prompt
-    let enhancedPrompt = prompt.trim()
-    if (genre && GENRE_STYLES[genre]) enhancedPrompt += `, ${GENRE_STYLES[genre]}`
-    if (instrumental) {
-      enhancedPrompt += ", instrumental only, no vocals"
-    } else {
-      // MusicGen is primarily instrumental; prefix helps guide toward vocal-like output
-      enhancedPrompt = `Featuring melodic human vocals, singing, ${enhancedPrompt}`
+    // ── Build structured prompt ──
+    const parts: string[] = []
+
+    // 1. Genre & mood tags at the front
+    const g = genre ? GENRE_MAP[genre] : null
+    if (g) {
+      parts.push(`[Genre: ${g.tag}]`)
+      parts.push(`[Mood: ${g.mood}]`)
+      parts.push(g.style)
     }
 
-    // MusicGen stereo-large supports up to 30s per generation
-    const durationSeconds = Math.min(duration || 30, 30)
+    // 2. Vocal / instrumental tag
+    if (instrumental) {
+      parts.push("instrumental only, no vocals")
+    } else {
+      const gender = vocalGender === "female" ? "female" : "male"
+      parts.push(`Song with clear ${gender} leading vocals, singing lyrics melodically, catchy vocal hook`)
+    }
+
+    // 3. User description
+    parts.push(prompt.trim())
+
+    const enhancedPrompt = parts.join(", ")
+
+    // Duration: MusicGen large supports up to ~120s
+    const durationSeconds = Math.min(Math.max(duration || 30, 5), 120)
 
     const input = {
       prompt: enhancedPrompt,
