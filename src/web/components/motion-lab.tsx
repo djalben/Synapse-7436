@@ -75,7 +75,7 @@ const VIDEO_MODELS: VideoModelData[] = [
   },
   {
     id: "veo-3.1",
-    name: "Google Veo 3 (Cinematic 4K)",
+    name: "Google Veo 3.1 (Cinematic 4K)",
     subtitle: "Флагман Google • аудио",
     accent: "text-purple-400",
     bgClass: "from-purple-500/20 to-purple-600/10",
@@ -368,10 +368,12 @@ export const MotionLab = () => {
     return () => document.removeEventListener("mousedown", close);
   }, [modelOpen]);
 
-  // If model doesn't support image mode, switch to text
+  // Auto-select Kling when switching to image mode (only supported i2v model)
   useEffect(() => {
-    if (mode === "image" && !selectedModel.supportsImage) setMode("text");
-  }, [model, mode, selectedModel.supportsImage]);
+    if (mode === "image") {
+      setModel("kling-2.6");
+    }
+  }, [mode]);
 
   // Model-aware progress simulation
   const progressConfig = PROGRESS_BY_MODEL[model];
@@ -475,8 +477,8 @@ export const MotionLab = () => {
     <div className="flex flex-col lg:flex-row h-full min-h-screen">
       {/* ─── Left Panel: Controls ─── */}
       <div className="w-full lg:w-[42%] border-b lg:border-b-0 lg:border-r border-[#222] flex flex-col min-h-0">
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-36 md:pb-6">
-          <div className="space-y-5">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-36 md:pb-6 flex flex-col">
+          <div className="space-y-5 flex-1">
 
             {/* Header */}
             <div>
@@ -503,12 +505,13 @@ export const MotionLab = () => {
               <label className="text-xs font-medium text-[#888]">Модель AI</label>
               <div className="relative">
                 <button
-                  onClick={() => !isGenerating && setModelOpen(!modelOpen)}
+                  onClick={() => !isGenerating && mode === "text" && setModelOpen(!modelOpen)}
                   disabled={isGenerating}
                   className={`
                     w-full p-3 rounded-xl bg-[#0a0a0a]/80 border text-left
                     flex items-center justify-between transition-all duration-200
                     disabled:opacity-50
+                    ${mode === "image" ? "cursor-default" : ""}
                     ${modelOpen ? "border-indigo-500/50" : "border-[#333] hover:border-[#444]"}
                   `}
                 >
@@ -521,10 +524,12 @@ export const MotionLab = () => {
                       <span className="text-xs text-[#555] block">{getModelDisplay(selectedModel, mode).subtitle}</span>
                     </div>
                   </div>
-                  <ChevronDown className={`w-4 h-4 text-[#555] transition-transform ${modelOpen ? "rotate-180" : ""}`} />
+                  {mode === "text" && (
+                    <ChevronDown className={`w-4 h-4 text-[#555] transition-transform ${modelOpen ? "rotate-180" : ""}`} />
+                  )}
                 </button>
 
-                {modelOpen && (
+                {modelOpen && mode === "text" && (
                   <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-[#0a0a0a]/95 backdrop-blur-xl border border-[#333] rounded-xl shadow-2xl overflow-hidden">
                     {VIDEO_MODELS.map(m => (
                       <button
@@ -541,7 +546,6 @@ export const MotionLab = () => {
                         <div className="text-left">
                           <span className="text-sm font-medium text-white">{getModelDisplay(m, mode).name}</span>
                           <span className="text-xs text-[#555] block">{getModelDisplay(m, mode).subtitle}</span>
-                          {!m.supportsImage && <span className="text-[10px] text-amber-400">Только текст</span>}
                         </div>
                         {m.id === model && <div className="ml-auto w-2 h-2 rounded-full bg-indigo-500" />}
                       </button>
@@ -690,8 +694,8 @@ export const MotionLab = () => {
               </div>
             )}
 
-            {/* Generate Button — desktop sticky */}
-            <div className="hidden md:block sticky bottom-0 z-50 pt-2 pb-2 -mx-6 px-6 bg-black">
+            {/* Generate Button — desktop, pushed to bottom */}
+            <div className="hidden md:block mt-auto pt-4">
               <button
                 onClick={handleGenerate}
                 disabled={!isReady || isGenerating}
