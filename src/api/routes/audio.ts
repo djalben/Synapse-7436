@@ -279,6 +279,75 @@ audioRoutes.post("/tts", async (c) => {
   }
 })
 
+// ─── POST /speech-to-speech — apply cloned voice to generated audio via ElevenLabs S2S ───
+audioRoutes.post("/speech-to-speech", async (c) => {
+  const t0 = Date.now()
+  console.log("[Audio] POST /speech-to-speech")
+
+  try {
+    const elevenLabsKey = getElevenLabsKey()
+    if (!elevenLabsKey) return c.json({ error: "ElevenLabs API не настроен (ELEVENLABS_API_KEY)." }, 503)
+
+    const { audioUrl, voiceId } = await c.req.json()
+    if (!audioUrl || !voiceId) {
+      return c.json({ error: "audioUrl и voiceId обязательны." }, 400)
+    }
+
+    // Step 1: Download the generated audio from Replicate
+    console.log(`[Audio] S2S: downloading audio from ${audioUrl.slice(0, 80)}...`)
+    const audioRes = await fetchWithTimeout(audioUrl, {}, 15000)
+    if (!audioRes.ok) {
+      return c.json({ error: "Не удалось скачать аудиофайл." }, 500)
+    }
+    const audioBlob = await audioRes.blob()
+    console.log(`[Audio] S2S: downloaded ${audioBlob.size} bytes in ${Date.now() - t0}ms`)
+
+    // Step 2: Send to ElevenLabs Speech-to-Speech
+    const stsForm = new FormData()
+    stsForm.append("audio", audioBlob, "input.mp3")
+    stsForm.append("model_id", "eleven_multilingual_sts_v2")
+    stsForm.append("voice_settings", JSON.stringify({
+      stability: 0.5,
+      similarity_boost: 0.8,
+    }))
+
+    console.log(`[Audio] S2S: sending to ElevenLabs voice ${voiceId}...`)
+    const stsRes = await fetchWithTimeout(
+      `https://api.elevenlabs.io/v1/speech-to-speech/${voiceId}`,
+      {
+        method: "POST",
+        headers: { "xi-api-key": elevenLabsKey },
+        body: stsForm,
+      },
+      45000
+    )
+
+    if (!stsRes.ok) {
+      const errText = await stsRes.text()
+      console.error(`[Audio] S2S error: ${stsRes.status} ${errText}`)
+      return c.json({ error: "Speech-to-Speech не удалось.", detail: errText }, 500)
+    }
+
+    // Step 3: Upload result to Vercel Blob
+    const resultBuffer = Buffer.from(await stsRes.arrayBuffer())
+    console.log(`[Audio] S2S: result ${resultBuffer.length} bytes in ${Date.now() - t0}ms, uploading to blob...`)
+
+    const { put } = await import("@vercel/blob")
+    const blob = await put(`synapse/sts-${Date.now()}.mp3`, resultBuffer, {
+      access: "public",
+      contentType: "audio/mpeg",
+    })
+
+    console.log(`[Audio] S2S: done in ${Date.now() - t0}ms → ${blob.url}`)
+    return c.json({ url: blob.url })
+  } catch (err) {
+    console.error(`[Audio] S2S error after ${Date.now() - t0}ms:`, err)
+    const msg = err instanceof Error ? err.message : String(err)
+    if (msg.includes("TIMEOUT")) return c.json({ error: "Speech-to-Speech: сервис не отвечает." }, 504)
+    return c.json({ error: "Speech-to-Speech не удалось." }, 500)
+  }
+})
+
 // ─── GET /status/:id — universal poll for any audio prediction ───
 audioRoutes.get("/status/:id", async (c) => {
   const predictionId = c.req.param("id")

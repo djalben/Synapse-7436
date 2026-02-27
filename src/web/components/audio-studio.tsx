@@ -793,6 +793,33 @@ export const AudioStudio = () => {
           startProgressSim(simMs, 92, 35);  // processing: 35→92%
         }
       });
+
+      // Speech-to-Speech: apply cloned voice if enabled
+      let finalAudioUrl = audioUrl;
+      if (mode === "music" && useMyVoice && clonedVoiceId) {
+        stopProgressSim();
+        setGenProgress(93);
+        setStatusMessage("Применяем ваш голос...");
+        startProgressSim(25_000, 99, 93);
+
+        try {
+          const stsRes = await fetch("/api/audio/speech-to-speech", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ audioUrl, voiceId: clonedVoiceId }),
+          });
+
+          if (stsRes.ok) {
+            const stsData = await stsRes.json() as { url?: string };
+            if (stsData.url) finalAudioUrl = stsData.url;
+          } else {
+            const stsErr = await stsRes.json().catch(() => ({})) as { error?: string };
+            console.warn("[Audio] S2S failed, using original audio:", stsErr.error);
+          }
+        } catch (stsErr) {
+          console.warn("[Audio] S2S error, using original audio:", stsErr);
+        }
+      }
       
       // Snap to 100%
       stopProgressSim();
@@ -813,7 +840,7 @@ export const AudioStudio = () => {
           ? (duration === "30s" ? "0:30" : duration === "60s" ? "1:00" : "2:00")
           : `~${Math.ceil(savedText.split(/\s+/).length / 2.5)}с`,
         createdAt: new Date(),
-        audioUrl,
+        audioUrl: finalAudioUrl,
       };
       
       setCurrentAudio(newAudio);
@@ -823,8 +850,8 @@ export const AudioStudio = () => {
         addToHistory({
           type: "audio",
           prompt: mode === "music" ? savedPrompt : savedText || "",
-          model: mode === "music" ? "ElevenLabs Music" : "XTTS-v2",
-          result: audioUrl,
+          model: mode === "music" ? (useMyVoice && clonedVoiceId ? "ElevenLabs Music + S2S" : "ElevenLabs Music") : "XTTS-v2",
+          result: finalAudioUrl,
           credits: creditCost,
         });
       } catch (histErr) {
