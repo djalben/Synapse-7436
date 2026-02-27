@@ -7,10 +7,13 @@ const REPLICATE_PREDICTIONS = `${REPLICATE_API}/predictions`
 const MINIMAX_MUSIC = `${REPLICATE_API}/models/minimax/music-1.5/predictions`
 const XTTS_VERSION = "684bc3855b37866c0c65add2ff39c78f3dea3f4ff103a436465326e0f438d55e"
 
-// ─── Budget-based timeouts (total must stay under Vercel 10s) ───
-const TOTAL_BUDGET_MS = 8000   // hard ceiling for the whole handler
-const LLM_TIMEOUT_MS  = 4000  // GPT-4o-mini lyrics step
-const POLL_TIMEOUT_MS  = 5000 // status check timeout
+// ─── Budget-based timeouts ───
+// Vercel Node.js function: 10s on Hobby, 60s on Pro.
+// /generate must: (1) GPT lyrics + (2) Replicate create-prediction POST → return ID.
+// Frontend polls /status separately, so the heavy work is async.
+const TOTAL_BUDGET_MS = 9500   // hard ceiling for /generate handler
+const LLM_TIMEOUT_MS  = 6000  // GPT-4o lyrics step (OpenRouter can be slow)
+const POLL_TIMEOUT_MS  = 8000 // status check + Replicate API timeout
 
 // Genre → MiniMax music style descriptors
 interface GenreDescriptor {
@@ -229,7 +232,7 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
       audio_format: "mp3",
     }
 
-    console.log(`[Audio] Step 2/2 — minimax/music-1.5: style=${stylePrompt.length}c lyrics=${lyrics.length}c timeout=${fireTimeout}ms`)
+    console.log(`[Audio] Step 2/2 — minimax/music-1.5: style=${stylePrompt.length}c lyrics=${lyrics.length}c timeout=${fireTimeout}ms token=${apiToken ? "yes" : "NO"}`)
 
     const response = await fetchWithTimeout(
       MINIMAX_MUSIC,
@@ -246,11 +249,18 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
     )
 
     const responseText = await response.text()
-    console.log(`[Audio] Replicate ${response.status} in ${elapsed()}ms: ${responseText.slice(0, 200)}`)
+    console.log(`[Audio] Replicate response: status=${response.status} elapsed=${elapsed()}ms body=${responseText.slice(0, 300)}`)
 
     if (!response.ok) {
-      console.error(`[Audio] Replicate error body: ${responseText}`)
-      return c.json({ error: "Генерация музыки не удалась.", detail: responseText.slice(0, 300) }, 500)
+      console.error(`[Audio] ❌ Replicate CREATE failed: status=${response.status}`)
+      console.error(`[Audio] ❌ Replicate error body: ${responseText.slice(0, 500)}`)
+      console.error(`[Audio] ❌ Model: minimax/music-1.5, lyrics=${lyrics.length}c, style=${stylePrompt.length}c`)
+      const detail = responseText.slice(0, 300)
+      const isOverloaded = responseText.includes("overloaded") || response.status === 429
+      const userMsg = isOverloaded
+        ? "Модель перегружена. Попробуйте через минуту."
+        : "Генерация музыки не удалась."
+      return c.json({ error: userMsg, detail }, isOverloaded ? 429 : 500)
     }
 
     let data: { id?: string; status?: string }
@@ -459,8 +469,8 @@ audioRoutes.post("/speech-to-speech", async (c) => {
 
 // ─── GET /status/:id — universal poll for any audio prediction ───
 audioRoutes.get("/status/:id", async (c) => {
+  const t0 = Date.now()
   const predictionId = c.req.param("id")
-  console.log(`[Audio] GET /status/${predictionId}`)
 
   try {
     const apiToken = getApiToken()
@@ -472,7 +482,7 @@ audioRoutes.get("/status/:id", async (c) => {
     }, POLL_TIMEOUT_MS)
 
     if (!response.ok) {
-      console.error(`[Audio] Status error: ${response.status}`)
+      console.error(`[Audio] Status poll error: ${response.status} for ${predictionId} (${Date.now() - t0}ms)`)
       return c.json({ id: predictionId, status: "processing" })
     }
 
@@ -481,9 +491,16 @@ audioRoutes.get("/status/:id", async (c) => {
       status: string
       output?: string | string[] | { audio_out?: string; url?: string }
       error?: string
+      model?: string
+      created_at?: string
+      started_at?: string
+      completed_at?: string
+      metrics?: { predict_time?: number }
     }
 
-    console.log(`[Audio] Status ${predictionId}: ${data.status} output=${JSON.stringify(data.output).slice(0, 200)}`)
+    // Concise log: status + timing
+    const predictTime = data.metrics?.predict_time ? ` predict=${data.metrics.predict_time.toFixed(1)}s` : ""
+    console.log(`[Audio] Status ${predictionId}: ${data.status}${predictTime} (poll ${Date.now() - t0}ms)`)
 
     if (data.status === "succeeded" && data.output) {
       let url: string | null = null
@@ -493,20 +510,21 @@ audioRoutes.get("/status/:id", async (c) => {
       else if (typeof data.output === "object" && data.output.url) url = data.output.url
 
       if (url) {
+        console.log(`[Audio] ✓ Prediction ${predictionId} DONE${predictTime} → ${url.slice(0, 80)}...`)
         return c.json({ id: predictionId, status: "completed", url })
       }
     }
 
     if (data.status === "failed" || data.status === "canceled") {
-      console.error(`[Audio] ❌ Prediction ${predictionId} FAILED:`, data.error)
-      console.error(`[Audio] Full failed prediction data:`, JSON.stringify(data).slice(0, 500))
+      console.error(`[Audio] ❌ Prediction ${predictionId} ${data.status}: ${data.error || "no error message"}`)
+      console.error(`[Audio] ❌ Model: ${data.model || "unknown"}, created: ${data.created_at || "?"}`)
       return c.json({ id: predictionId, status: "failed", error: data.error || "Генерация не удалась." })
     }
 
     // Pass through actual Replicate status (starting / processing) so frontend can react
     return c.json({ id: predictionId, status: data.status === "starting" ? "starting" : "processing" })
   } catch (err) {
-    console.error(`[Audio] Status check error:`, err)
+    console.error(`[Audio] Status check error for ${predictionId} (${Date.now() - t0}ms):`, err instanceof Error ? err.message : err)
     return c.json({ id: predictionId, status: "processing" })
   }
 })

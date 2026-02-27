@@ -690,42 +690,35 @@ export const AudioStudio = () => {
     } catch { /* best-effort */ }
   };
 
-  // Poll audio prediction status (60 × 3s = 3 min max)
-  // Auto-cancels if stuck in 'starting' > 45s to save credits
+  // Poll audio prediction status — MiniMax Music-1.5 is heavy, needs up to 5-8 min
+  // 100 polls × 5s interval = ~8 min max. No auto-cancel — MiniMax cold starts are normal.
   const pollAudioStatus = async (
     taskId: string,
-    onStatus?: (status: string) => void,
+    onStatus?: (status: string, elapsedSec: number) => void,
   ): Promise<string> => {
     const startedAt = Date.now();
-    let everProcessing = false;
+    const MAX_POLLS = 100;
+    const POLL_INTERVAL = 5000;
 
-    for (let i = 0; i < 60; i++) {
-      await new Promise(r => setTimeout(r, 3000));
+    for (let i = 0; i < MAX_POLLS; i++) {
+      await new Promise(r => setTimeout(r, POLL_INTERVAL));
+      const elapsedSec = Math.round((Date.now() - startedAt) / 1000);
       try {
         const res = await fetch(`/api/audio/status/${encodeURIComponent(taskId)}`);
         if (!res.ok) throw new Error(`Сервер вернул ошибку ${res.status}. Попробуйте позже.`);
         const data = await res.json() as { status: string; url?: string; error?: string };
-        if (onStatus) onStatus(data.status);
+        if (onStatus) onStatus(data.status, elapsedSec);
 
         if (data.status === "completed" && data.url) return data.url;
         if (data.status === "failed") throw new Error(data.error || "Генерация не удалась.");
-
-        if (data.status === "processing") everProcessing = true;
-
-        // Auto-cancel: stuck in 'starting' (cold start) > 45s
-        if (data.status === "starting" && !everProcessing && Date.now() - startedAt > 45_000) {
-          await cancelPrediction(taskId);
-          throw new Error("Модель долго запускается (cold start). Запрос отменён для экономии кредитов. Попробуйте снова через минуту.");
-        }
       } catch (err) {
         if (err instanceof Error && (
           err.message.includes("не удалась") ||
-          err.message.includes("ошибку") ||
-          err.message.includes("отменён")
+          err.message.includes("ошибку")
         )) throw err;
       }
     }
-    throw new Error("Таймаут генерации (3 мин). Попробуйте снова.");
+    throw new Error("Таймаут генерации (~8 мин). Попробуйте снова.");
   };
 
   const handleGenerateLyrics = async () => {
@@ -785,8 +778,8 @@ export const AudioStudio = () => {
 
         // If lyrics were pre-generated, skip GPT phase and go straight to music
         const hasEditedLyrics = lyricsReady && editedLyrics.trim().length >= 10;
-        setStatusMessage(hasEditedLyrics ? "Записываем трек..." : "Сочиняем текст песни...");
-        startProgressSim(hasEditedLyrics ? 3_000 : 6_000, 25);
+        setStatusMessage(hasEditedLyrics ? "Отправляем в студию..." : "Сочиняем текст песни...");
+        startProgressSim(hasEditedLyrics ? 3_000 : 8_000, 20);
 
         const durationSeconds = duration === "30s" ? 30 : duration === "60s" ? 60 : 120;
         response = await fetch("/api/audio/generate", {
@@ -825,25 +818,47 @@ export const AudioStudio = () => {
       const createData = await response.json() as { id?: string; status?: string; lyrics?: string; error?: string };
       if (!createData.id) throw new Error("Нет ID задачи.");
 
-      // Phase 2: status-aware polling with progress
+      // Phase 2: status-aware polling with detailed progress for MiniMax
       let phase: "starting" | "processing" | "done" = "starting";
       if (mode === "music") {
         stopProgressSim();
-        setGenProgress(25);
-        setStatusMessage("ИИ готовится к работе (прогрев)...");
-        startProgressSim(60_000, 35, 25);  // starting: slow crawl 25→35% over 60s
+        setGenProgress(20);
+        setStatusMessage("Подключаемся к студии...");
+        startProgressSim(120_000, 40, 20);  // starting: slow crawl 20→40% over 2 min (cold start)
       } else {
         setStatusMessage("XTTS синтезирует речь...");
       }
 
-      const audioUrl = await pollAudioStatus(createData.id, (status) => {
+      const audioUrl = await pollAudioStatus(createData.id, (status, elapsedSec) => {
         if (mode !== "music") return;
+
+        if (status === "starting") {
+          // MiniMax cold start — reassure the user
+          if (elapsedSec < 30) {
+            setStatusMessage("Подключаемся к студии...");
+          } else if (elapsedSec < 90) {
+            setStatusMessage("Нейросеть загружается (это нормально, ~1-2 мин)...");
+          } else {
+            setStatusMessage(`Модель всё ещё запускается (${Math.floor(elapsedSec / 60)}:${String(elapsedSec % 60).padStart(2, "0")})...`);
+          }
+        }
+
         if (status === "processing" && phase === "starting") {
           phase = "processing";
           stopProgressSim();
-          setStatusMessage("Нейросеть записывает вокал...");
-          const simMs = duration === "30s" ? 40_000 : duration === "60s" ? 70_000 : 120_000;
-          startProgressSim(simMs, 92, 35);  // processing: 35→92%
+          setGenProgress(40);
+          setStatusMessage("Нейросеть сочиняет музыку...");
+          const simMs = duration === "30s" ? 60_000 : duration === "60s" ? 120_000 : 180_000;
+          startProgressSim(simMs, 92, 40);  // processing: 40→92%
+        }
+
+        if (status === "processing" && phase === "processing") {
+          // Update message during processing
+          if (elapsedSec > 120) {
+            setStatusMessage("Сводим вокал и инструменты...");
+          } else if (elapsedSec > 60) {
+            setStatusMessage("Нейросеть записывает вокал...");
+          }
         }
       });
 
