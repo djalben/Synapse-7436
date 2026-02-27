@@ -17,6 +17,7 @@ import {
   Crown,
   FileText,
   PenLine,
+  ChevronDown,
 } from "lucide-react";
 import { useUsage } from "./usage-context";
 import { addToHistory } from "./placeholder-pages";
@@ -658,6 +659,8 @@ export const AudioStudio = () => {
   const [selectedVoice, setSelectedVoice] = useState<Voice>(presetVoices[0]);
   const [clonedVoices, setClonedVoices] = useState<Voice[]>([]);
   const [showCloneModal, setShowCloneModal] = useState(false);
+  const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false);
+  const voiceDropdownRef = useRef<HTMLDivElement>(null);
   
   const [musicPrompt, setMusicPrompt] = useState("");
   const [voiceText, setVoiceText] = useState("");
@@ -706,6 +709,17 @@ export const AudioStudio = () => {
 
   // Cleanup on unmount
   useEffect(() => () => stopProgressSim(), [stopProgressSim]);
+
+  // Close voice dropdown on click outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (voiceDropdownRef.current && !voiceDropdownRef.current.contains(e.target as Node)) {
+        setVoiceDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   // Cancel a prediction on Replicate to save credits
   const cancelPrediction = async (taskId: string) => {
@@ -848,58 +862,58 @@ export const AudioStudio = () => {
       const createData = await response.json() as { id?: string; status?: string; lyrics?: string; error?: string; url?: string };
       if (!createData.id) throw new Error("Нет ID задачи.");
 
-      // ElevenLabs TTS returns completed immediately — skip polling
-      let audioUrl: string;
-      if (createData.status === "completed" && createData.url) {
-        audioUrl = createData.url;
-        stopProgressSim();
-        setGenProgress(95);
-      } else {
-
-      // Phase 2: status-aware polling with detailed progress for MiniMax
+      // Phase 2: status-aware polling with detailed progress
       let phase: "starting" | "processing" | "done" = "starting";
       if (mode === "music") {
         stopProgressSim();
         setGenProgress(20);
         setStatusMessage("Подключаемся к студии...");
-        startProgressSim(120_000, 40, 20);  // starting: slow crawl 20→40% over 2 min (cold start)
+        startProgressSim(120_000, 40, 20);
       } else {
-        setStatusMessage("Голос синтезируется...");
+        // Voice mode: adaptive message based on text length
+        const isLongText = voiceText.length > 500;
+        stopProgressSim();
+        setGenProgress(15);
+        setStatusMessage(isLongText ? "Озвучиваем большую сказку (может занять до 1 мин)..." : "Голос синтезируется...");
+        startProgressSim(isLongText ? 60_000 : 20_000, 90, 15);
       }
 
-      audioUrl = await pollAudioStatus(createData.id, (status, elapsedSec) => {
-        if (mode !== "music") return;
-
-        if (status === "starting") {
-          // MiniMax cold start — reassure the user
-          if (elapsedSec < 30) {
-            setStatusMessage("Подключаемся к студии...");
-          } else if (elapsedSec < 90) {
-            setStatusMessage("Нейросеть загружается (это нормально, ~1-2 мин)...");
-          } else {
-            setStatusMessage(`Модель всё ещё запускается (${Math.floor(elapsedSec / 60)}:${String(elapsedSec % 60).padStart(2, "0")})...`);
+      const savedVoiceTextLen = voiceText.length;
+      const audioUrl = await pollAudioStatus(createData.id, (status, elapsedSec) => {
+        if (mode === "music") {
+          if (status === "starting") {
+            if (elapsedSec < 30) {
+              setStatusMessage("Подключаемся к студии...");
+            } else if (elapsedSec < 90) {
+              setStatusMessage("Нейросеть загружается (это нормально, ~1-2 мин)...");
+            } else {
+              setStatusMessage(`Модель всё ещё запускается (${Math.floor(elapsedSec / 60)}:${String(elapsedSec % 60).padStart(2, "0")})...`);
+            }
           }
-        }
-
-        if (status === "processing" && phase === "starting") {
-          phase = "processing";
-          stopProgressSim();
-          setGenProgress(40);
-          setStatusMessage("Нейросеть сочиняет музыку...");
-          const simMs = duration === "30s" ? 60_000 : duration === "60s" ? 120_000 : 180_000;
-          startProgressSim(simMs, 92, 40);  // processing: 40→92%
-        }
-
-        if (status === "processing" && phase === "processing") {
-          // Update message during processing
-          if (elapsedSec > 120) {
-            setStatusMessage("Сводим вокал и инструменты...");
-          } else if (elapsedSec > 60) {
-            setStatusMessage("Нейросеть записывает вокал...");
+          if (status === "processing" && phase === "starting") {
+            phase = "processing";
+            stopProgressSim();
+            setGenProgress(40);
+            setStatusMessage("Нейросеть сочиняет музыку...");
+            const simMs = duration === "30s" ? 60_000 : duration === "60s" ? 120_000 : 180_000;
+            startProgressSim(simMs, 92, 40);
+          }
+          if (status === "processing" && phase === "processing") {
+            if (elapsedSec > 120) {
+              setStatusMessage("Сводим вокал и инструменты...");
+            } else if (elapsedSec > 60) {
+              setStatusMessage("Нейросеть записывает вокал...");
+            }
+          }
+        } else {
+          // Voice mode status updates
+          if (elapsedSec > 30 && savedVoiceTextLen > 500) {
+            setStatusMessage("Озвучиваем длинный текст... почти готово");
+          } else if (elapsedSec > 15) {
+            setStatusMessage("Обрабатываем аудио...");
           }
         }
       });
-      } // end else (polling path)
 
       // Speech-to-Speech: apply cloned voice if enabled
       let finalAudioUrl = audioUrl;
@@ -1370,71 +1384,121 @@ export const AudioStudio = () => {
         {/* Voice Lab Controls */}
         {mode === "voice" && (
           <div className="space-y-6 animate-in fade-in duration-300">
-            {/* Voice Lab Header */}
-            <div className="p-4 rounded-xl bg-gradient-to-br from-indigo-500/10 to-blue-500/10 border border-indigo-500/20">
+            {/* Voice Lab Header — Glassmorphism */}
+            <div className="p-4 rounded-xl bg-slate-900/60 backdrop-blur-md border border-slate-700/50">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
                   <Mic className="w-5 h-5 text-blue-400" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-medium text-white">Voice Lab · Speech-to-Speech</h3>
-                  <p className="text-xs text-[#666]">Озвучка текста и замена голоса через ElevenLabs S2S</p>
+                  <h3 className="text-sm font-semibold text-white tracking-tight">Voice Lab · Speech-to-Speech</h3>
+                  <p className="text-xs text-slate-500">Озвучка текста и замена голоса через ElevenLabs</p>
                 </div>
               </div>
             </div>
 
-            {/* Text Input */}
+            {/* Text Input — Auto-height, glassmorphism */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-[#888]">Введите текст для озвучивания</label>
+              <label className="block text-xs font-medium text-slate-400 tracking-tight">Введите текст для озвучивания</label>
               <textarea
                 value={voiceText}
-                onChange={(e) => setVoiceText(e.target.value)}
-                placeholder="Введите или вставьте текст для преобразования в речь..."
-                className="w-full h-32 px-4 py-3 rounded-xl bg-white/[0.03] border border-[#333] text-white placeholder-[#555] resize-none focus:border-indigo-500/50 focus:outline-none transition-colors"
+                onChange={(e) => {
+                  if (e.target.value.length <= 5000) setVoiceText(e.target.value);
+                  // Auto-height
+                  e.target.style.height = "auto";
+                  e.target.style.height = Math.max(128, e.target.scrollHeight) + "px";
+                }}
+                placeholder="Введите или вставьте текст для преобразования в речь. Поддерживаются сказки, стихи, статьи — до 5000 символов..."
+                className="w-full min-h-[128px] px-4 py-3 rounded-xl bg-slate-900/80 backdrop-blur-md border border-slate-700/50 text-white placeholder-slate-600 resize-y focus:border-indigo-500/50 focus:outline-none transition-colors"
               />
-              <div className="flex justify-between mt-2">
-                <span className="text-xs text-[#666]">Максимум 1000 символов</span>
-                <span className="text-xs text-[#666]">{voiceText.length}/1000</span>
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-xs text-slate-500">
+                  {voiceText.length > 1000 ? "Большой текст — озвучка займёт больше времени" : "Максимум 5000 символов"}
+                </span>
+                <span className={`text-xs font-medium ${
+                  voiceText.length > 4500 ? "text-red-400" : voiceText.length > 3000 ? "text-yellow-400" : "text-slate-500"
+                }`}>
+                  {voiceText.length} / 5000
+                </span>
               </div>
+              {voiceText.length > 1000 && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                  <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span className="text-[11px] text-amber-300/80">
+                    {voiceText.length > 3000 ? "Очень длинный текст — озвучка может занять до 1-2 минут" : "Озвучиваем большую сказку — может занять до 1 мин"}
+                  </span>
+                </div>
+              )}
             </div>
 
-            {/* Voice Selector */}
+            {/* Voice Selector — Custom Glassmorphism Dropdown */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-[#888]">Выберите голос</label>
-              <div className="relative">
-                <select
-                  value={selectedVoice?.id ?? presetVoices[0].id}
-                  onChange={(e) => {
-                    const voice = allVoices.find(v => v.id === e.target.value);
-                    if (voice) setSelectedVoice(voice);
-                  }}
-                  className="w-full px-4 py-3 rounded-xl bg-white/[0.03] border border-[#333] text-white appearance-none cursor-pointer focus:border-indigo-500/50 focus:outline-none transition-colors"
-                  style={{ backgroundColor: "rgba(255,255,255,0.03)" }}
+              <label className="block text-xs font-medium text-slate-400 tracking-tight">Выберите голос</label>
+              <div className="relative" ref={voiceDropdownRef}>
+                {/* Trigger Button */}
+                <button
+                  type="button"
+                  onClick={() => setVoiceDropdownOpen(!voiceDropdownOpen)}
+                  className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-slate-900/80 backdrop-blur-md border border-slate-700/50 text-white cursor-pointer hover:border-indigo-500/40 focus:border-indigo-500/50 focus:outline-none transition-all"
                 >
-                  {VOICE_CATEGORIES.map((cat) => {
-                    const voices = presetVoices.filter(v => v.category === cat.key);
-                    if (voices.length === 0) return null;
-                    return (
-                      <optgroup key={cat.key} label={cat.label}>
-                        {voices.map((voice) => (
-                          <option key={voice.id} value={voice.id} className="bg-[#1a1a1a] text-white">{voice.name}</option>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Volume2 className="w-4 h-4 text-indigo-400 shrink-0" />
+                    <span className="text-sm truncate">{selectedVoice?.name || "Выберите голос"}</span>
+                  </div>
+                  <ChevronDown className={`w-4 h-4 text-slate-500 shrink-0 transition-transform duration-200 ${voiceDropdownOpen ? "rotate-180" : ""}`} />
+                </button>
+
+                {/* Dropdown Panel */}
+                {voiceDropdownOpen && (
+                  <div className="absolute z-50 mt-2 w-full max-h-72 overflow-y-auto rounded-xl bg-slate-900/95 backdrop-blur-xl border border-slate-700/50 shadow-2xl shadow-black/50 ring-1 ring-white/5">
+                    {VOICE_CATEGORIES.map((cat) => {
+                      const voices = presetVoices.filter(v => v.category === cat.key);
+                      if (voices.length === 0) return null;
+                      return (
+                        <div key={cat.key}>
+                          <div className="px-3 pt-2.5 pb-1">
+                            <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">{cat.label}</span>
+                          </div>
+                          {voices.map((voice) => (
+                            <button
+                              key={voice.id}
+                              type="button"
+                              onClick={() => { setSelectedVoice(voice); setVoiceDropdownOpen(false); }}
+                              className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                                selectedVoice?.id === voice.id
+                                  ? "bg-indigo-500/20 text-indigo-300"
+                                  : "text-slate-300 hover:bg-white/[0.06] hover:text-white"
+                              }`}
+                            >
+                              {voice.name}
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })}
+                    {clonedVoices.length > 0 && (
+                      <div>
+                        <div className="px-3 pt-2.5 pb-1 border-t border-slate-700/40 mt-1">
+                          <span className="text-[10px] font-semibold uppercase tracking-widest text-amber-500/80">Мои голоса</span>
+                        </div>
+                        {clonedVoices.map((voice) => (
+                          <button
+                            key={voice.id}
+                            type="button"
+                            onClick={() => { setSelectedVoice(voice); setVoiceDropdownOpen(false); }}
+                            className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                              selectedVoice?.id === voice.id
+                                ? "bg-indigo-500/20 text-indigo-300"
+                                : "text-slate-300 hover:bg-white/[0.06] hover:text-white"
+                            }`}
+                          >
+                            {voice.name}
+                          </button>
                         ))}
-                      </optgroup>
-                    );
-                  })}
-                  {clonedVoices.length > 0 && (
-                    <optgroup label="Мои клонированные голоса">
-                      {clonedVoices.map((voice) => (
-                        <option key={voice.id} value={voice.id} className="bg-[#1a1a1a] text-white">{voice.name}</option>
-                      ))}
-                    </optgroup>
-                  )}
-                </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                  <svg className="w-4 h-4 text-[#666]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

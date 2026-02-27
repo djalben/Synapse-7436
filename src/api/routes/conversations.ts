@@ -183,20 +183,24 @@ conversationRoutes.post("/:id/messages", async (c) => {
       ON CONFLICT (id) DO NOTHING
     `
 
-    // Delete old messages and insert new ones
+    // Delete old messages and insert new ones (batched to avoid oversized queries)
     await sql`DELETE FROM chat_messages WHERE conversation_id = ${convId}`
 
     if (body.messages.length > 0) {
-      await sql`
-        INSERT INTO chat_messages ${sql(
-          body.messages.map((m) => ({
-            id: m.id,
-            conversation_id: convId,
-            role: m.role,
-            content: m.content,
-          }))
-        )}
-      `
+      const BATCH_SIZE = 20
+      const MAX_CONTENT_LENGTH = 100_000 // 100KB per message safety limit
+      const rows = body.messages.map((m) => ({
+        id: m.id,
+        conversation_id: convId,
+        role: m.role,
+        content: typeof m.content === "string" ? m.content.slice(0, MAX_CONTENT_LENGTH) : String(m.content || ""),
+      }))
+
+      for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+        const batch = rows.slice(i, i + BATCH_SIZE)
+        await sql`INSERT INTO chat_messages ${sql(batch)}`
+      }
+      console.log(`[conversations] inserted ${rows.length} messages in ${Math.ceil(rows.length / BATCH_SIZE)} batches`)
     }
 
     // Update conversation timestamp and optionally title/model

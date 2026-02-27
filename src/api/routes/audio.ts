@@ -59,6 +59,23 @@ function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<R
   ])
 }
 
+// ─── In-memory TTS job store (async ElevenLabs processing) ───
+interface TtsJob {
+  status: "processing" | "completed" | "failed"
+  url?: string
+  error?: string
+  createdAt: number
+}
+const ttsJobs = new Map<string, TtsJob>()
+
+// Cleanup old jobs every 10 min (keep for 30 min)
+setInterval(() => {
+  const cutoff = Date.now() - 30 * 60_000
+  for (const [id, job] of ttsJobs) {
+    if (job.createdAt < cutoff) ttsJobs.delete(id)
+  }
+}, 10 * 60_000)
+
 // ─── Duration → char limits for MiniMax ───
 const DURATION_LIMITS: Record<number, { softMax: number; hardMax: number; structure: string; maxTokens: number }> = {
   30:  { softMax: 180, hardMax: 200, structure: "[Verse] (4 lines) → [Chorus] (4 lines)", maxTokens: 200 },
@@ -359,7 +376,7 @@ audioRoutes.post("/generate-lyrics", async (c) => {
   }
 })
 
-// ─── POST /tts — text-to-speech via ElevenLabs (preset voices) or XTTS-v2 (fallback) ───
+// ─── POST /tts — ASYNC text-to-speech: returns job ID immediately, processes in background ───
 audioRoutes.post("/tts", async (c) => {
   const t0 = Date.now()
   console.log("[Audio] POST /tts")
@@ -373,58 +390,70 @@ audioRoutes.post("/tts", async (c) => {
       return c.json({ error: "Текст слишком длинный. Максимум 5000 символов." }, 400)
     }
 
-    // ── Path A: ElevenLabs TTS for preset voices with elevenlabsId ──
+    // ── Path A: ElevenLabs TTS (async — fire-and-forget) ──
     if (elevenlabsId && typeof elevenlabsId === "string") {
       const elevenLabsKey = getElevenLabsKey()
       if (!elevenLabsKey) return c.json({ error: "ElevenLabs API не настроен." }, 503)
 
+      const jobId = `el-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
       const voiceStability = typeof stability === "number" ? stability : 0.5
-      console.log(`[Audio] ElevenLabs TTS: voice=${elevenlabsId} stability=${voiceStability} text=${text.trim().length}c`)
+      ttsJobs.set(jobId, { status: "processing", createdAt: Date.now() })
 
-      const ttsRes = await fetchWithTimeout(
-        `https://api.elevenlabs.io/v1/text-to-speech/${elevenlabsId}`,
-        {
-          method: "POST",
-          headers: {
-            "xi-api-key": elevenLabsKey,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            text: text.trim(),
-            model_id: "eleven_multilingual_v2",
-            voice_settings: {
-              stability: voiceStability,
-              similarity_boost: 0.8,
-              style: 0.3,
-            },
-          }),
-        },
-        30000
-      )
+      console.log(`[Audio] ElevenLabs TTS ASYNC: job=${jobId} voice=${elevenlabsId} stability=${voiceStability} text=${text.trim().length}c`)
 
-      if (!ttsRes.ok) {
-        const errText = await ttsRes.text()
-        console.error(`[Audio] ElevenLabs TTS error: ${ttsRes.status} ${errText.slice(0, 300)}`)
-        return c.json({ error: "Озвучка не удалась.", detail: errText.slice(0, 200) }, 500)
+      // Fire-and-forget: process in background, don't await
+      const processAsync = async () => {
+        try {
+          const ttsRes = await fetch(
+            `https://api.elevenlabs.io/v1/text-to-speech/${elevenlabsId}`,
+            {
+              method: "POST",
+              headers: {
+                "xi-api-key": elevenLabsKey,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                text: text.trim(),
+                model_id: "eleven_multilingual_v2",
+                voice_settings: {
+                  stability: voiceStability,
+                  similarity_boost: 0.8,
+                  style: 0.3,
+                },
+              }),
+            }
+          )
+
+          if (!ttsRes.ok) {
+            const errText = await ttsRes.text()
+            console.error(`[Audio] ElevenLabs TTS error: ${ttsRes.status} ${errText.slice(0, 300)}`)
+            ttsJobs.set(jobId, { status: "failed", error: "Озвучка не удалась.", createdAt: Date.now() })
+            return
+          }
+
+          const audioBuffer = Buffer.from(await ttsRes.arrayBuffer())
+          console.log(`[Audio] ElevenLabs TTS: ${audioBuffer.length} bytes in ${Date.now() - t0}ms, uploading...`)
+
+          const { put } = await import("@vercel/blob")
+          const blob = await put(`synapse/tts-${Date.now()}.mp3`, audioBuffer, {
+            access: "public",
+            contentType: "audio/mpeg",
+          })
+
+          console.log(`[Audio] ElevenLabs TTS DONE: job=${jobId} ${Date.now() - t0}ms → ${blob.url}`)
+          ttsJobs.set(jobId, { status: "completed", url: blob.url, createdAt: Date.now() })
+        } catch (err) {
+          console.error(`[Audio] ElevenLabs TTS background error: job=${jobId}`, err instanceof Error ? err.message : err)
+          ttsJobs.set(jobId, { status: "failed", error: "Озвучка не удалась.", createdAt: Date.now() })
+        }
       }
+      processAsync() // fire-and-forget
 
-      // ElevenLabs returns audio directly — upload to Vercel Blob
-      const audioBuffer = Buffer.from(await ttsRes.arrayBuffer())
-      console.log(`[Audio] ElevenLabs TTS: ${audioBuffer.length} bytes in ${Date.now() - t0}ms, uploading...`)
-
-      const { put } = await import("@vercel/blob")
-      const blob = await put(`synapse/tts-${Date.now()}.mp3`, audioBuffer, {
-        access: "public",
-        contentType: "audio/mpeg",
-      })
-
-      console.log(`[Audio] ElevenLabs TTS done in ${Date.now() - t0}ms → ${blob.url}`)
       return c.json({
-        id: `el-${Date.now()}`,
-        status: "completed",
+        id: jobId,
+        status: "processing",
         type: "voice",
         text: text.trim(),
-        url: blob.url,
       })
     }
 
@@ -556,6 +585,24 @@ audioRoutes.get("/status/:id", async (c) => {
   const t0 = Date.now()
   const predictionId = c.req.param("id")
 
+  // ── Check in-memory TTS job store first (ElevenLabs async jobs) ──
+  if (predictionId.startsWith("el-")) {
+    const job = ttsJobs.get(predictionId)
+    if (!job) {
+      console.warn(`[Audio] TTS job not found: ${predictionId}`)
+      return c.json({ id: predictionId, status: "failed", error: "Задача не найдена." })
+    }
+    console.log(`[Audio] TTS job ${predictionId}: ${job.status} (${Date.now() - t0}ms)`)
+    if (job.status === "completed" && job.url) {
+      return c.json({ id: predictionId, status: "completed", url: job.url })
+    }
+    if (job.status === "failed") {
+      return c.json({ id: predictionId, status: "failed", error: job.error || "Озвучка не удалась." })
+    }
+    return c.json({ id: predictionId, status: "processing" })
+  }
+
+  // ── Replicate prediction status ──
   try {
     const apiToken = getApiToken()
     if (!apiToken) return c.json({ error: "Service not configured." }, 503)
