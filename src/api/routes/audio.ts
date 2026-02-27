@@ -413,11 +413,24 @@ audioRoutes.post("/clone-voice", async (c) => {
     if (!elevenLabsKey) return c.json({ error: "ElevenLabs API не настроен (ELEVENLABS_API_KEY)." }, 503)
 
     const formData = await c.req.formData()
-    const name = formData.get("name")
+    let name = formData.get("name")
     const file = formData.get("file")
 
-    if (!name || typeof name !== "string" || !file || !(file instanceof File)) {
-      return c.json({ error: "Укажите имя и аудиофайл." }, 400)
+    // Validate & log inputs
+    if (!name || typeof name !== "string" || !name.trim()) {
+      console.warn("[Audio] clone-voice: name missing or empty, using fallback")
+      name = "User Clone"
+    }
+    if (!file || !(file instanceof File)) {
+      console.error("[Audio] clone-voice: no valid file in FormData. Keys:", [...formData.keys()])
+      return c.json({ error: "Аудиофайл не получен. Загрузите файл или запишите голос." }, 400)
+    }
+
+    console.log(`[Audio] clone-voice: name="${name}", file.name="${file.name}", file.size=${file.size}, file.type="${file.type}"`)
+
+    if (file.size < 1000) {
+      console.error(`[Audio] clone-voice: file too small (${file.size} bytes), likely empty recording`)
+      return c.json({ error: "Аудиофайл слишком маленький. Запишите хотя бы несколько секунд." }, 400)
     }
 
     // Forward to ElevenLabs
@@ -425,6 +438,7 @@ audioRoutes.post("/clone-voice", async (c) => {
     elFormData.append("name", name)
     elFormData.append("files", file, file.name || "voice-sample.webm")
 
+    console.log(`[Audio] clone-voice: sending to ElevenLabs voices/add...`)
     const response = await fetchWithTimeout(
       "https://api.elevenlabs.io/v1/voices/add",
       {
@@ -432,17 +446,22 @@ audioRoutes.post("/clone-voice", async (c) => {
         headers: { "xi-api-key": elevenLabsKey },
         body: elFormData,
       },
-      15000
+      30000
     )
 
     if (!response.ok) {
       const errText = await response.text()
-      console.error(`[Audio] ElevenLabs clone error: ${response.status} ${errText}`)
-      return c.json({ error: "Клонирование голоса не удалось.", detail: errText }, 500)
+      console.error(`[Audio] ElevenLabs clone error: status=${response.status} statusText="${response.statusText}"`)
+      console.error(`[Audio] ElevenLabs Error Details:`, errText)
+      return c.json({
+        error: `Клонирование не удалось (ElevenLabs ${response.status}).`,
+        detail: errText,
+        status: response.status,
+      }, 500)
     }
 
     const data = await response.json() as { voice_id: string }
-    console.log(`[Audio] Voice cloned: ${data.voice_id}`)
+    console.log(`[Audio] Voice cloned successfully: voice_id=${data.voice_id}`)
 
     return c.json({ voice_id: data.voice_id })
   } catch (err) {

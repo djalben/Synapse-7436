@@ -425,8 +425,10 @@ const VoiceCloneModal = ({
       });
 
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({ error: "Ошибка клонирования" })) as { error?: string };
-        throw new Error(errData.error || "Клонирование не удалось");
+        const errData = await res.json().catch(() => ({ error: "Ошибка клонирования" })) as { error?: string; detail?: string; status?: number };
+        console.error("[Clone] Backend error:", { status: res.status, error: errData.error, detail: errData.detail, elStatus: errData.status });
+        const detail = errData.detail ? ` (${errData.detail.slice(0, 200)})` : "";
+        throw new Error((errData.error || "Клонирование не удалось") + detail);
       }
 
       const data = await res.json() as { voice_id: string };
