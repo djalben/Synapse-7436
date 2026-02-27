@@ -658,9 +658,11 @@ export const AudioStudio = () => {
   const { creditBalance, checkCredits, deductCredits } = useUsage();
 
   // Step logic: 1 = choose genre/settings, 2 = write lyrics, 3 = create music
+  const LYRICS_MAX_CHARS = 600;
   const currentStep = !selectedGenre ? 1 : !lyricsReady ? 2 : 3;
   const canGenerateLyrics = !!selectedGenre && !!musicPrompt.trim() && !isGeneratingLyrics && !isGenerating;
-  const canCreateMusic = lyricsReady && editedLyrics.trim().length >= 10 && !isGenerating && !isGeneratingLyrics;
+  const lyricsOverLimit = editedLyrics.length > LYRICS_MAX_CHARS;
+  const canCreateMusic = lyricsReady && editedLyrics.trim().length >= 10 && !lyricsOverLimit && !isGenerating && !isGeneratingLyrics;
 
   // Smooth progress simulation: ramps from startPct → targetPct over durationMs
   const startProgressSim = useCallback((durationMs: number, targetPct: number, startPct: number = 0) => {
@@ -1237,16 +1239,34 @@ export const AudioStudio = () => {
                       <PenLine className="w-3.5 h-3.5" />
                       Текст (можно редактировать)
                     </label>
-                    <span className="text-[10px] text-[#555]">{editedLyrics.length} сим.</span>
+                    <span className={`text-[10px] font-medium ${
+                      lyricsOverLimit
+                        ? "text-red-400"
+                        : editedLyrics.length > LYRICS_MAX_CHARS * 0.85
+                          ? "text-yellow-400"
+                          : "text-[#555]"
+                    }`}>
+                      {editedLyrics.length} / {LYRICS_MAX_CHARS}
+                    </span>
                   </div>
                   <textarea
                     value={editedLyrics}
                     onChange={(e) => setEditedLyrics(e.target.value)}
-                    className="w-full h-48 px-4 py-3 rounded-xl bg-white/[0.03] border border-indigo-500/30 text-white placeholder-[#555] resize-y focus:border-indigo-500/50 focus:outline-none transition-colors font-mono text-sm leading-relaxed"
+                    className={`w-full h-48 px-4 py-3 rounded-xl bg-white/[0.03] border text-white placeholder-[#555] resize-y focus:outline-none transition-colors font-mono text-sm leading-relaxed ${
+                      lyricsOverLimit
+                        ? "border-red-500/50 focus:border-red-500/70"
+                        : "border-indigo-500/30 focus:border-indigo-500/50"
+                    }`}
                   />
-                  <p className="text-[10px] text-indigo-300/60 leading-relaxed">
-                    Отредактируйте текст как хотите — AI споёт именно то, что вы напишете.
-                  </p>
+                  {lyricsOverLimit ? (
+                    <p className="text-[10px] text-red-400 font-medium leading-relaxed">
+                      Текст слишком длинный — MiniMax принимает максимум {LYRICS_MAX_CHARS} символов. Сократите на {editedLyrics.length - LYRICS_MAX_CHARS} сим.
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-indigo-300/60 leading-relaxed">
+                      Отредактируйте текст как хотите — AI споёт именно то, что вы напишете.
+                    </p>
+                  )}
                 </div>
               )}
             </div>

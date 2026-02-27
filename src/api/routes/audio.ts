@@ -77,12 +77,13 @@ async function generateLyrics(
 
   const structure =
     durationSec <= 30
-      ? "[Verse 1] (6-8 lines) → [Chorus] (4 lines)"
+      ? "[Verse 1] (4 lines) → [Chorus] (4 lines)"
       : durationSec <= 60
-        ? "[Verse 1] (6-8 lines) → [Chorus] (4-6 lines) → [Verse 2] (6-8 lines) → [Chorus]"
-        : "[Verse 1] (6-8 lines) → [Chorus] (4-6 lines) → [Verse 2] (6-8 lines) → [Chorus] → [Bridge] (4 lines) → [Outro] (2-4 lines)"
+        ? "[Verse 1] (4 lines) → [Chorus] (4 lines) → [Verse 2] (4 lines) → [Chorus]"
+        : "[Verse 1] (4 lines) → [Chorus] (4 lines) → [Verse 2] (4 lines) → [Chorus] → [Bridge] (2 lines)"
 
-  const maxChars = 1200
+  const LYRICS_HARD_LIMIT = 600
+  const maxChars = 550
   const langName = language === "ru" ? "Russian" : "English"
   const genderPerspective = gender === "male" ? "male" : "female"
   const vocalistDesc = gender === "male" ? "Male vocalist" : "Female vocalist"
@@ -133,7 +134,12 @@ async function generateLyrics(
     `The user's keywords are the soul of the song. Every meaningful word from the user's description MUST appear in your lyrics (in any grammatical form).`,
     `Build creative context AROUND these words but NEVER drop them.`,
     ``,
-    `LIMITS: Total lyrics UNDER ${maxChars} characters.`,
+    ``,
+    `═══ CRITICAL LENGTH LIMIT (ABSOLUTE LAW) ═══`,
+    `Your ENTIRE output MUST be between 400 and ${maxChars} characters INCLUDING section markers and newlines.`,
+    `This is a HARD TECHNICAL LIMIT of the music model. If you exceed ${maxChars} characters, the song CANNOT be generated.`,
+    `Write CONCISELY but DEEPLY. Every word must earn its place. Prefer 4-line sections over 6-8 line sections.`,
+    ``,
     `OUTPUT: Only lyrics with section markers. No title, no commentary, no counts.`,
   ].join("\n")
 
@@ -148,7 +154,7 @@ async function generateLyrics(
         },
         body: JSON.stringify({
           model: "openai/gpt-4o",
-          max_tokens: 700,
+          max_tokens: 400,
           temperature: 0.85,
           messages: [
             { role: "system", content: systemPrompt },
@@ -169,7 +175,15 @@ async function generateLyrics(
 
     // Strip BPM line if GPT added one (legacy)
     const cleaned = raw.replace(/^BPM:\s*\d+\s*\n?/i, "").trim()
-    return cleaned.slice(0, maxChars)
+    // Hard truncate to LYRICS_HARD_LIMIT for MiniMax safety
+    if (cleaned.length > LYRICS_HARD_LIMIT) {
+      console.warn(`[Audio] Lyrics too long (${cleaned.length}c), truncating to ${LYRICS_HARD_LIMIT}c`)
+      // Try to cut at last complete line before limit
+      const truncated = cleaned.slice(0, LYRICS_HARD_LIMIT)
+      const lastNewline = truncated.lastIndexOf("\n")
+      return lastNewline > 200 ? truncated.slice(0, lastNewline) : truncated
+    }
+    return cleaned
   } catch (err) {
     console.error("[Audio] Lyrics generation failed (fallback to keywords):", err instanceof Error ? err.message : err)
     return fallback
@@ -217,6 +231,15 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
         console.warn(`[Audio] Lyrics too short — padded with keywords: ${lyrics.length}c`)
       }
     }
+    // ── Safety guard: MiniMax hard limit is ~600 chars for lyrics ──
+    const MINIMAX_CHAR_LIMIT = 600
+    if (lyrics.length > MINIMAX_CHAR_LIMIT) {
+      console.warn(`[Audio] ⚠️ Lyrics exceed MiniMax limit: ${lyrics.length}c > ${MINIMAX_CHAR_LIMIT}c — truncating`)
+      const truncated = lyrics.slice(0, MINIMAX_CHAR_LIMIT)
+      const lastNewline = truncated.lastIndexOf("\n")
+      lyrics = lastNewline > 200 ? truncated.slice(0, lastNewline) : truncated
+      console.log(`[Audio] Truncated lyrics: ${lyrics.length}c`)
+    }
     console.log(`[Audio] Lyrics OK: ${lyrics.length}c in ${elapsed()}ms`)
 
     // ── Step 2: Fire MiniMax Music-1.5 prediction via Replicate ──
@@ -257,9 +280,12 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
       console.error(`[Audio] ❌ Model: minimax/music-1.5, lyrics=${lyrics.length}c, style=${stylePrompt.length}c`)
       const detail = responseText.slice(0, 300)
       const isOverloaded = responseText.includes("overloaded") || response.status === 429
-      const userMsg = isOverloaded
-        ? "Модель перегружена. Попробуйте через минуту."
-        : "Генерация музыки не удалась."
+      const isLyricsTooLong = responseText.includes("E006") || responseText.toLowerCase().includes("lyrics") && responseText.toLowerCase().includes("too long")
+      const userMsg = isLyricsTooLong
+        ? "Текст слишком длинный (макс. 600 символов). Пожалуйста, сократите его."
+        : isOverloaded
+          ? "Модель перегружена. Попробуйте через минуту."
+          : "Генерация музыки не удалась."
       return c.json({ error: userMsg, detail }, isOverloaded ? 429 : 500)
     }
 
@@ -518,7 +544,12 @@ audioRoutes.get("/status/:id", async (c) => {
     if (data.status === "failed" || data.status === "canceled") {
       console.error(`[Audio] ❌ Prediction ${predictionId} ${data.status}: ${data.error || "no error message"}`)
       console.error(`[Audio] ❌ Model: ${data.model || "unknown"}, created: ${data.created_at || "?"}`)
-      return c.json({ id: predictionId, status: "failed", error: data.error || "Генерация не удалась." })
+      const errStr = data.error || ""
+      const isLyricsTooLong = errStr.includes("E006") || (errStr.toLowerCase().includes("lyrics") && errStr.toLowerCase().includes("too long"))
+      const userError = isLyricsTooLong
+        ? "Текст слишком длинный (макс. 600 символов). Сократите текст и попробуйте снова."
+        : data.error || "Генерация не удалась."
+      return c.json({ id: predictionId, status: "failed", error: userError })
     }
 
     // Pass through actual Replicate status (starting / processing) so frontend can react
