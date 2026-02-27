@@ -33,6 +33,9 @@ app.get('/debug', (c) => c.json({
   url: c.req.url,
   runtime: 'nodejs',
   hasApiKey: !!process.env.OPENROUTER_API_KEY,
+  hasReplicateToken: !!process.env.REPLICATE_API_TOKEN,
+  hasElevenLabsKey: !!process.env.ELEVENLABS_API_KEY,
+  elevenLabsKeyLength: process.env.ELEVENLABS_API_KEY?.length ?? 0,
 }));
 
 // ─── Routes

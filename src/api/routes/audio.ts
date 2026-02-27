@@ -283,6 +283,7 @@ audioRoutes.post("/tts", async (c) => {
 audioRoutes.post("/speech-to-speech", async (c) => {
   const t0 = Date.now()
   console.log("[Audio] POST /speech-to-speech")
+  console.log(`DEBUG: ELEVENLABS key length is: ${process.env.ELEVENLABS_API_KEY?.length ?? "UNDEFINED"}`)
 
   try {
     const elevenLabsKey = getElevenLabsKey()
@@ -405,6 +406,7 @@ audioRoutes.get("/status/:id", async (c) => {
 // ─── POST /clone-voice — clone a voice via ElevenLabs API ───
 audioRoutes.post("/clone-voice", async (c) => {
   console.log("[Audio] POST /clone-voice")
+  console.log(`DEBUG: ELEVENLABS key length is: ${process.env.ELEVENLABS_API_KEY?.length ?? "UNDEFINED"}`)
 
   try {
     const elevenLabsKey = getElevenLabsKey()
