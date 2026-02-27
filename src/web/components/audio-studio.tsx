@@ -28,6 +28,7 @@ interface Voice {
   id: string;
   name: string;
   type: "preset" | "cloned";
+  elevenlabsId?: string;
 }
 
 const presetVoices: Voice[] = [
@@ -326,6 +327,68 @@ const VoiceCloneModal = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [voiceName, setVoiceName] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [recordingSecs, setRecordingSecs] = useState(0);
+  const [cloneError, setCloneError] = useState<string | null>(null);
+
+  // Stop recording if modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    }
+  }, [isOpen]);
+
+  const startRecording = async () => {
+    try {
+      setCloneError(null);
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
+      const recorder = new MediaRecorder(stream, { mimeType });
+      chunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        const ext = mimeType.includes("mp4") ? "mp4" : "webm";
+        const blob = new Blob(chunksRef.current, { type: mimeType });
+        const file = new File([blob], `voice-sample.${ext}`, { type: mimeType });
+        setUploadedFile(file);
+        stream.getTracks().forEach(t => t.stop());
+        if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+        setIsRecording(false);
+      };
+
+      recorder.start(250);
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+      setRecordingSecs(0);
+
+      timerRef.current = setInterval(() => {
+        setRecordingSecs(prev => {
+          if (prev >= 29) { recorder.stop(); return 30; }
+          return prev + 1;
+        });
+      }, 1000);
+    } catch (err) {
+      console.error("Microphone access denied:", err);
+      setCloneError("Нет доступа к микрофону. Разрешите доступ в настройках браузера.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+  };
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -348,22 +411,43 @@ const VoiceCloneModal = ({
 
   const handleClone = async () => {
     if (!uploadedFile || !voiceName) return;
-    
     setIsProcessing(true);
-    // Simulate processing
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    const newVoice: Voice = {
-      id: `cloned-${Date.now()}`,
-      name: voiceName,
-      type: "cloned",
-    };
-    
-    onCloneCreated(newVoice);
-    setIsProcessing(false);
-    setUploadedFile(null);
-    setVoiceName("");
-    onClose();
+    setCloneError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("name", voiceName);
+      formData.append("file", uploadedFile);
+
+      const res = await fetch("/api/audio/clone-voice", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: "Ошибка клонирования" })) as { error?: string };
+        throw new Error(errData.error || "Клонирование не удалось");
+      }
+
+      const data = await res.json() as { voice_id: string };
+
+      const newVoice: Voice = {
+        id: `cloned-${Date.now()}`,
+        name: voiceName,
+        type: "cloned",
+        elevenlabsId: data.voice_id,
+      };
+
+      onCloneCreated(newVoice);
+      setUploadedFile(null);
+      setVoiceName("");
+      onClose();
+    } catch (err) {
+      console.error("Clone error:", err);
+      setCloneError(err instanceof Error ? err.message : "Клонирование не удалось");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -466,7 +550,7 @@ const VoiceCloneModal = ({
 
         {/* Record Button */}
         <button
-          onClick={() => setIsRecording(!isRecording)}
+          onClick={isRecording ? stopRecording : startRecording}
           className={`
             w-full py-3 rounded-xl border flex items-center justify-center gap-2
             transition-all duration-300
@@ -477,8 +561,29 @@ const VoiceCloneModal = ({
           `}
         >
           <Mic className={`w-4 h-4 ${isRecording ? "animate-pulse" : ""}`} />
-          {isRecording ? "Запись... Нажмите чтобы остановить" : "Записать с микрофона"}
+          {isRecording ? (
+            <span>Запись {recordingSecs}с / 30с — Нажмите чтобы остановить</span>
+          ) : (
+            <span>Записать с микрофона (до 30с)</span>
+          )}
         </button>
+
+        {/* Recording timer bar */}
+        {isRecording && (
+          <div className="mt-2 h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-red-500 to-rose-500 transition-all duration-1000 ease-linear"
+              style={{ width: `${(recordingSecs / 30) * 100}%` }}
+            />
+          </div>
+        )}
+
+        {/* Clone error */}
+        {cloneError && (
+          <div className="mt-2 p-2.5 rounded-xl bg-red-500/10 border border-red-500/30">
+            <p className="text-xs text-red-400">{cloneError}</p>
+          </div>
+        )}
 
         {/* Credit cost info */}
         <div className="mt-4 p-3 rounded-xl bg-white/[0.02] border border-[#222]">
@@ -520,6 +625,8 @@ export const AudioStudio = () => {
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
   const [vocalGender, setVocalGender] = useState<VocalGender>("female");
   const [songLanguage, setSongLanguage] = useState<SongLanguage>("ru");
+  const [useMyVoice, setUseMyVoice] = useState(false);
+  const [clonedVoiceId, setClonedVoiceId] = useState<string | null>(null);
   const [selectedVoice, setSelectedVoice] = useState<Voice>(presetVoices[0]);
   const [clonedVoices, setClonedVoices] = useState<Voice[]>([]);
   const [showCloneModal, setShowCloneModal] = useState(false);
@@ -639,6 +746,7 @@ export const AudioStudio = () => {
             genre: selectedGenre || undefined,
             vocalGender,
             language: songLanguage,
+            voiceId: useMyVoice && clonedVoiceId ? clonedVoiceId : undefined,
           }),
         });
       } else {
@@ -738,6 +846,10 @@ export const AudioStudio = () => {
   const handleCloneCreated = (voice: Voice) => {
     setClonedVoices(prev => [...prev, voice]);
     setSelectedVoice(voice);
+    if (voice.elevenlabsId) {
+      setClonedVoiceId(voice.elevenlabsId);
+      setUseMyVoice(true);
+    }
   };
 
   const allVoices = [...presetVoices, ...clonedVoices];
@@ -904,6 +1016,42 @@ export const AudioStudio = () => {
               <p className="text-[11px] text-indigo-400/60 mt-1">
                 {duration === "30s" ? "1 куплет" : duration === "60s" ? "Куплет + припев" : "2 куплета + припев + бридж"}
               </p>
+            </div>
+
+            {/* Voice Clone / My Voice */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-[#888]">Мой голос</label>
+              {clonedVoiceId ? (
+                <label
+                  onClick={() => setUseMyVoice(!useMyVoice)}
+                  className={`
+                    flex items-center gap-3 cursor-pointer group p-3 rounded-xl border transition-all
+                    ${useMyVoice
+                      ? "border-indigo-500/50 bg-indigo-500/10"
+                      : "border-[#333] hover:border-indigo-500/30 bg-white/[0.02]"
+                    }
+                  `}
+                >
+                  <div className={`
+                    w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all
+                    ${useMyVoice ? "bg-indigo-500 border-indigo-500" : "border-[#444] group-hover:border-[#666]"}
+                  `}>
+                    {useMyVoice && <Check className="w-3 h-3 text-white" />}
+                  </div>
+                  <div>
+                    <span className="text-sm text-white">Петь моим голосом</span>
+                    <p className="text-[10px] text-[#666]">Клонированный голос будет использован</p>
+                  </div>
+                </label>
+              ) : (
+                <button
+                  onClick={() => setShowCloneModal(true)}
+                  className="w-full py-2.5 rounded-xl bg-white/[0.03] border border-[#333] text-sm font-medium text-[#888] hover:text-white hover:border-indigo-500/30 transition-all flex items-center justify-center gap-2"
+                >
+                  <Mic className="w-4 h-4" />
+                  Записать свой голос
+                </button>
+              )}
             </div>
 
             {/* How it works hint */}

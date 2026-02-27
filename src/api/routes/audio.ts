@@ -31,6 +31,10 @@ function getOpenRouterKey(): string | undefined {
   return process.env.OPENROUTER_API_KEY
 }
 
+function getElevenLabsKey(): string | undefined {
+  return process.env.ELEVENLABS_API_KEY
+}
+
 function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<Response> {
   return Promise.race([
     fetch(url, init),
@@ -113,7 +117,8 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
     const apiToken = getApiToken()
     if (!apiToken) return c.json({ error: "Сервис аудио не настроен (REPLICATE_API_TOKEN)." }, 503)
 
-    const { prompt, duration, genre, vocalGender, language } = await c.req.json()
+    const { prompt, duration, genre, vocalGender, language, voiceId } = await c.req.json()
+    if (voiceId) console.log(`[Audio] Voice clone requested: ${voiceId} (Speech-to-Speech TBD)`)
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
       return c.json({ error: "Опишите тему вашей песни." }, 400)
     }
@@ -325,6 +330,55 @@ audioRoutes.get("/status/:id", async (c) => {
   } catch (err) {
     console.error(`[Audio] Status check error:`, err)
     return c.json({ id: predictionId, status: "processing" })
+  }
+})
+
+// ─── POST /clone-voice — clone a voice via ElevenLabs API ───
+audioRoutes.post("/clone-voice", async (c) => {
+  console.log("[Audio] POST /clone-voice")
+
+  try {
+    const elevenLabsKey = getElevenLabsKey()
+    if (!elevenLabsKey) return c.json({ error: "ElevenLabs API не настроен (ELEVENLABS_API_KEY)." }, 503)
+
+    const formData = await c.req.formData()
+    const name = formData.get("name")
+    const file = formData.get("file")
+
+    if (!name || typeof name !== "string" || !file || !(file instanceof File)) {
+      return c.json({ error: "Укажите имя и аудиофайл." }, 400)
+    }
+
+    // Forward to ElevenLabs
+    const elFormData = new FormData()
+    elFormData.append("name", name)
+    elFormData.append("files", file, file.name || "voice-sample.webm")
+
+    const response = await fetchWithTimeout(
+      "https://api.elevenlabs.io/v1/voices/add",
+      {
+        method: "POST",
+        headers: { "xi-api-key": elevenLabsKey },
+        body: elFormData,
+      },
+      15000
+    )
+
+    if (!response.ok) {
+      const errText = await response.text()
+      console.error(`[Audio] ElevenLabs clone error: ${response.status} ${errText}`)
+      return c.json({ error: "Клонирование голоса не удалось.", detail: errText }, 500)
+    }
+
+    const data = await response.json() as { voice_id: string }
+    console.log(`[Audio] Voice cloned: ${data.voice_id}`)
+
+    return c.json({ voice_id: data.voice_id })
+  } catch (err) {
+    console.error("[Audio] Clone error:", err)
+    const msg = err instanceof Error ? err.message : String(err)
+    if (msg.includes("TIMEOUT")) return c.json({ error: "Сервис не отвечает." }, 504)
+    return c.json({ error: "Клонирование не удалось." }, 500)
   }
 })
 

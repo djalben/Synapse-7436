@@ -3,6 +3,7 @@
 
 $msg = "feat: умный выпадающий список моделей с характеристиками"
 git add -A
-git status
+
+git stat
 git commit -m $msg
 git push
