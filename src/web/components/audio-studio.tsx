@@ -657,6 +657,11 @@ export const AudioStudio = () => {
   const creditCost = mode === "music" ? CREDIT_COST_MUSIC : CREDIT_COST_VOICE;
   const { creditBalance, checkCredits, deductCredits } = useUsage();
 
+  // Step logic: 1 = choose genre/settings, 2 = write lyrics, 3 = create music
+  const currentStep = !selectedGenre ? 1 : !lyricsReady ? 2 : 3;
+  const canGenerateLyrics = !!selectedGenre && !!musicPrompt.trim() && !isGeneratingLyrics && !isGenerating;
+  const canCreateMusic = lyricsReady && editedLyrics.trim().length >= 10 && !isGenerating && !isGeneratingLyrics;
+
   // Smooth progress simulation: ramps from startPct → targetPct over durationMs
   const startProgressSim = useCallback((durationMs: number, targetPct: number, startPct: number = 0) => {
     if (progressRef.current) clearInterval(progressRef.current);
@@ -983,32 +988,221 @@ export const AudioStudio = () => {
           </button>
         </div>
 
-        {/* Music Generator Controls — simplified: keywords + genre + duration */}
+        {/* Music Generator Controls — Step-by-step wizard */}
         {mode === "music" && (
-          <div className="space-y-6">
-            {/* Step 1: Keywords + Generate Lyrics */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-[#888]">О чём будет ваша песня?</label>
-              <textarea
-                value={musicPrompt}
-                onChange={(e) => {
-                  setMusicPrompt(e.target.value);
-                  if (lyricsReady) { setLyricsReady(false); setEditedLyrics(""); }
-                }}
-                placeholder="летняя любовь, танцы на закате, свобода и ветер..."
-                className="w-full h-20 px-4 py-3 rounded-xl bg-white/[0.03] border border-[#333] text-white placeholder-[#555] resize-none focus:border-indigo-500/50 focus:outline-none transition-colors"
-              />
+          <div className="space-y-5">
+            {/* ═══ Visual Stepper ═══ */}
+            <div className="flex items-center gap-0">
+              {[
+                { num: 1, label: "Настроение", icon: "🎸" },
+                { num: 2, label: "Слова", icon: "✍️" },
+                { num: 3, label: "Запись", icon: "🎤" },
+              ].map((step, i) => (
+                <div key={step.num} className="flex items-center flex-1">
+                  <div className="flex flex-col items-center flex-1">
+                    <div className={`
+                      w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold
+                      transition-all duration-500 border-2
+                      ${currentStep > step.num
+                        ? "bg-green-500/20 border-green-500/60 text-green-400"
+                        : currentStep === step.num
+                          ? "bg-indigo-500/30 border-indigo-400 text-white shadow-[0_0_12px_rgba(99,102,241,0.4)]"
+                          : "bg-white/[0.03] border-[#333] text-[#555]"
+                      }
+                    `}>
+                      {currentStep > step.num ? <Check className="w-4 h-4" /> : step.icon}
+                    </div>
+                    <span className={`
+                      text-[10px] mt-1.5 font-medium transition-colors duration-300
+                      ${currentStep > step.num ? "text-green-400/70" : currentStep === step.num ? "text-indigo-300" : "text-[#555]"}
+                    `}>
+                      {step.label}
+                    </span>
+                  </div>
+                  {i < 2 && (
+                    <div className={`
+                      h-[2px] flex-1 -mt-4 mx-1 rounded-full transition-all duration-500
+                      ${currentStep > step.num ? "bg-green-500/40" : "bg-[#222]"}
+                    `} />
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* ═══ STEP 1: Настроение (Genre + Settings) ═══ */}
+            <div className={`space-y-4 p-4 rounded-xl border transition-all duration-300 ${
+              currentStep === 1
+                ? "border-indigo-500/30 bg-indigo-500/[0.03]"
+                : currentStep > 1
+                  ? "border-green-500/20 bg-green-500/[0.02]"
+                  : "border-[#222] bg-white/[0.01] opacity-50"
+            }`}>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-white/80 flex items-center gap-2">
+                  <span className={`w-5 h-5 rounded-full text-[10px] flex items-center justify-center font-bold ${
+                    currentStep > 1 ? "bg-green-500/20 text-green-400" : "bg-indigo-500/20 text-indigo-300"
+                  }`}>{currentStep > 1 ? "✓" : "1"}</span>
+                  Настроение
+                </span>
+                {currentStep === 1 && !selectedGenre && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 animate-pulse">
+                    Выберите жанр 🎸
+                  </span>
+                )}
+              </div>
+
+              {/* Genre */}
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-medium text-[#777]">Жанр</label>
+                <div className="flex flex-wrap gap-2">
+                  {genres.map((genre) => (
+                    <button
+                      key={genre}
+                      onClick={() => {
+                        setSelectedGenre(selectedGenre === genre ? null : genre);
+                        if (lyricsReady) { setLyricsReady(false); setEditedLyrics(""); }
+                      }}
+                      className={`
+                        px-3 py-1.5 rounded-lg text-xs font-medium
+                        transition-all duration-200 border
+                        ${selectedGenre === genre
+                          ? "bg-indigo-500/20 border-indigo-500/50 text-indigo-300"
+                          : "bg-white/[0.02] border-[#333] text-[#888] hover:text-white hover:border-[#444]"
+                        }
+                      `}
+                    >
+                      {genre}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Vocal + Language row */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-medium text-[#777]">Вокал</label>
+                  <div className="flex gap-1.5">
+                    {(["male", "female"] as VocalGender[]).map((g) => (
+                      <button
+                        key={g}
+                        onClick={() => setVocalGender(g)}
+                        className={`
+                          flex-1 py-1.5 rounded-lg text-xs font-medium
+                          transition-all duration-300 border
+                          ${vocalGender === g
+                            ? "bg-indigo-500/20 border-indigo-500/50 text-white"
+                            : "bg-white/[0.02] border-[#333] text-[#888] hover:text-white hover:border-[#444]"
+                          }
+                        `}
+                      >
+                        {g === "male" ? "♂ Муж" : "♀ Жен"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-medium text-[#777]">Язык</label>
+                  <div className="flex gap-1.5">
+                    {(["ru", "en"] as SongLanguage[]).map((lang) => (
+                      <button
+                        key={lang}
+                        onClick={() => setSongLanguage(lang)}
+                        className={`
+                          flex-1 py-1.5 rounded-lg text-xs font-medium
+                          transition-all duration-300 border
+                          ${songLanguage === lang
+                            ? "bg-indigo-500/20 border-indigo-500/50 text-white"
+                            : "bg-white/[0.02] border-[#333] text-[#888] hover:text-white hover:border-[#444]"
+                          }
+                        `}
+                      >
+                        {lang === "ru" ? "🇷🇺 Рус" : "🇬🇧 Eng"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Duration */}
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-medium text-[#777]">Длительность</label>
+                <div className="flex gap-2">
+                  {(["30s", "60s", "2min"] as Duration[]).map((d) => (
+                    <button
+                      key={d}
+                      onClick={() => setDuration(d)}
+                      className={`
+                        flex-1 py-2 rounded-lg text-xs font-medium
+                        transition-all duration-300 border
+                        ${duration === d
+                          ? "bg-indigo-500/20 border-indigo-500/50 text-white"
+                          : "bg-white/[0.02] border-[#333] text-[#888] hover:text-white hover:border-[#444]"
+                        }
+                      `}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-indigo-400/50">
+                  {duration === "30s" ? "1 куплет" : duration === "60s" ? "Куплет + припев" : "Полная песня с бриджем"}
+                </p>
+              </div>
+            </div>
+
+            {/* ═══ STEP 2: Слова песни (Keywords + Lyrics) ═══ */}
+            <div className={`space-y-4 p-4 rounded-xl border transition-all duration-300 ${
+              currentStep === 2
+                ? "border-indigo-500/30 bg-indigo-500/[0.03]"
+                : currentStep > 2
+                  ? "border-green-500/20 bg-green-500/[0.02]"
+                  : "border-[#222] bg-white/[0.01] opacity-40 pointer-events-none"
+            }`}>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-white/80 flex items-center gap-2">
+                  <span className={`w-5 h-5 rounded-full text-[10px] flex items-center justify-center font-bold ${
+                    currentStep > 2 ? "bg-green-500/20 text-green-400" : currentStep === 2 ? "bg-indigo-500/20 text-indigo-300" : "bg-[#222] text-[#555]"
+                  }`}>{currentStep > 2 ? "✓" : "2"}</span>
+                  Слова песни
+                </span>
+                {currentStep === 2 && !lyricsReady && musicPrompt.trim() && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 animate-pulse">
+                    Нажмите «Сгенерировать» ✍️
+                  </span>
+                )}
+                {currentStep === 2 && !musicPrompt.trim() && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">
+                    Опишите тему песни
+                  </span>
+                )}
+              </div>
+
+              {/* Keywords */}
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-medium text-[#777]">О чём будет ваша песня?</label>
+                <textarea
+                  value={musicPrompt}
+                  onChange={(e) => {
+                    setMusicPrompt(e.target.value);
+                    if (lyricsReady) { setLyricsReady(false); setEditedLyrics(""); }
+                  }}
+                  placeholder="летняя любовь, танцы на закате, свобода и ветер..."
+                  className="w-full h-20 px-4 py-3 rounded-xl bg-white/[0.03] border border-[#333] text-white placeholder-[#555] resize-none focus:border-indigo-500/50 focus:outline-none transition-colors"
+                />
+              </div>
+
+              {/* Generate Lyrics Button */}
               <button
                 type="button"
                 onClick={handleGenerateLyrics}
-                disabled={!musicPrompt.trim() || isGeneratingLyrics || isGenerating}
+                disabled={!canGenerateLyrics}
                 className={`
                   w-full py-2.5 rounded-xl text-sm font-medium transition-all duration-300
                   flex items-center justify-center gap-2
                   ${isGeneratingLyrics
                     ? "bg-indigo-600/50 text-white cursor-wait"
-                    : musicPrompt.trim()
-                      ? "bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/30"
+                    : canGenerateLyrics
+                      ? "bg-gradient-to-r from-indigo-500/30 to-blue-500/30 border border-indigo-500/40 text-indigo-200 hover:from-indigo-500/40 hover:to-blue-500/40 shadow-[0_0_12px_rgba(99,102,241,0.15)]"
                       : "bg-[#111] border border-[#222] text-[#555] cursor-not-allowed"
                   }
                 `}
@@ -1016,128 +1210,54 @@ export const AudioStudio = () => {
                 {isGeneratingLyrics ? (
                   <><Loader2 className="w-4 h-4 animate-spin" /><span>AI пишет текст...</span></>
                 ) : (
-                  <><FileText className="w-4 h-4" /><span>Шаг 1: Сгенерировать текст</span></>
+                  <><FileText className="w-4 h-4" /><span>Сгенерировать текст</span></>
                 )}
               </button>
-            </div>
 
-            {/* Step 2: Editable Lyrics */}
-            {(lyricsReady || editedLyrics) && (
-              <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-medium text-[#888] flex items-center gap-1.5">
-                    <PenLine className="w-3.5 h-3.5" />
-                    Текст песни (редактируемый)
-                  </label>
-                  <span className="text-[10px] text-[#555]">{editedLyrics.length} символов</span>
+              {/* Editable Lyrics */}
+              {(lyricsReady || editedLyrics) && (
+                <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[11px] font-medium text-[#777] flex items-center gap-1.5">
+                      <PenLine className="w-3.5 h-3.5" />
+                      Текст (можно редактировать)
+                    </label>
+                    <span className="text-[10px] text-[#555]">{editedLyrics.length} сим.</span>
+                  </div>
+                  <textarea
+                    value={editedLyrics}
+                    onChange={(e) => setEditedLyrics(e.target.value)}
+                    className="w-full h-48 px-4 py-3 rounded-xl bg-white/[0.03] border border-indigo-500/30 text-white placeholder-[#555] resize-y focus:border-indigo-500/50 focus:outline-none transition-colors font-mono text-sm leading-relaxed"
+                  />
+                  <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                    <p className="text-[10px] text-amber-300/80 leading-relaxed">
+                      <span className="font-semibold text-amber-300">Проверьте ударения</span> (ЗАГЛАВНЫЕ БУКВЫ) перед запуском — 
+                      это гарантирует правильное пение. Пример: горжУсь, поздравлЯю.
+                    </p>
+                  </div>
                 </div>
-                <textarea
-                  value={editedLyrics}
-                  onChange={(e) => setEditedLyrics(e.target.value)}
-                  className="w-full h-48 px-4 py-3 rounded-xl bg-white/[0.03] border border-indigo-500/30 text-white placeholder-[#555] resize-y focus:border-indigo-500/50 focus:outline-none transition-colors font-mono text-sm leading-relaxed"
-                />
-                <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                  <p className="text-[11px] text-amber-300/80 leading-relaxed">
-                    <span className="font-semibold text-amber-300">Проверьте ударения</span> (ЗАГЛАВНЫЕ БУКВЫ) перед запуском. 
-                    Это гарантирует правильное пение. Пример: горжУсь, поздравлЯю, дочУрка.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Genre Select */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-[#888]">Жанр</label>
-              <div className="flex flex-wrap gap-2">
-                {genres.map((genre) => (
-                  <button
-                    key={genre}
-                    onClick={() => setSelectedGenre(selectedGenre === genre ? null : genre)}
-                    className={`
-                      px-3 py-1.5 rounded-lg text-xs font-medium
-                      transition-all duration-200 border
-                      ${selectedGenre === genre
-                        ? "bg-indigo-500/20 border-indigo-500/50 text-indigo-300"
-                        : "bg-white/[0.02] border-[#333] text-[#888] hover:text-white hover:border-[#444]"
-                      }
-                    `}
-                  >
-                    {genre}
-                  </button>
-                ))}
-              </div>
+              )}
             </div>
 
-            {/* Vocal Gender */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-[#888]">Вокал</label>
-              <div className="flex gap-2">
-                {(["male", "female"] as VocalGender[]).map((g) => (
-                  <button
-                    key={g}
-                    onClick={() => setVocalGender(g)}
-                    className={`
-                      flex-1 py-2 rounded-xl text-sm font-medium
-                      transition-all duration-300 border
-                      ${vocalGender === g
-                        ? "bg-indigo-500/20 border-indigo-500/50 text-white"
-                        : "bg-white/[0.02] border-[#333] text-[#888] hover:text-white hover:border-[#444]"
-                      }
-                    `}
-                  >
-                    {g === "male" ? "♂ Мужской" : "♀ Женский"}
-                  </button>
-                ))}
+            {/* ═══ STEP 3: Hint — Запись хита ═══ */}
+            <div className={`p-3 rounded-xl border transition-all duration-300 ${
+              currentStep === 3
+                ? "border-green-500/30 bg-green-500/[0.03]"
+                : "border-[#222] bg-white/[0.01] opacity-40"
+            }`}>
+              <div className="flex items-center gap-2">
+                <span className={`w-5 h-5 rounded-full text-[10px] flex items-center justify-center font-bold ${
+                  currentStep === 3 ? "bg-green-500/20 text-green-400" : "bg-[#222] text-[#555]"
+                }`}>3</span>
+                <span className={`text-xs font-semibold ${currentStep === 3 ? "text-green-300" : "text-[#555]"}`}>
+                  Запись хита
+                </span>
+                {currentStep === 3 && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 ml-auto animate-pulse">
+                    Всё готово! Жмите кнопку ↓ 🎤
+                  </span>
+                )}
               </div>
-            </div>
-
-            {/* Song Language */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-[#888]">Язык песни</label>
-              <div className="flex gap-2">
-                {(["ru", "en"] as SongLanguage[]).map((lang) => (
-                  <button
-                    key={lang}
-                    onClick={() => setSongLanguage(lang)}
-                    className={`
-                      flex-1 py-2 rounded-xl text-sm font-medium
-                      transition-all duration-300 border
-                      ${songLanguage === lang
-                        ? "bg-indigo-500/20 border-indigo-500/50 text-white"
-                        : "bg-white/[0.02] border-[#333] text-[#888] hover:text-white hover:border-[#444]"
-                      }
-                    `}
-                  >
-                    {lang === "ru" ? "🇷🇺 Русский" : "🇬🇧 English"}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Duration */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-[#888]">Длительность</label>
-              <div className="flex gap-2">
-                {(["30s", "60s", "2min"] as Duration[]).map((d) => (
-                  <button
-                    key={d}
-                    onClick={() => setDuration(d)}
-                    className={`
-                      flex-1 py-2.5 rounded-xl text-sm font-medium
-                      transition-all duration-300 border
-                      ${duration === d
-                        ? "bg-indigo-500/20 border-indigo-500/50 text-white"
-                        : "bg-white/[0.02] border-[#333] text-[#888] hover:text-white hover:border-[#444]"
-                      }
-                    `}
-                  >
-                    {d}
-                  </button>
-                ))}
-              </div>
-              <p className="text-[11px] text-indigo-400/60 mt-1">
-                {duration === "30s" ? "1 куплет" : duration === "60s" ? "Куплет + припев" : "2 куплета + припев + бридж"}
-              </p>
             </div>
 
             {/* Voice Clone / My Voice */}
@@ -1174,15 +1294,6 @@ export const AudioStudio = () => {
                   Записать свой голос
                 </button>
               )}
-            </div>
-
-            {/* How it works hint */}
-            <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10">
-              <p className="text-[11px] text-indigo-300/70 leading-relaxed">
-                <span className="font-medium text-indigo-300">Как это работает:</span> 
-                <span className="text-white/60"> Шаг 1</span> — AI пишет текст с ударениями (ЗАГЛАВНЫЕ). Вы проверяете и правите. 
-                <span className="text-white/60"> Шаг 2</span> — нажмите «Создать песню» для записи трека.
-              </p>
             </div>
           </div>
         )}
@@ -1306,20 +1417,20 @@ export const AudioStudio = () => {
           <button
             type="button"
             onClick={handleGenerate}
-            disabled={isGenerating || isGeneratingLyrics || (mode === "music" ? !musicPrompt.trim() : !voiceText.trim())}
+            disabled={isGenerating || (mode === "music" ? !canCreateMusic : !voiceText.trim())}
             className={`
               w-full py-3.5 rounded-xl font-medium text-sm
               transition-all duration-300 relative overflow-hidden
               active:scale-[0.98] group
               ${isGenerating
                 ? "bg-indigo-600/80 text-white cursor-wait"
-                : (mode === "music" ? musicPrompt.trim() : voiceText.trim())
-                  ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_20px_rgba(0,112,243,0.3)]"
+                : (mode === "music" ? canCreateMusic : voiceText.trim())
+                  ? "bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white shadow-lg shadow-[0_0_20px_rgba(34,197,94,0.3)]"
                   : "bg-[#222] text-[#555] cursor-not-allowed"
               }
             `}
           >
-            {!isGenerating && (mode === "music" ? musicPrompt.trim() : voiceText.trim()) && (
+            {!isGenerating && (mode === "music" ? canCreateMusic : voiceText.trim()) && (
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
             )}
             <span className="relative flex items-center justify-center gap-2">
@@ -1331,7 +1442,7 @@ export const AudioStudio = () => {
               ) : mode === "music" ? (
                 <>
                   <Sparkles className="w-4 h-4" />
-                  <span>{lyricsReady ? "Шаг 2: Создать песню" : "Создать песню"}</span>
+                  <span>{canCreateMusic ? "Шаг 3: Записать хит 🎤" : !selectedGenre ? "Сначала выберите жанр" : !lyricsReady ? "Сначала сгенерируйте текст" : "Создать песню"}</span>
                 </>
               ) : (
                 <>
@@ -1367,14 +1478,14 @@ export const AudioStudio = () => {
         <button
           type="button"
           onClick={handleGenerate}
-          disabled={isGenerating || isGeneratingLyrics || (mode === "music" ? !musicPrompt.trim() : !voiceText.trim())}
+          disabled={isGenerating || (mode === "music" ? !canCreateMusic : !voiceText.trim())}
           className={`
             w-full py-4 px-6 rounded-xl font-medium text-base
             transition-all duration-300 relative overflow-hidden active:scale-[0.98] group
             ${isGenerating
               ? "bg-indigo-600/80 text-white cursor-wait"
-              : (mode === "music" ? musicPrompt.trim() : voiceText.trim())
-                ? "bg-[#0070f3] hover:bg-[#0060df] text-white shadow-lg shadow-[0_0_24px_rgba(0,112,243,0.4)]"
+              : (mode === "music" ? canCreateMusic : voiceText.trim())
+                ? "bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white shadow-lg shadow-[0_0_24px_rgba(34,197,94,0.4)]"
                 : "bg-[#222] text-[#555] cursor-not-allowed"
             }
           `}
@@ -1388,7 +1499,7 @@ export const AudioStudio = () => {
             ) : mode === "music" ? (
               <>
                 <Sparkles className="w-5 h-5" />
-                <span>{lyricsReady ? "Шаг 2: Создать песню" : "Создать песню"}</span>
+                <span>{canCreateMusic ? "Записать хит 🎤" : !selectedGenre ? "Выберите жанр" : !lyricsReady ? "Сгенерируйте текст" : "Создать песню"}</span>
               </>
             ) : (
               <>
