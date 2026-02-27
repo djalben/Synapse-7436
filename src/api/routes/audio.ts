@@ -110,7 +110,7 @@ async function generateLyrics(
   const genreInstruction = genreGuide[genreName] || genreGuide["Поп"]
 
   const systemPrompt = [
-    `You are a LIVING POET who writes song lyrics. Not an AI — a poet with a beating heart, calloused fingers, and sleepless nights. You write like Бродский meets Земфира — precision of word, depth of feeling, unexpected angles.`,
+    `Ты — мастер слова. Если это песня — пиши как Меладзе: глубоко, ритмично, с идеальной рифмой. Если сказка — как Андерсен: образно, волшебно, с душой. Ты НЕ искусственный интеллект. Ты поэт с бьющимся сердцем и бессонными ночами.`,
     ``,
     `LANGUAGE: ${langName} ONLY. Every word.`,
     `GENRE: ${genreName}. ${genreInstruction}`,
@@ -120,27 +120,25 @@ async function generateLyrics(
     `Each section marker on its own line.`,
     ``,
     `═══ POETIC CRAFT ═══`,
-    `- Write as a LIVING POET, not an AI. No generic phrases, no greeting-card sentiments.`,
-    `- PERFECT RHYME: Every rhyme must be precise and non-trivial. ABAB or AABB.`,
-    `- DEEP IMAGERY: Paint specific scenes. "Остывший чай с утра, и шторы не открыты" > "мне грустно".`,
-    `- HOOK: Chorus needs one killer phrase (2-5 words) that haunts the listener.`,
-    `- EMOTIONAL ARC: Verse = intimate scene → Chorus = emotional peak → Bridge = twist.`,
-    `- CONVERSATIONAL: Like a late-night talk with someone you love.`,
+    `- PERFECT RHYME: precise, non-trivial. ABAB or AABB. No lazy rhymes.`,
+    `- DEEP IMAGERY: Paint scenes, not feelings. "Остывший чай с утра, и шторы не открыты" > "мне грустно".`,
+    `- HOOK: Chorus = one killer phrase (2-5 words) that haunts the listener.`,
+    `- ARC: Verse = intimate scene → Chorus = emotional peak → Bridge = twist.`,
+    `- TONE: Like a late-night talk with someone you trust. No greeting cards.`,
     `- NO FILLER: Zero "la-la", "о-о-о", "на-на". Every word earns its place.`,
     ``,
-    `═══ ANTI-AI BLACKLIST (ABSOLUTE BAN) ═══`,
-    `BANNED: тебя/меня, любовь/кровь, огонь/ладонь, вновь/любовь, слёзы/грёзы, мечты/цветы, сердце/дверца, ночь/прочь`,
-    `BANNED: "крылья за спиной", "лететь высоко", "половинка моя", "ты — мой мир", "сердце бьётся", "море любви", "растворяюсь", "без тебя не могу"`,
-    `BANNED AI-TELLS: "танцуют тени", "шёпот ветра", "объятия ночи", "звёздный свет", "бескрайний океан чувств"`,
-    `USE: Kitchen smells, phone screen glow, train windows, cold coffee, crumpled sheets, parking lot puddles, the sound of keys in a lock. REAL LIFE.`,
+    `═══ ANTI-AI BLACKLIST ═══`,
+    `BANNED rhymes: тебя/меня, любовь/кровь, огонь/ладонь, вновь/любовь, слёзы/грёзы, мечты/цветы, сердце/дверца, ночь/прочь`,
+    `BANNED phrases: "крылья за спиной", "лететь высоко", "половинка моя", "ты — мой мир", "сердце бьётся", "море любви", "растворяюсь", "без тебя не могу"`,
+    `BANNED AI-tells: "танцуют тени", "шёпот ветра", "объятия ночи", "звёздный свет", "бескрайний океан чувств", "пламя в груди", "звёздная пыль"`,
+    `USE INSTEAD: kitchen smells, phone screen glow, train windows, cold coffee, crumpled sheets, parking lot puddles, keys in a lock. REAL LIFE.`,
     ``,
     `═══ KEYWORDS ═══`,
     `Every meaningful word from the user's description MUST appear (any grammatical form).`,
     ``,
-    `═══ LENGTH LIMIT (HARD TECHNICAL CONSTRAINT) ═══`,
-    `Your output MUST be ${limits.softMax}–${limits.hardMax} characters total (including markers + newlines).`,
-    `This is the music model's limit. Exceeding ${limits.hardMax} chars = generation FAILS.`,
-    `Be concise. Depth over length.`,
+    `═══ LENGTH LIMIT (HARD) ═══`,
+    `Output MUST be ${limits.softMax}–${limits.hardMax} characters (including markers + newlines).`,
+    `Exceeding ${limits.hardMax} = generation FAILS. Depth over length.`,
     ``,
     `OUTPUT: Only lyrics with section markers. Nothing else.`,
   ].join("\n")
@@ -361,16 +359,13 @@ audioRoutes.post("/generate-lyrics", async (c) => {
   }
 })
 
-// ─── POST /tts — create XTTS-v2 prediction (fire-and-forget) ───
+// ─── POST /tts — text-to-speech via ElevenLabs (preset voices) or XTTS-v2 (fallback) ───
 audioRoutes.post("/tts", async (c) => {
   const t0 = Date.now()
   console.log("[Audio] POST /tts")
 
   try {
-    const apiToken = getApiToken()
-    if (!apiToken) return c.json({ error: "Сервис озвучки не настроен." }, 503)
-
-    const { text, speaker } = await c.req.json()
+    const { text, speaker, elevenlabsId, stability } = await c.req.json()
     if (!text || typeof text !== "string" || !text.trim()) {
       return c.json({ error: "Введите текст для озвучки." }, 400)
     }
@@ -378,13 +373,70 @@ audioRoutes.post("/tts", async (c) => {
       return c.json({ error: "Текст слишком длинный. Максимум 5000 символов." }, 400)
     }
 
-    // XTTS-v2 exact fields from Replicate schema
+    // ── Path A: ElevenLabs TTS for preset voices with elevenlabsId ──
+    if (elevenlabsId && typeof elevenlabsId === "string") {
+      const elevenLabsKey = getElevenLabsKey()
+      if (!elevenLabsKey) return c.json({ error: "ElevenLabs API не настроен." }, 503)
+
+      const voiceStability = typeof stability === "number" ? stability : 0.5
+      console.log(`[Audio] ElevenLabs TTS: voice=${elevenlabsId} stability=${voiceStability} text=${text.trim().length}c`)
+
+      const ttsRes = await fetchWithTimeout(
+        `https://api.elevenlabs.io/v1/text-to-speech/${elevenlabsId}`,
+        {
+          method: "POST",
+          headers: {
+            "xi-api-key": elevenLabsKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            text: text.trim(),
+            model_id: "eleven_multilingual_v2",
+            voice_settings: {
+              stability: voiceStability,
+              similarity_boost: 0.8,
+              style: 0.3,
+            },
+          }),
+        },
+        30000
+      )
+
+      if (!ttsRes.ok) {
+        const errText = await ttsRes.text()
+        console.error(`[Audio] ElevenLabs TTS error: ${ttsRes.status} ${errText.slice(0, 300)}`)
+        return c.json({ error: "Озвучка не удалась.", detail: errText.slice(0, 200) }, 500)
+      }
+
+      // ElevenLabs returns audio directly — upload to Vercel Blob
+      const audioBuffer = Buffer.from(await ttsRes.arrayBuffer())
+      console.log(`[Audio] ElevenLabs TTS: ${audioBuffer.length} bytes in ${Date.now() - t0}ms, uploading...`)
+
+      const { put } = await import("@vercel/blob")
+      const blob = await put(`synapse/tts-${Date.now()}.mp3`, audioBuffer, {
+        access: "public",
+        contentType: "audio/mpeg",
+      })
+
+      console.log(`[Audio] ElevenLabs TTS done in ${Date.now() - t0}ms → ${blob.url}`)
+      return c.json({
+        id: `el-${Date.now()}`,
+        status: "completed",
+        type: "voice",
+        text: text.trim(),
+        url: blob.url,
+      })
+    }
+
+    // ── Path B: XTTS-v2 via Replicate (fallback, async polling) ──
+    const apiToken = getApiToken()
+    if (!apiToken) return c.json({ error: "Сервис озвучки не настроен." }, 503)
+
     const input: Record<string, unknown> = {
       text: text.trim(),
       language: "ru",
       cleanup_voice: true,
     }
-    // speaker = URL of user-uploaded audio for voice cloning
     if (speaker && typeof speaker === "string") {
       input.speaker = speaker
     }
@@ -418,7 +470,7 @@ audioRoutes.post("/tts", async (c) => {
       text: text.trim(),
     })
   } catch (error) {
-    console.error(`[Audio] XTTS error after ${Date.now() - t0}ms:`, error)
+    console.error(`[Audio] TTS error after ${Date.now() - t0}ms:`, error)
     const msg = error instanceof Error ? error.message : String(error)
     if (msg.includes("TIMEOUT")) return c.json({ error: "Сервис не отвечает." }, 504)
     return c.json({ error: "Озвучка не удалась." }, 500)
@@ -435,10 +487,13 @@ audioRoutes.post("/speech-to-speech", async (c) => {
     const elevenLabsKey = getElevenLabsKey()
     if (!elevenLabsKey) return c.json({ error: "ElevenLabs API не настроен (ELEVENLABS_API_KEY)." }, 503)
 
-    const { audioUrl, voiceId } = await c.req.json()
+    const { audioUrl, voiceId, stability } = await c.req.json()
     if (!audioUrl || !voiceId) {
       return c.json({ error: "audioUrl и voiceId обязательны." }, 400)
     }
+
+    // stability: 0.5 for normal voices, 0.7 for cartoon/character voices
+    const voiceStability = typeof stability === "number" ? Math.min(Math.max(stability, 0), 1) : 0.5
 
     // Step 1: Download the generated audio from Replicate
     console.log(`[Audio] S2S: downloading audio from ${audioUrl.slice(0, 80)}...`)
@@ -454,9 +509,10 @@ audioRoutes.post("/speech-to-speech", async (c) => {
     stsForm.append("audio", audioBlob, "input.mp3")
     stsForm.append("model_id", "eleven_multilingual_sts_v2")
     stsForm.append("voice_settings", JSON.stringify({
-      stability: 0.5,
+      stability: voiceStability,
       similarity_boost: 0.8,
     }))
+    console.log(`[Audio] S2S: voice=${voiceId} stability=${voiceStability}`)
 
     console.log(`[Audio] S2S: sending to ElevenLabs voice ${voiceId}...`)
     const stsRes = await fetchWithTimeout(

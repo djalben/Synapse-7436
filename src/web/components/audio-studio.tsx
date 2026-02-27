@@ -26,19 +26,41 @@ type Duration = "30s" | "60s" | "2min";
 type VocalGender = "male" | "female";
 type SongLanguage = "ru" | "en";
 
+type VoiceCategory = "adults" | "youth" | "children" | "cartoon" | "cloned";
+
 interface Voice {
   id: string;
   name: string;
   type: "preset" | "cloned";
   elevenlabsId?: string;
+  category?: VoiceCategory;
+  stability?: number;  // 0.5 normal, 0.7 cartoon
 }
 
+const VOICE_CATEGORIES: { key: VoiceCategory; label: string }[] = [
+  { key: "adults", label: "Взрослые" },
+  { key: "youth", label: "Молодёжь" },
+  { key: "children", label: "Дети" },
+  { key: "cartoon", label: "Мультяшные / Сказочные" },
+];
+
 const presetVoices: Voice[] = [
-  { id: "male-professional", name: "Мужской - Профессиональный", type: "preset" },
-  { id: "male-casual", name: "Мужской - Повседневный", type: "preset" },
-  { id: "female-professional", name: "Женский - Профессиональный", type: "preset" },
-  { id: "female-warm", name: "Женский - Тёплый", type: "preset" },
-  { id: "robot-futuristic", name: "Робот - Футуристичный", type: "preset" },
+  // Adults
+  { id: "marcus",  name: "Marcus (Мужской, глубокий)",   type: "preset", elevenlabsId: "pFZP5JQG7iQjIQuC4Bku", category: "adults",   stability: 0.5 },
+  { id: "brian",   name: "Brian (Мужской, тёплый)",      type: "preset", elevenlabsId: "nPczCjzI2devNBz1zQrb", category: "adults",   stability: 0.5 },
+  { id: "rachel",  name: "Rachel (Женский, элегантный)", type: "preset", elevenlabsId: "21m00Tcm4TlvDq8ikWAM", category: "adults",   stability: 0.5 },
+  { id: "sarah",   name: "Sarah (Женский, нежный)",      type: "preset", elevenlabsId: "EXAVITQu4vr4xnSDxMaL", category: "adults",   stability: 0.5 },
+  // Youth
+  { id: "antoni",  name: "Antoni (Парень, энергичный)",  type: "preset", elevenlabsId: "ErXwobaYiN019PkySvjV", category: "youth",    stability: 0.5 },
+  { id: "serena",  name: "Serena (Девушка, яркая)",      type: "preset", elevenlabsId: "pMsXgVXv3BLzUgSXRplE", category: "youth",    stability: 0.5 },
+  // Children
+  { id: "liam",    name: "Liam (Мальчик)",               type: "preset", elevenlabsId: "TX3LPaxmHKxFdv7VOQHJ", category: "children",  stability: 0.5 },
+  { id: "lily",    name: "Lily (Девочка)",                type: "preset", elevenlabsId: "pFZP5JQG7iQjIQuC4Bku", category: "children",  stability: 0.5 },
+  // Cartoon / Fairy Tale
+  { id: "fin",     name: "Fin (Старик-сказочник)",       type: "preset", elevenlabsId: "D38z5RcWu1voky8WS1ja", category: "cartoon",   stability: 0.7 },
+  { id: "bill",    name: "Bill (Великан)",                type: "preset", elevenlabsId: "pqHfZKP75CvOlQylNhV4", category: "cartoon",   stability: 0.7 },
+  { id: "glinda",  name: "Glinda (Фея)",                 type: "preset", elevenlabsId: "z9fAnlkpzviPz146aGWa", category: "cartoon",   stability: 0.7 },
+  { id: "gigi",    name: "Gigi (Мультяшная)",            type: "preset", elevenlabsId: "jBpfuIE2acCO8z3wKNLl", category: "cartoon",   stability: 0.7 },
 ];
 
 const genres = ["Поп", "Электроника", "Хип-Хоп", "Классика", "Рок", "Джаз", "Эмбиент", "Шансон", "R&B", "Метал", "Кантри"];
@@ -803,13 +825,18 @@ export const AudioStudio = () => {
           setIsGenerating(false); setStatusMessage(null); setGenProgress(0);
           return;
         }
-        setStatusMessage("XTTS запускается...");
-        startProgressSim(15_000, 80);
+        const hasElevenLabs = !!selectedVoice?.elevenlabsId;
+        setStatusMessage(hasElevenLabs ? `${selectedVoice.name} озвучивает текст...` : "XTTS запускается...");
+        startProgressSim(hasElevenLabs ? 10_000 : 15_000, 80);
 
         response = await fetch("/api/audio/tts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: voiceText.trim() }),
+          body: JSON.stringify({
+            text: voiceText.trim(),
+            elevenlabsId: selectedVoice?.elevenlabsId || undefined,
+            stability: selectedVoice?.stability ?? 0.5,
+          }),
         });
       }
       
@@ -818,8 +845,16 @@ export const AudioStudio = () => {
         throw new Error(errorData.error || "Ошибка генерации аудио");
       }
       
-      const createData = await response.json() as { id?: string; status?: string; lyrics?: string; error?: string };
+      const createData = await response.json() as { id?: string; status?: string; lyrics?: string; error?: string; url?: string };
       if (!createData.id) throw new Error("Нет ID задачи.");
+
+      // ElevenLabs TTS returns completed immediately — skip polling
+      let audioUrl: string;
+      if (createData.status === "completed" && createData.url) {
+        audioUrl = createData.url;
+        stopProgressSim();
+        setGenProgress(95);
+      } else {
 
       // Phase 2: status-aware polling with detailed progress for MiniMax
       let phase: "starting" | "processing" | "done" = "starting";
@@ -829,10 +864,10 @@ export const AudioStudio = () => {
         setStatusMessage("Подключаемся к студии...");
         startProgressSim(120_000, 40, 20);  // starting: slow crawl 20→40% over 2 min (cold start)
       } else {
-        setStatusMessage("XTTS синтезирует речь...");
+        setStatusMessage("Голос синтезируется...");
       }
 
-      const audioUrl = await pollAudioStatus(createData.id, (status, elapsedSec) => {
+      audioUrl = await pollAudioStatus(createData.id, (status, elapsedSec) => {
         if (mode !== "music") return;
 
         if (status === "starting") {
@@ -864,6 +899,7 @@ export const AudioStudio = () => {
           }
         }
       });
+      } // end else (polling path)
 
       // Speech-to-Speech: apply cloned voice if enabled
       let finalAudioUrl = audioUrl;
@@ -877,7 +913,7 @@ export const AudioStudio = () => {
           const stsRes = await fetch("/api/audio/speech-to-speech", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ audioUrl, voiceId: clonedVoiceId }),
+            body: JSON.stringify({ audioUrl, voiceId: clonedVoiceId, stability: 0.5 }),
           });
 
           if (stsRes.ok) {
@@ -1375,11 +1411,17 @@ export const AudioStudio = () => {
                   className="w-full px-4 py-3 rounded-xl bg-white/[0.03] border border-[#333] text-white appearance-none cursor-pointer focus:border-indigo-500/50 focus:outline-none transition-colors"
                   style={{ backgroundColor: "rgba(255,255,255,0.03)" }}
                 >
-                  <optgroup label="Готовые голоса">
-                    {presetVoices.map((voice) => (
-                      <option key={voice.id} value={voice.id} className="bg-[#1a1a1a] text-white">{voice.name}</option>
-                    ))}
-                  </optgroup>
+                  {VOICE_CATEGORIES.map((cat) => {
+                    const voices = presetVoices.filter(v => v.category === cat.key);
+                    if (voices.length === 0) return null;
+                    return (
+                      <optgroup key={cat.key} label={cat.label}>
+                        {voices.map((voice) => (
+                          <option key={voice.id} value={voice.id} className="bg-[#1a1a1a] text-white">{voice.name}</option>
+                        ))}
+                      </optgroup>
+                    );
+                  })}
                   {clonedVoices.length > 0 && (
                     <optgroup label="Мои клонированные голоса">
                       {clonedVoices.map((voice) => (
