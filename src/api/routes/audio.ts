@@ -440,13 +440,179 @@ audioRoutes.post("/generate-lyrics", async (c) => {
     const rhythm = analyzeRhythm(lyrics)
     console.log(`[Audio] Rhythm score: ${rhythm.score}% (perfect=${rhythm.perfect}) bpm=${bpm}`)
 
+    // Check keyword anchors
+    const anchors = extractKeywords(prompt.trim())
+    const anchorCheck = checkKeywordAnchors(anchors, lyrics)
+    console.log(`[Audio] Keywords: ${anchorCheck.ratio}% preserved (${anchors.length} anchors)`)
+
     console.log(`[Audio] Lyrics generated: ${lyrics.length}c in ${Date.now() - t0}ms`)
-    return c.json({ lyrics, prompt: prompt.trim(), stressValidation, bpm, rhythm })
+    return c.json({ lyrics, prompt: prompt.trim(), stressValidation, bpm, rhythm, keywordsPreserved: anchorCheck.preserved, keywordsMissing: anchorCheck.missing })
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
     console.error(`[Audio] GENERATE-LYRICS FAILED: ${msg}`)
     if (msg.includes("TIMEOUT")) return c.json({ error: "Сервис не отвечает." }, 504)
     return c.json({ error: "Генерация текста не удалась." }, 500)
+  }
+})
+
+// ─── Keyword Anchor Protocol — extract & verify user keywords ───
+const RU_STOPWORDS = new Set([
+  "и", "в", "на", "с", "не", "что", "а", "но", "к", "из", "за", "по", "о", "от",
+  "у", "для", "до", "же", "ни", "бы", "ли", "как", "то", "это", "уже", "или",
+  "мой", "моя", "мне", "меня", "твой", "твоя", "тебе", "тебя", "его", "её", "их",
+  "мы", "вы", "они", "он", "она", "оно", "я", "ты", "все", "всё", "вот", "там",
+  "тут", "так", "ещё", "еще", "очень", "про", "при", "над", "под", "без", "через",
+])
+
+/** Extract meaningful anchor keywords from user prompt (nouns, verbs, adjectives — not stopwords) */
+function extractKeywords(prompt: string): string[] {
+  const words = prompt
+    .toLowerCase()
+    .replace(/[^а-яёa-z0-9\s-]/gi, " ")
+    .split(/\s+/)
+    .filter(w => w.length >= 3 && !RU_STOPWORDS.has(w))
+  return [...new Set(words)]
+}
+
+/** Check how many anchor keywords are present in the refined lyrics. Returns match ratio 0-100 and missing list. */
+function checkKeywordAnchors(keywords: string[], lyrics: string): { ratio: number; preserved: boolean; missing: string[] } {
+  const lyricsLower = lyrics.toLowerCase()
+  const missing: string[] = []
+  for (const kw of keywords) {
+    // Check if keyword or its root (first 4+ chars) appears in lyrics
+    const root = kw.length >= 5 ? kw.slice(0, Math.max(4, kw.length - 2)) : kw
+    if (!lyricsLower.includes(kw) && !lyricsLower.includes(root)) {
+      missing.push(kw)
+    }
+  }
+  const matched = keywords.length - missing.length
+  const ratio = keywords.length > 0 ? Math.round((matched / keywords.length) * 100) : 100
+  return { ratio, preserved: ratio >= 100, missing }
+}
+
+// ─── POST /refine-lyrics — "Doctor" improves rhythm while preserving keyword anchors ───
+audioRoutes.post("/refine-lyrics", async (c) => {
+  const t0 = Date.now()
+  console.log("[Audio] POST /refine-lyrics")
+
+  try {
+    const key = getOpenRouterKey()
+    if (!key) return c.json({ error: "AI-сервис не настроен." }, 503)
+
+    const { lyrics, prompt, genre, language } = await c.req.json()
+    if (!lyrics || typeof lyrics !== "string" || lyrics.trim().length < 10) {
+      return c.json({ error: "Текст слишком короткий для улучшения." }, 400)
+    }
+
+    const lang = language === "en" ? "en" : "ru"
+    const langName = lang === "ru" ? "Russian" : "English"
+
+    // ── Step 1: Extract keyword anchors from user prompt ──
+    const anchors = extractKeywords(prompt || "")
+    const anchorList = anchors.length > 0 ? anchors.join(", ") : "(no specific keywords)"
+    console.log(`[Audio] Keyword anchors: [${anchorList}] (${anchors.length} words)`)
+
+    // ── Step 2: Build "Doctor" system prompt with hard keyword constraint ──
+    const doctorPrompt = [
+      `You are a RHYTHM DOCTOR — a world-class lyricist who fixes syllable symmetry in song lyrics.`,
+      `Your task: take existing lyrics and adjust them so that EVERY PAIR of lines has EXACTLY the same syllable count.`,
+      ``,
+      `LANGUAGE: ${langName} ONLY.`,
+      genre ? `GENRE: ${genre}` : "",
+      ``,
+      `═══ KEYWORD ANCHOR PROTOCOL (ABSOLUTE LAW) ═══`,
+      `The user's original idea contains these ANCHOR KEYWORDS: [${anchorList}]`,
+      `FORBIDDEN: You MUST NOT delete, replace, or lose ANY of these keywords.`,
+      `You may ONLY change auxiliary words, conjunctions, prepositions, and structure AROUND them to equalize syllable counts.`,
+      `If a keyword doesn't fit the rhythm, restructure the LINE — never drop the keyword.`,
+      ``,
+      `═══ RULES ═══`,
+      `1. Count syllables per line (each vowel = 1 syllable in ${langName}).`,
+      `2. Lines 1-2 MUST match. Lines 3-4 MUST match. Pattern continues: 5-6, 7-8, etc.`,
+      `3. Keep section markers ([Verse 1], [Chorus], etc.) exactly as they are.`,
+      `4. Preserve the emotional tone and meaning.`,
+      `5. Keep rhyme scheme intact (ABAB or AABB).`,
+      `6. Write in normal lowercase. No uppercase accent marks.`,
+      `7. Minimal changes — if a line pair already matches, don't touch it.`,
+      ``,
+      `OUTPUT: Only the improved lyrics. No commentary, no syllable counts, no explanations.`,
+    ].filter(Boolean).join("\n")
+
+    const res = await fetchWithTimeout(
+      "https://openrouter.ai/api/v1/chat/completions",
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "openai/gpt-4o",
+          max_tokens: 1500,
+          temperature: 0.5,
+          messages: [
+            { role: "system", content: doctorPrompt },
+            { role: "user", content: `Fix the syllable symmetry in these lyrics. Remember: NEVER remove keywords [${anchorList}]. Minimal changes only.\n\n${lyrics.trim()}` },
+          ],
+        }),
+      },
+      LLM_TIMEOUT_MS
+    )
+
+    if (!res.ok) {
+      console.error(`[Audio] Refine LLM status=${res.status}`)
+      return c.json({ error: "AI-сервис недоступен." }, 502)
+    }
+
+    const data = (await res.json()) as { choices?: { message?: { content?: string } }[] }
+    let refined = data?.choices?.[0]?.message?.content?.trim()
+    if (!refined || refined.length < 10) {
+      return c.json({ error: "Не удалось улучшить текст." }, 500)
+    }
+
+    // Strip BPM line if GPT added one
+    refined = refined.replace(/^BPM:\s*\d+\s*\n?/i, "").trim()
+
+    // ── Step 3: Semantic check — verify all keywords preserved ──
+    const anchorCheck = checkKeywordAnchors(anchors, refined)
+    console.log(`[Audio] Keyword anchor check: ${anchorCheck.ratio}% preserved (missing: [${anchorCheck.missing.join(", ")}])`)
+
+    // If keywords were lost, reject and return original
+    if (!anchorCheck.preserved && anchors.length > 0) {
+      console.warn(`[Audio] Refine REJECTED — lost keywords: [${anchorCheck.missing.join(", ")}]. Returning original.`)
+      const originalRhythm = analyzeRhythm(lyrics)
+      return c.json({
+        lyrics: lyrics.trim(),
+        refined: false,
+        reason: `Потеряны ключевые слова: ${anchorCheck.missing.join(", ")}`,
+        rhythm: originalRhythm,
+        keywordsPreserved: false,
+        keywordsMissing: anchorCheck.missing,
+      })
+    }
+
+    // ── Step 4: Analyze rhythm of refined version ──
+    const rhythm = analyzeRhythm(refined)
+    console.log(`[Audio] Refined lyrics: ${refined.length}c, rhythm=${rhythm.score}% in ${Date.now() - t0}ms`)
+
+    // Run stress validator
+    let stressValidation: StressResult = { text: refined, checkedCount: 0, fixedCount: 0, ambiguousWords: [] }
+    if (lang === "ru") {
+      const sv = await safeValidateStresses(refined)
+      refined = sv.text
+      stressValidation = sv
+    }
+
+    return c.json({
+      lyrics: refined,
+      refined: true,
+      rhythm,
+      stressValidation,
+      keywordsPreserved: true,
+      keywordsMissing: [],
+    })
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    console.error(`[Audio] REFINE-LYRICS FAILED: ${msg}`)
+    if (msg.includes("TIMEOUT")) return c.json({ error: "Сервис не отвечает." }, 504)
+    return c.json({ error: "Улучшение текста не удалось." }, 500)
   }
 })
 

@@ -650,6 +650,9 @@ export const AudioStudio = () => {
   const [rhythmInfo, setRhythmInfo] = useState<{
     score: number; perfect: boolean; details: string[];
   } | null>(null);
+  const [keywordsPreserved, setKeywordsPreserved] = useState<boolean | null>(null);
+  const [keywordsMissing, setKeywordsMissing] = useState<string[]>([]);
+  const [isRefining, setIsRefining] = useState(false);
   
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -745,6 +748,8 @@ export const AudioStudio = () => {
     setStressValidation(null);
     setDetectedBpm(null);
     setRhythmInfo(null);
+    setKeywordsPreserved(null);
+    setKeywordsMissing([]);
 
     try {
       const durationSeconds = duration === "30s" ? 30 : duration === "60s" ? 60 : 120;
@@ -770,17 +775,70 @@ export const AudioStudio = () => {
         stressValidation?: { checkedCount: number; fixedCount: number; ambiguousWords: { word: string; options: string[] }[] };
         bpm?: number;
         rhythm?: { score: number; perfect: boolean; details: string[] };
+        keywordsPreserved?: boolean;
+        keywordsMissing?: string[];
       };
       setEditedLyrics(data.lyrics);
       setLyricsReady(true);
       if (data.stressValidation) setStressValidation(data.stressValidation);
       if (data.bpm) setDetectedBpm(data.bpm);
       if (data.rhythm) setRhythmInfo(data.rhythm);
+      if (data.keywordsPreserved !== undefined) setKeywordsPreserved(data.keywordsPreserved);
+      if (data.keywordsMissing) setKeywordsMissing(data.keywordsMissing);
     } catch (err) {
       console.error("Lyrics generation error:", err);
       setError(err instanceof Error ? err.message : "Ошибка генерации текста.");
     } finally {
       setIsGeneratingLyrics(false);
+    }
+  };
+
+  const handleRefineLyrics = async () => {
+    if (!editedLyrics || editedLyrics.trim().length < 10) return;
+    setIsRefining(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/audio/refine-lyrics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lyrics: editedLyrics.trim(),
+          prompt: musicPrompt.trim(),
+          genre: selectedGenre || undefined,
+          language: songLanguage,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: "Ошибка" })) as { error?: string };
+        throw new Error(errData.error || "Не удалось улучшить текст");
+      }
+
+      const data = await res.json() as {
+        lyrics: string;
+        refined: boolean;
+        reason?: string;
+        rhythm?: { score: number; perfect: boolean; details: string[] };
+        stressValidation?: { checkedCount: number; fixedCount: number; ambiguousWords: { word: string; options: string[] }[] };
+        keywordsPreserved: boolean;
+        keywordsMissing: string[];
+      };
+
+      setEditedLyrics(data.lyrics);
+      if (data.rhythm) setRhythmInfo(data.rhythm);
+      if (data.stressValidation) setStressValidation(data.stressValidation);
+      setKeywordsPreserved(data.keywordsPreserved);
+      setKeywordsMissing(data.keywordsMissing || []);
+
+      if (!data.refined && data.reason) {
+        setError(`Улучшение отклонено: ${data.reason}`);
+      }
+    } catch (err) {
+      console.error("Refine lyrics error:", err);
+      setError(err instanceof Error ? err.message : "Ошибка улучшения текста.");
+    } finally {
+      setIsRefining(false);
     }
   };
 
@@ -1079,7 +1137,7 @@ export const AudioStudio = () => {
                       key={genre}
                       onClick={() => {
                         setSelectedGenre(selectedGenre === genre ? null : genre);
-                        if (lyricsReady) { setLyricsReady(false); setEditedLyrics(""); setStressValidation(null); setDetectedBpm(null); setRhythmInfo(null); }
+                        if (lyricsReady) { setLyricsReady(false); setEditedLyrics(""); setStressValidation(null); setDetectedBpm(null); setRhythmInfo(null); setKeywordsPreserved(null); setKeywordsMissing([]); }
                       }}
                       className={`
                         px-3 py-1.5 rounded-lg text-xs font-medium
@@ -1203,7 +1261,7 @@ export const AudioStudio = () => {
                   value={musicPrompt}
                   onChange={(e) => {
                     setMusicPrompt(e.target.value);
-                    if (lyricsReady) { setLyricsReady(false); setEditedLyrics(""); setStressValidation(null); setDetectedBpm(null); setRhythmInfo(null); }
+                    if (lyricsReady) { setLyricsReady(false); setEditedLyrics(""); setStressValidation(null); setDetectedBpm(null); setRhythmInfo(null); setKeywordsPreserved(null); setKeywordsMissing([]); }
                   }}
                   placeholder="летняя любовь, танцы на закате, свобода и ветер..."
                   className="w-full h-20 px-4 py-3 rounded-xl bg-white/[0.03] border border-[#333] text-white placeholder-[#555] resize-none focus:border-indigo-500/50 focus:outline-none transition-colors"
@@ -1260,6 +1318,16 @@ export const AudioStudio = () => {
                           {rhythmInfo.perfect ? "✨ Perfect Rhythm" : `🎵 Ритм: ${rhythmInfo.score}%`}
                         </span>
                       )}
+                      {/* Keyword anchor badge */}
+                      {keywordsPreserved !== null && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                          keywordsPreserved
+                            ? "bg-cyan-500/15 border border-cyan-500/40 text-cyan-300"
+                            : "bg-red-500/15 border border-red-500/30 text-red-300"
+                        }`}>
+                          {keywordsPreserved ? "💎 Смысл сохранён" : `⚠️ Потеряно: ${keywordsMissing.length}`}
+                        </span>
+                      )}
                       {/* Dictionary check badge */}
                       {stressValidation && stressValidation.checkedCount > 0 && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/15 border border-green-500/30 text-green-400">
@@ -1274,6 +1342,31 @@ export const AudioStudio = () => {
                     onChange={(e) => setEditedLyrics(e.target.value)}
                     className="w-full h-48 px-4 py-3 rounded-xl bg-white/[0.03] border border-indigo-500/30 text-white placeholder-[#555] resize-y focus:border-indigo-500/50 focus:outline-none transition-colors font-mono text-sm leading-relaxed"
                   />
+                  {/* Refine rhythm button */}
+                  {rhythmInfo && !rhythmInfo.perfect && (
+                    <button
+                      type="button"
+                      onClick={handleRefineLyrics}
+                      disabled={isRefining}
+                      className="w-full py-2 rounded-lg text-xs font-semibold transition-all duration-200 bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20 hover:border-amber-500/50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {isRefining ? (
+                        <>
+                          <span className="w-3.5 h-3.5 border-2 border-amber-300/30 border-t-amber-300 rounded-full animate-spin" />
+                          Ритм-Доктор работает...
+                        </>
+                      ) : (
+                        <>🩺 Улучшить ритм (сохранив смысл)</>
+                      )}
+                    </button>
+                  )}
+                  {/* Keyword missing alert */}
+                  {keywordsMissing.length > 0 && (
+                    <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/20">
+                      <p className="text-[10px] text-red-300 font-semibold mb-1">⚠️ Потерянные ключевые слова:</p>
+                      <p className="text-[10px] text-red-300/70">{keywordsMissing.join(", ")}</p>
+                    </div>
+                  )}
                   {/* Rhythm mismatch details */}
                   {rhythmInfo && !rhythmInfo.perfect && rhythmInfo.details.length > 0 && (
                     <div className="p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
