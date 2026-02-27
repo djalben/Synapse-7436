@@ -59,7 +59,20 @@ function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<R
   ])
 }
 
-// ─── Generate song lyrics via GPT-4o (soulful poetry) ───
+// ─── Duration → char limits for MiniMax ───
+const DURATION_LIMITS: Record<number, { softMax: number; hardMax: number; structure: string; maxTokens: number }> = {
+  30:  { softMax: 180, hardMax: 200, structure: "[Verse] (4 lines) → [Chorus] (4 lines)", maxTokens: 200 },
+  60:  { softMax: 350, hardMax: 400, structure: "[Verse 1] (4 lines) → [Chorus] (4 lines) → [Verse 2] (4 lines) → [Chorus]", maxTokens: 300 },
+  120: { softMax: 520, hardMax: 600, structure: "[Verse 1] (4 lines) → [Chorus] (4 lines) → [Verse 2] (4 lines) → [Chorus] → [Bridge] (2 lines)", maxTokens: 400 },
+}
+
+function getDurationLimits(durationSec: number) {
+  if (durationSec <= 30) return DURATION_LIMITS[30]
+  if (durationSec <= 60) return DURATION_LIMITS[60]
+  return DURATION_LIMITS[120]
+}
+
+// ─── Generate song lyrics via Claude 3.5 Sonnet (poetic engine) ───
 async function generateLyrics(
   keywords: string,
   genre: string,
@@ -75,75 +88,65 @@ async function generateLyrics(
     return fallback
   }
 
-  const structure =
-    durationSec <= 30
-      ? "[Verse 1] (4 lines) → [Chorus] (4 lines)"
-      : durationSec <= 60
-        ? "[Verse 1] (4 lines) → [Chorus] (4 lines) → [Verse 2] (4 lines) → [Chorus]"
-        : "[Verse 1] (4 lines) → [Chorus] (4 lines) → [Verse 2] (4 lines) → [Chorus] → [Bridge] (2 lines)"
-
-  const LYRICS_HARD_LIMIT = 600
-  const maxChars = 550
+  const limits = getDurationLimits(durationSec)
   const langName = language === "ru" ? "Russian" : "English"
   const genderPerspective = gender === "male" ? "male" : "female"
   const vocalistDesc = gender === "male" ? "Male vocalist" : "Female vocalist"
 
   const genreGuide: Record<string, string> = {
-    "Поп": "Write simple but catchy phrases that stick in the head after first listen. Light, danceable rhythm. Think Макс Фадеев writing for Глюк'оZа.",
-    "Рок": "Add raw energy, edge, and rebellion. Shorter punchy lines, powerful imagery. Think ДДТ or Сплин — honest and hard-hitting.",
-    "Хип-Хоп": "Tight rhythmic flow, internal rhymes within lines, wordplay. Dense meaning per bar. Think Oxxxymiron or Скриптонит.",
-    "R&B": "Smooth, sensual, intimate. Longer vowel sounds for melisma. Emotional vulnerability. Think The Weeknd vibes in Russian.",
-    "Электроника": "Minimalist but hypnotic. Repeat key phrases like mantras. Atmospheric and dreamy. Short evocative images.",
-    "Джаз": "Sophisticated vocabulary, subtle irony, conversational tone. Think poetry set to music.",
-    "Кантри": "Storytelling with vivid rural/life imagery. Warm, nostalgic, grounded. Real-life scenes.",
-    "Классика": "Elegant, poetic language with rich imagery. Think classical art song — beautiful phrasing, noble emotion.",
-    "Эмбиент": "Minimalist, atmospheric, dreamy. Short evocative phrases, repetition as meditation.",
-    "Шансон": "Write sincere, life-driven stories. Simple but deep metaphors about fate, home, loyalty, time. Soulful, conversational — as if telling a story to a friend over a guitar. Think Михаил Круг or Сергей Трофимов.",
-    "Метал": "Aggressive, powerful, epic imagery. War, fire, steel, storms. Short punchy lines with explosive choruses. Think Кипелов, Ария.",
+    "Поп": "Catchy, radio-friendly. Simple words but deep feeling. Think Макс Фадеев.",
+    "Рок": "Raw energy, rebellion. Punchy lines, power. Think ДДТ, Сплин.",
+    "Хип-Хоп": "Tight flow, internal rhymes, wordplay. Think Oxxxymiron.",
+    "R&B": "Smooth, sensual, intimate. Emotional vulnerability.",
+    "Электроника": "Minimalist, hypnotic. Mantras and atmosphere.",
+    "Джаз": "Sophisticated, ironic, conversational. Poetry as music.",
+    "Кантри": "Storytelling, vivid imagery. Warm, nostalgic.",
+    "Классика": "Elegant, poetic. Noble emotion, rich imagery.",
+    "Эмбиент": "Atmospheric, dreamy. Evocative fragments.",
+    "Шансон": "Sincere life stories. Soulful, like telling a friend. Think Круг, Трофимов.",
+    "Метал": "Aggressive, epic. Fire, steel, storms. Think Кипелов, Ария.",
   }
   const genreName = genre || "Поп"
   const genreInstruction = genreGuide[genreName] || genreGuide["Поп"]
 
   const systemPrompt = [
-    `You are a TOP-TIER songwriter at the level of Константин Меладзе and Леонид Агутин. You write lyrics with deep emotional authenticity and natural musical flow. When people hear your lyrics, they say: "This is about me." You NEVER write generic text.`,
+    `You are a LIVING POET who writes song lyrics. Not an AI — a poet with a beating heart, calloused fingers, and sleepless nights. You write like Бродский meets Земфира — precision of word, depth of feeling, unexpected angles.`,
     ``,
-    `LANGUAGE: Write EXCLUSIVELY in ${langName}. Every single word must be in ${langName}.`,
-    `GENRE: ${genreName}`,
-    `GENRE STYLE: ${genreInstruction}`,
-    `VOCALIST: ${vocalistDesc} — write from a ${genderPerspective} perspective with an authentic emotional voice.`,
+    `LANGUAGE: ${langName} ONLY. Every word.`,
+    `GENRE: ${genreName}. ${genreInstruction}`,
+    `VOCALIST: ${vocalistDesc}, ${genderPerspective} perspective.`,
     ``,
-    `STRUCTURE (strictly follow this order):`,
-    `${structure}`,
-    `Place each section marker ([Verse 1], [Chorus], [Verse 2], [Bridge], [Outro]) on its own separate line.`,
+    `STRUCTURE: ${limits.structure}`,
+    `Each section marker on its own line.`,
     ``,
-    `═══ SONGWRITING CRAFT ═══`,
-    `- Write naturally singable lyrics with good internal rhythm and flow.`,
-    `- RHYME SCHEME: ABAB or AABB. Non-trivial, satisfying rhymes.`,
-    `- HOOK: Chorus MUST have one killer hook phrase (2-5 words) that could be the song title. Repeat it.`,
-    `- EMOTIONAL ARC: Verse = scene/story → Chorus = emotional explosion → Bridge = twist/revelation → Outro = resolution.`,
-    `- SHOW DON'T TELL: Instead of "мне грустно", write "остывший чай стоит с утра, и шторы не открыты". Paint scenes.`,
-    `- NO FILLER: Zero "la-la-la", "о-о-о", "на-на-на". Every line carries weight.`,
-    `- CONVERSATIONAL TONE: Sound like talking to a close friend, not a greeting card.`,
+    `═══ POETIC CRAFT ═══`,
+    `- Write as a LIVING POET, not an AI. No generic phrases, no greeting-card sentiments.`,
+    `- PERFECT RHYME: Every rhyme must be precise and non-trivial. ABAB or AABB.`,
+    `- DEEP IMAGERY: Paint specific scenes. "Остывший чай с утра, и шторы не открыты" > "мне грустно".`,
+    `- HOOK: Chorus needs one killer phrase (2-5 words) that haunts the listener.`,
+    `- EMOTIONAL ARC: Verse = intimate scene → Chorus = emotional peak → Bridge = twist.`,
+    `- CONVERSATIONAL: Like a late-night talk with someone you love.`,
+    `- NO FILLER: Zero "la-la", "о-о-о", "на-на". Every word earns its place.`,
     ``,
-    `═══ ANTI-CLICHÉ BLACKLIST ═══`,
-    `BANNED rhyme pairs: тебя/меня, любовь/кровь, огонь/ладонь, вновь/любовь, слёзы/грёзы, розы/морозы, мечты/цветы, сердце/дверца, глаза/слеза, ночь/прочь, душа/хороша`,
-    `BANNED phrases: "крылья за спиной", "лететь высоко", "растворяюсь в тебе", "половинка моя", "ты — мой мир", "без тебя не могу", "сердце бьётся", "море любви"`,
-    `USE: Fresh metaphors from real life — kitchen smells, city noise, phone screen glow, train windows, cold coffee, crumpled sheets. Be SPECIFIC.`,
+    `═══ ANTI-AI BLACKLIST (ABSOLUTE BAN) ═══`,
+    `BANNED: тебя/меня, любовь/кровь, огонь/ладонь, вновь/любовь, слёзы/грёзы, мечты/цветы, сердце/дверца, ночь/прочь`,
+    `BANNED: "крылья за спиной", "лететь высоко", "половинка моя", "ты — мой мир", "сердце бьётся", "море любви", "растворяюсь", "без тебя не могу"`,
+    `BANNED AI-TELLS: "танцуют тени", "шёпот ветра", "объятия ночи", "звёздный свет", "бескрайний океан чувств"`,
+    `USE: Kitchen smells, phone screen glow, train windows, cold coffee, crumpled sheets, parking lot puddles, the sound of keys in a lock. REAL LIFE.`,
     ``,
-    `═══ KEYWORD PRESERVATION ═══`,
-    `The user's keywords are the soul of the song. Every meaningful word from the user's description MUST appear in your lyrics (in any grammatical form).`,
-    `Build creative context AROUND these words but NEVER drop them.`,
+    `═══ KEYWORDS ═══`,
+    `Every meaningful word from the user's description MUST appear (any grammatical form).`,
     ``,
+    `═══ LENGTH LIMIT (HARD TECHNICAL CONSTRAINT) ═══`,
+    `Your output MUST be ${limits.softMax}–${limits.hardMax} characters total (including markers + newlines).`,
+    `This is the music model's limit. Exceeding ${limits.hardMax} chars = generation FAILS.`,
+    `Be concise. Depth over length.`,
     ``,
-    `═══ CRITICAL LENGTH LIMIT (ABSOLUTE LAW) ═══`,
-    `Your ENTIRE output MUST be between 400 and ${maxChars} characters INCLUDING section markers and newlines.`,
-    `This is a HARD TECHNICAL LIMIT of the music model. If you exceed ${maxChars} characters, the song CANNOT be generated.`,
-    `Write CONCISELY but DEEPLY. Every word must earn its place. Prefer 4-line sections over 6-8 line sections.`,
-    ``,
-    `OUTPUT: Only lyrics with section markers. No title, no commentary, no counts.`,
+    `OUTPUT: Only lyrics with section markers. Nothing else.`,
   ].join("\n")
 
   try {
+    console.log(`[Audio] Claude 3.5 Sonnet: dur=${durationSec}s softMax=${limits.softMax} hardMax=${limits.hardMax}`)
     const res = await fetchWithTimeout(
       "https://openrouter.ai/api/v1/chat/completions",
       {
@@ -153,12 +156,12 @@ async function generateLyrics(
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "openai/gpt-4o",
-          max_tokens: 400,
-          temperature: 0.85,
+          model: "anthropic/claude-3.5-sonnet",
+          max_tokens: limits.maxTokens,
+          temperature: 0.9,
           messages: [
             { role: "system", content: systemPrompt },
-            { role: "user", content: `Write a ${genreName} song ${language === "ru" ? "in Russian" : "in English"} about: ${keywords}\n\nUse fresh metaphors, no clichés. Make the listener feel "this is about me". Every keyword from my description must appear in the lyrics.` },
+            { role: "user", content: `Write a ${genreName} song ${language === "ru" ? "in Russian" : "in English"} about: ${keywords}\n\nWrite as a living poet. Deep imagery, perfect rhymes, no AI clichés. Max ${limits.hardMax} characters.` },
           ],
         }),
       },
@@ -173,16 +176,15 @@ async function generateLyrics(
     const raw = data?.choices?.[0]?.message?.content?.trim()
     if (!raw) return fallback
 
-    // Strip BPM line if GPT added one (legacy)
     const cleaned = raw.replace(/^BPM:\s*\d+\s*\n?/i, "").trim()
-    // Hard truncate to LYRICS_HARD_LIMIT for MiniMax safety
-    if (cleaned.length > LYRICS_HARD_LIMIT) {
-      console.warn(`[Audio] Lyrics too long (${cleaned.length}c), truncating to ${LYRICS_HARD_LIMIT}c`)
-      // Try to cut at last complete line before limit
-      const truncated = cleaned.slice(0, LYRICS_HARD_LIMIT)
+    // Hard truncate to duration-specific limit for MiniMax safety
+    if (cleaned.length > limits.hardMax) {
+      console.warn(`[Audio] Lyrics too long (${cleaned.length}c), truncating to ${limits.hardMax}c`)
+      const truncated = cleaned.slice(0, limits.hardMax)
       const lastNewline = truncated.lastIndexOf("\n")
-      return lastNewline > 200 ? truncated.slice(0, lastNewline) : truncated
+      return lastNewline > 100 ? truncated.slice(0, lastNewline) : truncated
     }
+    console.log(`[Audio] Lyrics OK: ${cleaned.length}c (limit ${limits.hardMax}c)`)
     return cleaned
   } catch (err) {
     console.error("[Audio] Lyrics generation failed (fallback to keywords):", err instanceof Error ? err.message : err)
@@ -215,13 +217,14 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
 
     console.log(`[Audio] Creating track: genre=${genreName} gender=${gender} lang=${lang} dur=${durationSec}s`)
 
-    // ── Step 1: Use pre-written lyrics OR generate via GPT-4o ──
+    // ── Step 1: Use pre-written lyrics OR generate via Claude 3.5 Sonnet ──
+    const durLimits = getDurationLimits(durationSec)
     let lyrics: string
     if (prewrittenLyrics && typeof prewrittenLyrics === "string" && prewrittenLyrics.trim().length >= 10) {
       lyrics = prewrittenLyrics.trim()
-      console.log(`[Audio] Using pre-written lyrics: ${lyrics.length}c (skipping GPT)`)
+      console.log(`[Audio] Using pre-written lyrics: ${lyrics.length}c (skipping LLM)`)
     } else {
-      console.log(`[Audio] Step 1/2 — GPT lyrics: keywords="${prompt.trim().slice(0, 50)}" genre=${genreName} gender=${gender} dur=${durationSec}s`)
+      console.log(`[Audio] Step 1/2 — Claude lyrics: keywords="${prompt.trim().slice(0, 50)}" genre=${genreName} gender=${gender} dur=${durationSec}s`)
       const lyricsTimeout = Math.min(LLM_TIMEOUT_MS, TOTAL_BUDGET_MS - elapsed() - 2000)
       lyrics = await generateLyrics(prompt.trim(), genreName, durationSec, gender, lang, Math.max(lyricsTimeout, 2000))
 
@@ -231,16 +234,15 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
         console.warn(`[Audio] Lyrics too short — padded with keywords: ${lyrics.length}c`)
       }
     }
-    // ── Safety guard: MiniMax hard limit is ~600 chars for lyrics ──
-    const MINIMAX_CHAR_LIMIT = 600
-    if (lyrics.length > MINIMAX_CHAR_LIMIT) {
-      console.warn(`[Audio] ⚠️ Lyrics exceed MiniMax limit: ${lyrics.length}c > ${MINIMAX_CHAR_LIMIT}c — truncating`)
-      const truncated = lyrics.slice(0, MINIMAX_CHAR_LIMIT)
+    // ── Safety guard: truncate to duration-specific MiniMax limit ──
+    if (lyrics.length > durLimits.hardMax) {
+      console.warn(`[Audio] ⚠️ Lyrics exceed limit: ${lyrics.length}c > ${durLimits.hardMax}c (dur=${durationSec}s) — truncating`)
+      const truncated = lyrics.slice(0, durLimits.hardMax)
       const lastNewline = truncated.lastIndexOf("\n")
-      lyrics = lastNewline > 200 ? truncated.slice(0, lastNewline) : truncated
+      lyrics = lastNewline > 100 ? truncated.slice(0, lastNewline) : truncated
       console.log(`[Audio] Truncated lyrics: ${lyrics.length}c`)
     }
-    console.log(`[Audio] Lyrics OK: ${lyrics.length}c in ${elapsed()}ms`)
+    console.log(`[Audio] Lyrics OK: ${lyrics.length}c / ${durLimits.hardMax}c limit in ${elapsed()}ms`)
 
     // ── Step 2: Fire MiniMax Music-1.5 prediction via Replicate ──
     const fireTimeout = Math.max(2000, TOTAL_BUDGET_MS - elapsed() - 500)

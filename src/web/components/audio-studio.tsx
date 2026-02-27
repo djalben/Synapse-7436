@@ -658,10 +658,11 @@ export const AudioStudio = () => {
   const { creditBalance, checkCredits, deductCredits } = useUsage();
 
   // Step logic: 1 = choose genre/settings, 2 = write lyrics, 3 = create music
-  const LYRICS_MAX_CHARS = 600;
+  const LYRICS_LIMITS: Record<Duration, number> = { "30s": 200, "60s": 400, "2min": 600 };
+  const lyricsMaxChars = LYRICS_LIMITS[duration];
   const currentStep = !selectedGenre ? 1 : !lyricsReady ? 2 : 3;
   const canGenerateLyrics = !!selectedGenre && !!musicPrompt.trim() && !isGeneratingLyrics && !isGenerating;
-  const lyricsOverLimit = editedLyrics.length > LYRICS_MAX_CHARS;
+  const lyricsOverLimit = editedLyrics.length > lyricsMaxChars;
   const canCreateMusic = lyricsReady && editedLyrics.trim().length >= 10 && !lyricsOverLimit && !isGenerating && !isGeneratingLyrics;
 
   // Smooth progress simulation: ramps from startPct → targetPct over durationMs
@@ -1162,7 +1163,7 @@ export const AudioStudio = () => {
                   ))}
                 </div>
                 <p className="text-[10px] text-indigo-400/50">
-                  {duration === "30s" ? "1 куплет" : duration === "60s" ? "Куплет + припев" : "Полная песня с бриджем"}
+                  {duration === "30s" ? `1 куплет (до ${LYRICS_LIMITS["30s"]} сим.)` : duration === "60s" ? `Куплет + припев (до ${LYRICS_LIMITS["60s"]} сим.)` : `Полная песня с бриджем (до ${LYRICS_LIMITS["2min"]} сим.)`}
                 </p>
               </div>
             </div>
@@ -1242,11 +1243,11 @@ export const AudioStudio = () => {
                     <span className={`text-[10px] font-medium ${
                       lyricsOverLimit
                         ? "text-red-400"
-                        : editedLyrics.length > LYRICS_MAX_CHARS * 0.85
+                        : editedLyrics.length > lyricsMaxChars * 0.85
                           ? "text-yellow-400"
                           : "text-[#555]"
                     }`}>
-                      {editedLyrics.length} / {LYRICS_MAX_CHARS}
+                      {editedLyrics.length} / {lyricsMaxChars}
                     </span>
                   </div>
                   <textarea
@@ -1260,7 +1261,7 @@ export const AudioStudio = () => {
                   />
                   {lyricsOverLimit ? (
                     <p className="text-[10px] text-red-400 font-medium leading-relaxed">
-                      Текст слишком длинный — MiniMax принимает максимум {LYRICS_MAX_CHARS} символов. Сократите на {editedLyrics.length - LYRICS_MAX_CHARS} сим.
+                      Текст слишком длинный — MiniMax принимает максимум {lyricsMaxChars} символов. Сократите на {editedLyrics.length - lyricsMaxChars} сим.
                     </p>
                   ) : (
                     <p className="text-[10px] text-indigo-300/60 leading-relaxed">
@@ -1340,8 +1341,8 @@ export const AudioStudio = () => {
                   <Mic className="w-5 h-5 text-blue-400" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-medium text-white">Voice Lab</h3>
-                  <p className="text-xs text-[#666]">Преобразование текста в речь с помощью AI</p>
+                  <h3 className="text-sm font-medium text-white">Voice Lab · Speech-to-Speech</h3>
+                  <p className="text-xs text-[#666]">Озвучка текста и замена голоса через ElevenLabs S2S</p>
                 </div>
               </div>
             </div>
