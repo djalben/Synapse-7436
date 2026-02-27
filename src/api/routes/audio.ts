@@ -88,7 +88,7 @@ async function generateLyrics(
           messages: [
             {
               role: "system",
-              content: `You are a professional hit songwriter. Write song lyrics strictly in ${language === "ru" ? "Russian" : "English"}.\nGenre: ${genre || "pop"}\nVocalist: ${gender === "male" ? "Male singer" : "Female singer"} — write from a ${gender === "male" ? "male" : "female"} perspective.\nStructure: ${structure}\nRules:\n- Write ALL lyrics in ${language === "ru" ? "Russian" : "English"} language\n- Use section markers: [Verse], [Chorus], [Bridge] on separate lines\n- Keep total lyrics UNDER ${maxChars} characters\n- Make lyrics catchy, emotional, and singable\n- Use vivid imagery and a memorable hook in the chorus\n- Output ONLY the lyrics, no title, no explanations`,
+              content: `You are a professional hit songwriter. Write song lyrics strictly in ${language === "ru" ? "Russian" : "English"}.\nGenre: ${genre || "pop"}\nVocalist: ${gender === "male" ? "Male singer" : "Female singer"} — write from a ${gender === "male" ? "male" : "female"} perspective.\nStructure: ${structure}\nRules:\n- Write ALL lyrics in ${language === "ru" ? "Russian" : "English"} language\n- Use section markers: [Verse], [Chorus], [Bridge] on separate lines\n- Keep total lyrics UNDER ${maxChars} characters\n- Make lyrics catchy, emotional, and singable\n- Use vivid imagery and a memorable hook in the chorus\n- ACCENT CONTROL: Always mark stressed syllables using UPPERCASE LETTERS (e.g. горжУсь, поздравлЯю, дочУрка, любОвь, свобОда). This is critical for correct vocal performance.\n- For complex proper names, split into syllables with hyphens to help the vocalist (e.g. А-ри-Ад-на, Е-ка-те-рИ-на).\n- Output ONLY the lyrics, no title, no explanations`,
             },
             { role: "user", content: `Write a ${genre || "pop"} song ${language === "ru" ? "in Russian" : "in English"} about: ${keywords}` },
           ],
@@ -121,8 +121,9 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
     const apiToken = getApiToken()
     if (!apiToken) return c.json({ error: "Сервис аудио не настроен (REPLICATE_API_TOKEN)." }, 503)
 
-    const { prompt, duration, genre, vocalGender, language, voiceId } = await c.req.json()
-    if (voiceId) console.log(`[Audio] Voice clone requested: ${voiceId} (Speech-to-Speech TBD)`)
+    const { prompt, duration, genre, vocalGender, language, voiceId, lyrics: prewrittenLyrics } = await c.req.json()
+    if (voiceId) console.log(`[Audio] Voice clone requested: ${voiceId} (Speech-to-Speech)`)
+    if (prewrittenLyrics) console.log(`[Audio] Pre-written lyrics provided: ${prewrittenLyrics.length}c`)
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
       return c.json({ error: "Опишите тему вашей песни." }, 400)
     }
@@ -135,16 +136,22 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
 
     console.log(`[Audio] Creating track: genre=${genreName} gender=${gender} lang=${lang} dur=${durationSec}s`)
 
-    // ── Step 1: Generate lyrics via GPT-4o-mini (budget: 4s, fallback: raw keywords) ──
-    console.log(`[Audio] Step 1/2 — GPT lyrics: keywords="${prompt.trim().slice(0, 50)}" genre=${genreName} gender=${gender} dur=${durationSec}s`)
-    const lyricsTimeout = Math.min(LLM_TIMEOUT_MS, TOTAL_BUDGET_MS - elapsed() - 2000)
-    let lyrics = await generateLyrics(prompt.trim(), genreName, durationSec, gender, lang, Math.max(lyricsTimeout, 2000))
+    // ── Step 1: Use pre-written lyrics OR generate via GPT-4o-mini ──
+    let lyrics: string
+    if (prewrittenLyrics && typeof prewrittenLyrics === "string" && prewrittenLyrics.trim().length >= 10) {
+      lyrics = prewrittenLyrics.trim()
+      console.log(`[Audio] Using pre-written lyrics: ${lyrics.length}c (skipping GPT)`)
+    } else {
+      console.log(`[Audio] Step 1/2 — GPT lyrics: keywords="${prompt.trim().slice(0, 50)}" genre=${genreName} gender=${gender} dur=${durationSec}s`)
+      const lyricsTimeout = Math.min(LLM_TIMEOUT_MS, TOTAL_BUDGET_MS - elapsed() - 2000)
+      lyrics = await generateLyrics(prompt.trim(), genreName, durationSec, gender, lang, Math.max(lyricsTimeout, 2000))
 
-    // Guarantee lyrics are never empty / too short (min 10 chars)
-    if (!lyrics || lyrics.trim().length < 10) {
-      const kw = prompt.trim()
-      lyrics = `[Verse]\n${kw}\n${kw}\n[Chorus]\n${kw}, ${kw}`
-      console.warn(`[Audio] Lyrics too short — padded with keywords: ${lyrics.length}c`)
+      // Guarantee lyrics are never empty / too short (min 10 chars)
+      if (!lyrics || lyrics.trim().length < 10) {
+        const kw = prompt.trim()
+        lyrics = `[Verse]\n${kw}\n${kw}\n[Chorus]\n${kw}, ${kw}`
+        console.warn(`[Audio] Lyrics too short — padded with keywords: ${lyrics.length}c`)
+      }
     }
     console.log(`[Audio] Lyrics OK: ${lyrics.length}c in ${elapsed()}ms`)
 
@@ -218,6 +225,42 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
 
 audioRoutes.post("/generate", (c) => generateHandler(c as any))
 audioRoutes.post("/music", (c) => generateHandler(c as any))
+
+// ─── POST /generate-lyrics — GPT lyrics only (step 1 of 2-step flow) ───
+audioRoutes.post("/generate-lyrics", async (c) => {
+  const t0 = Date.now()
+  console.log("[Audio] POST /generate-lyrics")
+
+  try {
+    const { prompt, duration, genre, vocalGender, language } = await c.req.json()
+    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+      return c.json({ error: "Опишите тему вашей песни." }, 400)
+    }
+
+    const genreName: string = genre || "Поп"
+    const gender: string = vocalGender === "male" ? "male" : "female"
+    const lang: string = language === "en" ? "en" : "ru"
+    const durationSec = Math.min(Math.max(duration || 60, 30), 300)
+
+    console.log(`[Audio] Generating lyrics: genre=${genreName} gender=${gender} lang=${lang} dur=${durationSec}s`)
+
+    let lyrics = await generateLyrics(prompt.trim(), genreName, durationSec, gender, lang, LLM_TIMEOUT_MS)
+
+    if (!lyrics || lyrics.trim().length < 10) {
+      const kw = prompt.trim()
+      lyrics = `[Verse]\n${kw}\n${kw}\n[Chorus]\n${kw}, ${kw}`
+      console.warn(`[Audio] Lyrics too short — padded with keywords`)
+    }
+
+    console.log(`[Audio] Lyrics generated: ${lyrics.length}c in ${Date.now() - t0}ms`)
+    return c.json({ lyrics, prompt: prompt.trim() })
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    console.error(`[Audio] GENERATE-LYRICS FAILED: ${msg}`)
+    if (msg.includes("TIMEOUT")) return c.json({ error: "Сервис не отвечает." }, 504)
+    return c.json({ error: "Генерация текста не удалась." }, 500)
+  }
+})
 
 // ─── POST /tts — create XTTS-v2 prediction (fire-and-forget) ───
 audioRoutes.post("/tts", async (c) => {

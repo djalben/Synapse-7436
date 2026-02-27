@@ -15,6 +15,8 @@ import {
   Check,
   Loader2,
   Crown,
+  FileText,
+  PenLine,
 } from "lucide-react";
 import { useUsage } from "./usage-context";
 import { addToHistory } from "./placeholder-pages";
@@ -637,6 +639,9 @@ export const AudioStudio = () => {
   
   const [musicPrompt, setMusicPrompt] = useState("");
   const [voiceText, setVoiceText] = useState("");
+  const [editedLyrics, setEditedLyrics] = useState("");
+  const [isGeneratingLyrics, setIsGeneratingLyrics] = useState(false);
+  const [lyricsReady, setLyricsReady] = useState(false);
   
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -718,6 +723,43 @@ export const AudioStudio = () => {
     throw new Error("Таймаут генерации (3 мин). Попробуйте снова.");
   };
 
+  const handleGenerateLyrics = async () => {
+    if (!musicPrompt.trim()) return;
+    setIsGeneratingLyrics(true);
+    setError(null);
+    setLyricsReady(false);
+    setEditedLyrics("");
+
+    try {
+      const durationSeconds = duration === "30s" ? 30 : duration === "60s" ? 60 : 120;
+      const res = await fetch("/api/audio/generate-lyrics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: musicPrompt.trim(),
+          duration: durationSeconds,
+          genre: selectedGenre || undefined,
+          vocalGender,
+          language: songLanguage,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: "Ошибка" })) as { error?: string };
+        throw new Error(errData.error || "Не удалось сгенерировать текст");
+      }
+
+      const data = await res.json() as { lyrics: string };
+      setEditedLyrics(data.lyrics);
+      setLyricsReady(true);
+    } catch (err) {
+      console.error("Lyrics generation error:", err);
+      setError(err instanceof Error ? err.message : "Ошибка генерации текста.");
+    } finally {
+      setIsGeneratingLyrics(false);
+    }
+  };
+
   const handleGenerate = async () => {
     if (!checkCredits(creditCost)) return;
     // Clean slate: clear ALL previous state
@@ -736,9 +778,10 @@ export const AudioStudio = () => {
           return;
         }
 
-        // Phase 1: "Сочиняем текст..." — backend calls GPT + fires minimax
-        setStatusMessage("Сочиняем текст песни...");
-        startProgressSim(6_000, 25);  // 0→25% over ~6s (LLM + fire)
+        // If lyrics were pre-generated, skip GPT phase and go straight to music
+        const hasEditedLyrics = lyricsReady && editedLyrics.trim().length >= 10;
+        setStatusMessage(hasEditedLyrics ? "Записываем трек..." : "Сочиняем текст песни...");
+        startProgressSim(hasEditedLyrics ? 3_000 : 6_000, 25);
 
         const durationSeconds = duration === "30s" ? 30 : duration === "60s" ? 60 : 120;
         response = await fetch("/api/audio/generate", {
@@ -751,6 +794,7 @@ export const AudioStudio = () => {
             vocalGender,
             language: songLanguage,
             voiceId: useMyVoice && clonedVoiceId ? clonedVoiceId : undefined,
+            lyrics: hasEditedLyrics ? editedLyrics.trim() : undefined,
           }),
         });
       } else {
@@ -942,17 +986,64 @@ export const AudioStudio = () => {
         {/* Music Generator Controls — simplified: keywords + genre + duration */}
         {mode === "music" && (
           <div className="space-y-6">
-            {/* Keywords Input */}
+            {/* Step 1: Keywords + Generate Lyrics */}
             <div className="space-y-1.5">
               <label className="block text-xs font-medium text-[#888]">О чём будет ваша песня?</label>
               <textarea
                 value={musicPrompt}
-                onChange={(e) => setMusicPrompt(e.target.value)}
+                onChange={(e) => {
+                  setMusicPrompt(e.target.value);
+                  if (lyricsReady) { setLyricsReady(false); setEditedLyrics(""); }
+                }}
                 placeholder="летняя любовь, танцы на закате, свобода и ветер..."
-                className="w-full h-24 px-4 py-3 rounded-xl bg-white/[0.03] border border-[#333] text-white placeholder-[#555] resize-none focus:border-indigo-500/50 focus:outline-none transition-colors"
+                className="w-full h-20 px-4 py-3 rounded-xl bg-white/[0.03] border border-[#333] text-white placeholder-[#555] resize-none focus:border-indigo-500/50 focus:outline-none transition-colors"
               />
-              <p className="text-[11px] text-[#555]">AI напишет текст песни и запишет вокал по вашим ключевым словам</p>
+              <button
+                type="button"
+                onClick={handleGenerateLyrics}
+                disabled={!musicPrompt.trim() || isGeneratingLyrics || isGenerating}
+                className={`
+                  w-full py-2.5 rounded-xl text-sm font-medium transition-all duration-300
+                  flex items-center justify-center gap-2
+                  ${isGeneratingLyrics
+                    ? "bg-indigo-600/50 text-white cursor-wait"
+                    : musicPrompt.trim()
+                      ? "bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/30"
+                      : "bg-[#111] border border-[#222] text-[#555] cursor-not-allowed"
+                  }
+                `}
+              >
+                {isGeneratingLyrics ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /><span>AI пишет текст...</span></>
+                ) : (
+                  <><FileText className="w-4 h-4" /><span>Шаг 1: Сгенерировать текст</span></>
+                )}
+              </button>
             </div>
+
+            {/* Step 2: Editable Lyrics */}
+            {(lyricsReady || editedLyrics) && (
+              <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-medium text-[#888] flex items-center gap-1.5">
+                    <PenLine className="w-3.5 h-3.5" />
+                    Текст песни (редактируемый)
+                  </label>
+                  <span className="text-[10px] text-[#555]">{editedLyrics.length} символов</span>
+                </div>
+                <textarea
+                  value={editedLyrics}
+                  onChange={(e) => setEditedLyrics(e.target.value)}
+                  className="w-full h-48 px-4 py-3 rounded-xl bg-white/[0.03] border border-indigo-500/30 text-white placeholder-[#555] resize-y focus:border-indigo-500/50 focus:outline-none transition-colors font-mono text-sm leading-relaxed"
+                />
+                <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                  <p className="text-[11px] text-amber-300/80 leading-relaxed">
+                    <span className="font-semibold text-amber-300">Проверьте ударения</span> (ЗАГЛАВНЫЕ БУКВЫ) перед запуском. 
+                    Это гарантирует правильное пение. Пример: горжУсь, поздравлЯю, дочУрка.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Genre Select */}
             <div className="space-y-1.5">
@@ -1088,8 +1179,9 @@ export const AudioStudio = () => {
             {/* How it works hint */}
             <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10">
               <p className="text-[11px] text-indigo-300/70 leading-relaxed">
-                <span className="font-medium text-indigo-300">Как это работает:</span> AI сочиняет текст песни по вашим словам, 
-                затем ElevenLabs Music записывает полноценный трек с вокалом и аранжировкой.
+                <span className="font-medium text-indigo-300">Как это работает:</span> 
+                <span className="text-white/60"> Шаг 1</span> — AI пишет текст с ударениями (ЗАГЛАВНЫЕ). Вы проверяете и правите. 
+                <span className="text-white/60"> Шаг 2</span> — нажмите «Создать песню» для записи трека.
               </p>
             </div>
           </div>
@@ -1214,7 +1306,7 @@ export const AudioStudio = () => {
           <button
             type="button"
             onClick={handleGenerate}
-            disabled={isGenerating || (mode === "music" ? !musicPrompt.trim() : !voiceText.trim())}
+            disabled={isGenerating || isGeneratingLyrics || (mode === "music" ? !musicPrompt.trim() : !voiceText.trim())}
             className={`
               w-full py-3.5 rounded-xl font-medium text-sm
               transition-all duration-300 relative overflow-hidden
@@ -1239,7 +1331,7 @@ export const AudioStudio = () => {
               ) : mode === "music" ? (
                 <>
                   <Sparkles className="w-4 h-4" />
-                  <span>Создать песню</span>
+                  <span>{lyricsReady ? "Шаг 2: Создать песню" : "Создать песню"}</span>
                 </>
               ) : (
                 <>
@@ -1275,7 +1367,7 @@ export const AudioStudio = () => {
         <button
           type="button"
           onClick={handleGenerate}
-          disabled={isGenerating || (mode === "music" ? !musicPrompt.trim() : !voiceText.trim())}
+          disabled={isGenerating || isGeneratingLyrics || (mode === "music" ? !musicPrompt.trim() : !voiceText.trim())}
           className={`
             w-full py-4 px-6 rounded-xl font-medium text-base
             transition-all duration-300 relative overflow-hidden active:scale-[0.98] group
@@ -1296,7 +1388,7 @@ export const AudioStudio = () => {
             ) : mode === "music" ? (
               <>
                 <Sparkles className="w-5 h-5" />
-                <span>Создать песню</span>
+                <span>{lyricsReady ? "Шаг 2: Создать песню" : "Создать песню"}</span>
               </>
             ) : (
               <>
