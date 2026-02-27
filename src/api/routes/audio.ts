@@ -1,4 +1,5 @@
 import { Hono } from "hono"
+import { validateStresses } from "../utils/stress-validator"
 
 export const audioRoutes = new Hono()
 
@@ -314,8 +315,17 @@ audioRoutes.post("/generate-lyrics", async (c) => {
       console.warn(`[Audio] Lyrics too short — padded with keywords`)
     }
 
+    // Run stress validator (Russian only)
+    let stressValidation = { checkedCount: 0, fixedCount: 0, ambiguousWords: [] as { word: string; options: string[] }[] }
+    if (lang === "ru") {
+      const result = validateStresses(lyrics)
+      lyrics = result.text
+      stressValidation = { checkedCount: result.checkedCount, fixedCount: result.fixedCount, ambiguousWords: result.ambiguousWords }
+      console.log(`[Audio] Stress validation: checked=${result.checkedCount} fixed=${result.fixedCount} ambiguous=${result.ambiguousWords.length}`)
+    }
+
     console.log(`[Audio] Lyrics generated: ${lyrics.length}c in ${Date.now() - t0}ms`)
-    return c.json({ lyrics, prompt: prompt.trim() })
+    return c.json({ lyrics, prompt: prompt.trim(), stressValidation })
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
     console.error(`[Audio] GENERATE-LYRICS FAILED: ${msg}`)

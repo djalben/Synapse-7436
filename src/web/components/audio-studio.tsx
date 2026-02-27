@@ -642,6 +642,10 @@ export const AudioStudio = () => {
   const [editedLyrics, setEditedLyrics] = useState("");
   const [isGeneratingLyrics, setIsGeneratingLyrics] = useState(false);
   const [lyricsReady, setLyricsReady] = useState(false);
+  const [stressValidation, setStressValidation] = useState<{
+    checkedCount: number; fixedCount: number;
+    ambiguousWords: { word: string; options: string[] }[];
+  } | null>(null);
   
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -734,6 +738,7 @@ export const AudioStudio = () => {
     setError(null);
     setLyricsReady(false);
     setEditedLyrics("");
+    setStressValidation(null);
 
     try {
       const durationSeconds = duration === "30s" ? 30 : duration === "60s" ? 60 : 120;
@@ -754,9 +759,13 @@ export const AudioStudio = () => {
         throw new Error(errData.error || "Не удалось сгенерировать текст");
       }
 
-      const data = await res.json() as { lyrics: string };
+      const data = await res.json() as {
+        lyrics: string;
+        stressValidation?: { checkedCount: number; fixedCount: number; ambiguousWords: { word: string; options: string[] }[] };
+      };
       setEditedLyrics(data.lyrics);
       setLyricsReady(true);
+      if (data.stressValidation) setStressValidation(data.stressValidation);
     } catch (err) {
       console.error("Lyrics generation error:", err);
       setError(err instanceof Error ? err.message : "Ошибка генерации текста.");
@@ -1060,7 +1069,7 @@ export const AudioStudio = () => {
                       key={genre}
                       onClick={() => {
                         setSelectedGenre(selectedGenre === genre ? null : genre);
-                        if (lyricsReady) { setLyricsReady(false); setEditedLyrics(""); }
+                        if (lyricsReady) { setLyricsReady(false); setEditedLyrics(""); setStressValidation(null); }
                       }}
                       className={`
                         px-3 py-1.5 rounded-lg text-xs font-medium
@@ -1184,7 +1193,7 @@ export const AudioStudio = () => {
                   value={musicPrompt}
                   onChange={(e) => {
                     setMusicPrompt(e.target.value);
-                    if (lyricsReady) { setLyricsReady(false); setEditedLyrics(""); }
+                    if (lyricsReady) { setLyricsReady(false); setEditedLyrics(""); setStressValidation(null); }
                   }}
                   placeholder="летняя любовь, танцы на закате, свобода и ветер..."
                   className="w-full h-20 px-4 py-3 rounded-xl bg-white/[0.03] border border-[#333] text-white placeholder-[#555] resize-none focus:border-indigo-500/50 focus:outline-none transition-colors"
@@ -1222,13 +1231,37 @@ export const AudioStudio = () => {
                       <PenLine className="w-3.5 h-3.5" />
                       Текст (можно редактировать)
                     </label>
-                    <span className="text-[10px] text-[#555]">{editedLyrics.length} сим.</span>
+                    <div className="flex items-center gap-2">
+                      {stressValidation && stressValidation.checkedCount > 0 && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/15 border border-green-500/30 text-green-400 flex items-center gap-1">
+                          ✅ Проверено словарём
+                          {stressValidation.fixedCount > 0 && (
+                            <span className="text-green-500/70">· исправлено {stressValidation.fixedCount}</span>
+                          )}
+                        </span>
+                      )}
+                      <span className="text-[10px] text-[#555]">{editedLyrics.length} сим.</span>
+                    </div>
                   </div>
                   <textarea
                     value={editedLyrics}
                     onChange={(e) => setEditedLyrics(e.target.value)}
                     className="w-full h-48 px-4 py-3 rounded-xl bg-white/[0.03] border border-indigo-500/30 text-white placeholder-[#555] resize-y focus:border-indigo-500/50 focus:outline-none transition-colors font-mono text-sm leading-relaxed"
                   />
+                  {/* Ambiguous words alert */}
+                  {stressValidation && stressValidation.ambiguousWords.length > 0 && (
+                    <div className="p-2 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                      <p className="text-[10px] text-orange-300 font-semibold mb-1">⚠️ Неоднозначные ударения — проверьте:</p>
+                      <div className="space-y-0.5">
+                        {stressValidation.ambiguousWords.map((aw, i) => (
+                          <p key={i} className="text-[10px] text-orange-300/70">
+                            <span className="font-medium text-orange-200">«{aw.word}»</span>
+                            {" → "}{aw.options.join(" или ")}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
                     <p className="text-[10px] text-amber-300/80 leading-relaxed">
                       <span className="font-semibold text-amber-300">Проверьте ударения</span> (ЗАГЛАВНЫЕ БУКВЫ) перед запуском — 
