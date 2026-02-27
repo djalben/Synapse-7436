@@ -7,7 +7,7 @@
  * 3. Does NOT bulk-capitalize — lyrics stay clean and readable
  */
 
-import { STRESS_MAP, AMBIGUOUS, VOWELS } from "./stress-dictionary"
+import { STRESS_MAP, AMBIGUOUS, VOWELS } from "./stress-dictionary.js"
 
 export interface StressValidationResult {
   /** Lyrics text (unchanged — no auto-caps in v2) */

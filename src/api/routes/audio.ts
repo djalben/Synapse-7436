@@ -9,7 +9,7 @@ let _validateStresses: ((text: string) => StressResult) | null | undefined = und
 async function loadValidator(): Promise<void> {
   if (_validateStresses !== undefined) return // already loaded (or failed)
   try {
-    const mod = await import("../utils/stress-validator")
+    const mod = await import("../utils/stress-validator.js")
     _validateStresses = mod.validateStresses
     console.log("[Audio] Stress validator loaded OK")
   } catch (e) {
