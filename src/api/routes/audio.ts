@@ -32,7 +32,11 @@ function getOpenRouterKey(): string | undefined {
 }
 
 function getElevenLabsKey(): string | undefined {
-  return process.env.ELEVENLABS_API_KEY
+  const raw = process.env.ELEVENLABS_API_KEY
+  if (!raw) return undefined
+  // Strip any accidental quotes or whitespace
+  const cleaned = raw.replace(/^["'\s]+|["'\s]+$/g, "")
+  return cleaned || undefined
 }
 
 function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<Response> {
@@ -406,11 +410,13 @@ audioRoutes.get("/status/:id", async (c) => {
 // ─── POST /clone-voice — clone a voice via ElevenLabs API ───
 audioRoutes.post("/clone-voice", async (c) => {
   console.log("[Audio] POST /clone-voice")
-  console.log(`DEBUG: ELEVENLABS key length is: ${process.env.ELEVENLABS_API_KEY?.length ?? "UNDEFINED"}`)
+  const rawKey = process.env.ELEVENLABS_API_KEY
+  const keyTail = rawKey ? rawKey.slice(-4) : "NONE"
+  console.log(`[Audio] clone-voice: key length=${rawKey?.length ?? 0}, ends with: ${keyTail}`)
 
   try {
     const elevenLabsKey = getElevenLabsKey()
-    if (!elevenLabsKey) return c.json({ error: "ElevenLabs API не настроен (ELEVENLABS_API_KEY)." }, 503)
+    if (!elevenLabsKey) return c.json({ error: "ElevenLabs API не настроен (ELEVENLABS_API_KEY).", keyTail }, 503)
 
     const formData = await c.req.formData()
     let name = formData.get("name")
@@ -438,12 +444,13 @@ audioRoutes.post("/clone-voice", async (c) => {
     elFormData.append("name", name)
     elFormData.append("files", file, file.name || "voice-sample.webm")
 
-    console.log(`[Audio] clone-voice: sending to ElevenLabs voices/add...`)
+    const keyUsed = elevenLabsKey.trim()
+    console.log(`[Audio] clone-voice: sending to ElevenLabs voices/add (key ends: ${keyUsed.slice(-4)})...`)
     const response = await fetchWithTimeout(
       "https://api.elevenlabs.io/v1/voices/add",
       {
         method: "POST",
-        headers: { "xi-api-key": elevenLabsKey },
+        headers: { "xi-api-key": keyUsed },
         body: elFormData,
       },
       30000
@@ -453,10 +460,12 @@ audioRoutes.post("/clone-voice", async (c) => {
       const errText = await response.text()
       console.error(`[Audio] ElevenLabs clone error: status=${response.status} statusText="${response.statusText}"`)
       console.error(`[Audio] ElevenLabs Error Details:`, errText)
+      console.error(`[Audio] Key used ends with: ${keyUsed.slice(-4)}`)
       return c.json({
         error: `Клонирование не удалось (ElevenLabs ${response.status}).`,
         detail: errText,
         status: response.status,
+        keyTail: keyUsed.slice(-4),
       }, 500)
     }
 

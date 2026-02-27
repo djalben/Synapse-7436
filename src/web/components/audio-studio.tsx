@@ -421,14 +421,16 @@ const VoiceCloneModal = ({
 
       const res = await fetch("/api/audio/clone-voice", {
         method: "POST",
+        headers: { "Cache-Control": "no-cache, no-store", "Pragma": "no-cache" },
         body: formData,
       });
 
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({ error: "Ошибка клонирования" })) as { error?: string; detail?: string; status?: number };
-        console.error("[Clone] Backend error:", { status: res.status, error: errData.error, detail: errData.detail, elStatus: errData.status });
+        const errData = await res.json().catch(() => ({ error: "Ошибка клонирования" })) as { error?: string; detail?: string; status?: number; keyTail?: string };
+        console.error("[Clone] Backend error:", { httpStatus: res.status, error: errData.error, detail: errData.detail, elStatus: errData.status, keyUsedEndsWith: errData.keyTail });
         const detail = errData.detail ? ` (${errData.detail.slice(0, 200)})` : "";
-        throw new Error((errData.error || "Клонирование не удалось") + detail);
+        const keyInfo = errData.keyTail ? ` [Key ends with: ${errData.keyTail}]` : "";
+        throw new Error((errData.error || "Клонирование не удалось") + detail + keyInfo);
       }
 
       const data = await res.json() as { voice_id: string };
