@@ -1,71 +1,36 @@
 /**
- * Russian stress validator for song lyrics.
+ * Russian stress validator for song lyrics (v2 — minimal mode).
  * 
- * Takes GPT-generated lyrics and:
- * 1. Auto-fixes words missing stress marks using the dictionary
- * 2. Flags ambiguous words for user review
- * 3. Returns validation stats
+ * GPT now writes in normal lowercase. This validator:
+ * 1. Counts how many words exist in our dictionary (confidence metric)
+ * 2. Flags ambiguous words (замок/замОк etc.) for user review
+ * 3. Does NOT bulk-capitalize — lyrics stay clean and readable
  */
 
 import { STRESS_MAP, AMBIGUOUS, VOWELS } from "./stress-dictionary"
 
 export interface StressValidationResult {
-  /** Lyrics with auto-fixed stresses */
+  /** Lyrics text (unchanged — no auto-caps in v2) */
   text: string
-  /** Number of words checked against dictionary */
+  /** Number of words found in dictionary (confidence metric) */
   checkedCount: number
-  /** Number of words auto-fixed (stress added) */
+  /** Number of words auto-fixed (only names/critical — minimal in v2) */
   fixedCount: number
   /** Ambiguous words found — user should review */
   ambiguousWords: { word: string; options: string[] }[]
 }
 
-/** Check if a word already has a stress mark (any uppercase vowel) */
-function hasStressMark(word: string): boolean {
-  for (const ch of word) {
-    if (ch >= "А" && ch <= "Я" && VOWELS.has(ch.toLowerCase())) {
-      return true
-    }
-    // Also check Ё
-    if (ch === "Ё") return true
-  }
-  return false
-}
-
-/** Count vowels in a lowercase word */
+/** Count vowels in a word */
 function vowelCount(word: string): number {
   let count = 0
   for (const ch of word) {
-    if (VOWELS.has(ch)) count++
+    if (VOWELS.has(ch.toLowerCase())) count++
   }
   return count
 }
 
 /**
- * Apply stress mark to a word given the stressed vowel index.
- * stressIdx = index among vowels (0-based).
- * Returns the word with that vowel uppercased.
- */
-function applyStress(word: string, stressIdx: number): string {
-  let vowelsSeen = 0
-  let result = ""
-  for (const ch of word) {
-    if (VOWELS.has(ch.toLowerCase())) {
-      if (vowelsSeen === stressIdx) {
-        result += ch.toUpperCase()
-      } else {
-        result += ch.toLowerCase()
-      }
-      vowelsSeen++
-    } else {
-      result += ch
-    }
-  }
-  return result
-}
-
-/**
- * Extract the "clean" lowercase form of a word (strip punctuation edges).
+ * Extract the "clean" form of a word (strip punctuation edges).
  * Returns [cleanWord, prefixPunct, suffixPunct]
  */
 function cleanWord(token: string): [string, string, string] {
@@ -75,64 +40,42 @@ function cleanWord(token: string): [string, string, string] {
 }
 
 /**
- * Validate and auto-fix stresses in lyrics text.
+ * Validate lyrics — flag ambiguous words, count dictionary coverage.
+ * No bulk auto-capitalization (v2 philosophy: GPT writes clean, system trusts it).
  */
 export function validateStresses(lyrics: string): StressValidationResult {
   let checkedCount = 0
-  let fixedCount = 0
+  const fixedCount = 0
   const ambiguousWords: { word: string; options: string[] }[] = []
   const seenAmbiguous = new Set<string>()
 
-  // Process line by line to preserve structure
   const lines = lyrics.split("\n")
-  const processedLines = lines.map((line) => {
-    // Skip section markers like [Verse 1], [Chorus], etc.
-    if (/^\s*\[.*\]\s*$/.test(line)) return line
+  for (const line of lines) {
+    if (/^\s*\[.*\]\s*$/.test(line)) continue // skip markers
 
-    const tokens = line.split(/(\s+)/)
-    const processedTokens = tokens.map((token) => {
-      // Whitespace — pass through
-      if (/^\s*$/.test(token)) return token
-
-      const [word, prefix, suffix] = cleanWord(token)
-      if (!word) return token
+    const tokens = line.split(/\s+/)
+    for (const token of tokens) {
+      const [word] = cleanWord(token)
+      if (!word) continue
 
       const lower = word.toLowerCase()
+      if (vowelCount(lower) <= 1) continue // single-vowel = obvious stress
 
-      // Skip words with only 1 vowel (stress is obvious)
-      if (vowelCount(lower) <= 1) return token
-
-      // Check ambiguity first
+      // Flag ambiguous words
       if (AMBIGUOUS[lower] && !seenAmbiguous.has(lower)) {
         seenAmbiguous.add(lower)
         ambiguousWords.push({ word: lower, options: AMBIGUOUS[lower] })
-        // Don't auto-fix ambiguous words — leave as-is or with GPT's stress
-        return token
       }
 
-      // Check dictionary
-      const stressIdx = STRESS_MAP[lower]
-      if (stressIdx !== undefined) {
+      // Count dictionary hits (confidence metric)
+      if (STRESS_MAP[lower] !== undefined) {
         checkedCount++
-
-        // If word already has correct stress mark, skip
-        if (hasStressMark(word)) return token
-
-        // Auto-fix: apply stress from dictionary
-        const fixed = applyStress(word, stressIdx)
-        fixedCount++
-        return prefix + fixed + suffix
       }
-
-      // Word not in dictionary — leave as-is (GPT's marking)
-      return token
-    })
-
-    return processedTokens.join("")
-  })
+    }
+  }
 
   return {
-    text: processedLines.join("\n"),
+    text: lyrics, // unchanged — no auto-caps
     checkedCount,
     fixedCount,
     ambiguousWords,

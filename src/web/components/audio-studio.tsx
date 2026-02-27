@@ -646,6 +646,10 @@ export const AudioStudio = () => {
     checkedCount: number; fixedCount: number;
     ambiguousWords: { word: string; options: string[] }[];
   } | null>(null);
+  const [detectedBpm, setDetectedBpm] = useState<number | null>(null);
+  const [rhythmInfo, setRhythmInfo] = useState<{
+    score: number; perfect: boolean; details: string[];
+  } | null>(null);
   
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -739,6 +743,8 @@ export const AudioStudio = () => {
     setLyricsReady(false);
     setEditedLyrics("");
     setStressValidation(null);
+    setDetectedBpm(null);
+    setRhythmInfo(null);
 
     try {
       const durationSeconds = duration === "30s" ? 30 : duration === "60s" ? 60 : 120;
@@ -762,10 +768,14 @@ export const AudioStudio = () => {
       const data = await res.json() as {
         lyrics: string;
         stressValidation?: { checkedCount: number; fixedCount: number; ambiguousWords: { word: string; options: string[] }[] };
+        bpm?: number;
+        rhythm?: { score: number; perfect: boolean; details: string[] };
       };
       setEditedLyrics(data.lyrics);
       setLyricsReady(true);
       if (data.stressValidation) setStressValidation(data.stressValidation);
+      if (data.bpm) setDetectedBpm(data.bpm);
+      if (data.rhythm) setRhythmInfo(data.rhythm);
     } catch (err) {
       console.error("Lyrics generation error:", err);
       setError(err instanceof Error ? err.message : "Ошибка генерации текста.");
@@ -1069,7 +1079,7 @@ export const AudioStudio = () => {
                       key={genre}
                       onClick={() => {
                         setSelectedGenre(selectedGenre === genre ? null : genre);
-                        if (lyricsReady) { setLyricsReady(false); setEditedLyrics(""); setStressValidation(null); }
+                        if (lyricsReady) { setLyricsReady(false); setEditedLyrics(""); setStressValidation(null); setDetectedBpm(null); setRhythmInfo(null); }
                       }}
                       className={`
                         px-3 py-1.5 rounded-lg text-xs font-medium
@@ -1193,7 +1203,7 @@ export const AudioStudio = () => {
                   value={musicPrompt}
                   onChange={(e) => {
                     setMusicPrompt(e.target.value);
-                    if (lyricsReady) { setLyricsReady(false); setEditedLyrics(""); setStressValidation(null); }
+                    if (lyricsReady) { setLyricsReady(false); setEditedLyrics(""); setStressValidation(null); setDetectedBpm(null); setRhythmInfo(null); }
                   }}
                   placeholder="летняя любовь, танцы на закате, свобода и ветер..."
                   className="w-full h-20 px-4 py-3 rounded-xl bg-white/[0.03] border border-[#333] text-white placeholder-[#555] resize-none focus:border-indigo-500/50 focus:outline-none transition-colors"
@@ -1231,13 +1241,29 @@ export const AudioStudio = () => {
                       <PenLine className="w-3.5 h-3.5" />
                       Текст (можно редактировать)
                     </label>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap justify-end">
+                      {/* BPM badge */}
+                      {detectedBpm && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/15 border border-purple-500/30 text-purple-300 font-medium">
+                          {detectedBpm} BPM
+                        </span>
+                      )}
+                      {/* Rhythm quality indicator */}
+                      {rhythmInfo && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium flex items-center gap-1 ${
+                          rhythmInfo.perfect
+                            ? "bg-emerald-500/15 border border-emerald-500/40 text-emerald-300"
+                            : rhythmInfo.score >= 70
+                              ? "bg-yellow-500/15 border border-yellow-500/30 text-yellow-300"
+                              : "bg-red-500/15 border border-red-500/30 text-red-300"
+                        }`}>
+                          {rhythmInfo.perfect ? "✨ Perfect Rhythm" : `🎵 Ритм: ${rhythmInfo.score}%`}
+                        </span>
+                      )}
+                      {/* Dictionary check badge */}
                       {stressValidation && stressValidation.checkedCount > 0 && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/15 border border-green-500/30 text-green-400 flex items-center gap-1">
-                          ✅ Проверено словарём
-                          {stressValidation.fixedCount > 0 && (
-                            <span className="text-green-500/70">· исправлено {stressValidation.fixedCount}</span>
-                          )}
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/15 border border-green-500/30 text-green-400">
+                          ✅ Словарь: {stressValidation.checkedCount} слов
                         </span>
                       )}
                       <span className="text-[10px] text-[#555]">{editedLyrics.length} сим.</span>
@@ -1248,6 +1274,17 @@ export const AudioStudio = () => {
                     onChange={(e) => setEditedLyrics(e.target.value)}
                     className="w-full h-48 px-4 py-3 rounded-xl bg-white/[0.03] border border-indigo-500/30 text-white placeholder-[#555] resize-y focus:border-indigo-500/50 focus:outline-none transition-colors font-mono text-sm leading-relaxed"
                   />
+                  {/* Rhythm mismatch details */}
+                  {rhythmInfo && !rhythmInfo.perfect && rhythmInfo.details.length > 0 && (
+                    <div className="p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                      <p className="text-[10px] text-yellow-300 font-semibold mb-1">🎵 Несовпадение слогов в парах строк:</p>
+                      <div className="space-y-0.5">
+                        {rhythmInfo.details.map((d, i) => (
+                          <p key={i} className="text-[10px] text-yellow-300/70">{d}</p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {/* Ambiguous words alert */}
                   {stressValidation && stressValidation.ambiguousWords.length > 0 && (
                     <div className="p-2 rounded-lg bg-orange-500/10 border border-orange-500/20">
@@ -1262,10 +1299,9 @@ export const AudioStudio = () => {
                       </div>
                     </div>
                   )}
-                  <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                    <p className="text-[10px] text-amber-300/80 leading-relaxed">
-                      <span className="font-semibold text-amber-300">Проверьте ударения</span> (ЗАГЛАВНЫЕ БУКВЫ) перед запуском — 
-                      это гарантирует правильное пение. Пример: горжУсь, поздравлЯю.
+                  <div className="p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
+                    <p className="text-[10px] text-indigo-300/80 leading-relaxed">
+                      Текст проверен на ритмическую симметрию. Вы можете свободно редактировать — система автоматически подберёт правильные ударения при пении.
                     </p>
                   </div>
                 </div>
