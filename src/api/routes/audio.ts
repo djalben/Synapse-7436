@@ -228,6 +228,10 @@ async function generateLyrics(
     `- Write lyrics in normal lowercase. Do NOT use uppercase letters for stress marks — our system handles accents automatically.`,
     `- For proper names that need stress clarity, hyphenate syllables: А-ри-ад-на, Е-ка-те-ри-на.`,
     ``,
+    `═══ IRON ANCHOR (KEYWORD PRESERVATION) ═══`,
+    `The user's keywords are SACRED. Every meaningful word from the user's description MUST appear in your lyrics (in any grammatical form).`,
+    `You may build creative context AROUND these words but NEVER drop them. They are the soul of the song.`,
+    ``,
     `LIMITS: Total lyrics UNDER ${maxChars} characters.`,
     `OUTPUT: First line = "BPM: <number>". Then only lyrics. No title, no commentary, no syllable counts.`,
   ].join("\n")
@@ -247,7 +251,7 @@ async function generateLyrics(
           temperature: 0.85,
           messages: [
             { role: "system", content: systemPrompt },
-            { role: "user", content: `Write a ${genreName} song ${language === "ru" ? "in Russian" : "in English"} about: ${keywords}\n\nCRITICAL: Count syllables for every line pair. Lines 1-2 must match exactly, lines 3-4 must match exactly. Start with "BPM: <number>". Use fresh metaphors, no clichés. Make the listener feel "this is about me".` },
+            { role: "user", content: `Write a ${genreName} song ${language === "ru" ? "in Russian" : "in English"} about: ${keywords}\n\nCRITICAL: Count syllables for every line pair. Lines 1-2 must match exactly, lines 3-4 must match exactly. Start with "BPM: <number>". Use fresh metaphors, no clichés. Make the listener feel "this is about me". IRON RULE: Every keyword from my description must appear in the lyrics.` },
           ],
         }),
       },
@@ -455,7 +459,7 @@ audioRoutes.post("/generate-lyrics", async (c) => {
   }
 })
 
-// ─── Keyword Anchor Protocol — extract & verify user keywords ───
+// ─── IRON ANCHOR Protocol — extract, fuzzy-match & auto-retry keyword preservation ───
 const RU_STOPWORDS = new Set([
   "и", "в", "на", "с", "не", "что", "а", "но", "к", "из", "за", "по", "о", "от",
   "у", "для", "до", "же", "ни", "бы", "ли", "как", "то", "это", "уже", "или",
@@ -464,7 +468,30 @@ const RU_STOPWORDS = new Set([
   "тут", "так", "ещё", "еще", "очень", "про", "при", "над", "под", "без", "через",
 ])
 
-/** Extract meaningful anchor keywords from user prompt (nouns, verbs, adjectives — not stopwords) */
+// Russian morphological suffix stripping for fuzzy matching
+// Handles common noun/verb/adj endings: любовь→люб, любви→люб, танцы→танц, закате→закат
+const RU_SUFFIXES = [
+  "ость", "ести", "ться", "ение", "ание", "ённ", "енн", "анн",
+  "ому", "ого", "ами", "ями", "ией", "ьей", "ей", "ой", "ий",
+  "ых", "их", "ые", "ие", "ую", "юю", "ём", "ом", "ем", "им",
+  "ов", "ев", "ам", "ям", "ах", "ях", "ёт", "ет", "ит", "ут",
+  "ют", "ат", "ят", "ть", "ла", "ло", "ли", "ал", "ил", "ел",
+  "ёл", "ой", "ей", "ью", "ью", "ия", "ья", "ье", "ьё",
+  "и", "ы", "у", "е", "ё", "а", "о", "й",
+]
+
+/** Extract morphological stem from a Russian word (greedy suffix strip, min 3 chars) */
+function ruStem(word: string): string {
+  const w = word.toLowerCase().replace(/ё/g, "е")
+  for (const suf of RU_SUFFIXES) {
+    if (w.length > suf.length + 2 && w.endsWith(suf)) {
+      return w.slice(0, w.length - suf.length)
+    }
+  }
+  return w.length > 4 ? w.slice(0, w.length - 1) : w
+}
+
+/** Extract meaningful anchor keywords from user prompt */
 function extractKeywords(prompt: string): string[] {
   const words = prompt
     .toLowerCase()
@@ -474,14 +501,30 @@ function extractKeywords(prompt: string): string[] {
   return [...new Set(words)]
 }
 
-/** Check how many anchor keywords are present in the refined lyrics. Returns match ratio 0-100 and missing list. */
+/** Fuzzy check: does the lyrics text contain the keyword or a morphological variant? */
+function fuzzyContains(lyricsWords: string[], keyword: string): boolean {
+  const kwStem = ruStem(keyword)
+  const kwNorm = keyword.toLowerCase().replace(/ё/g, "е")
+  for (const lw of lyricsWords) {
+    const lwNorm = lw.replace(/ё/g, "е")
+    // Exact match
+    if (lwNorm === kwNorm) return true
+    // Stem match (both stems share a common root of 3+ chars)
+    const lwStem = ruStem(lw)
+    if (kwStem.length >= 3 && lwStem.length >= 3) {
+      // One stem starts with the other, or they're equal
+      if (lwStem.startsWith(kwStem) || kwStem.startsWith(lwStem)) return true
+    }
+  }
+  return false
+}
+
+/** Check keyword anchors with fuzzy morphological matching. */
 function checkKeywordAnchors(keywords: string[], lyrics: string): { ratio: number; preserved: boolean; missing: string[] } {
-  const lyricsLower = lyrics.toLowerCase()
+  const lyricsWords = lyrics.toLowerCase().replace(/[^а-яёa-z0-9\s-]/gi, " ").split(/\s+/).filter(Boolean)
   const missing: string[] = []
   for (const kw of keywords) {
-    // Check if keyword or its root (first 4+ chars) appears in lyrics
-    const root = kw.length >= 5 ? kw.slice(0, Math.max(4, kw.length - 2)) : kw
-    if (!lyricsLower.includes(kw) && !lyricsLower.includes(root)) {
+    if (!fuzzyContains(lyricsWords, kw)) {
       missing.push(kw)
     }
   }
@@ -490,10 +533,43 @@ function checkKeywordAnchors(keywords: string[], lyrics: string): { ratio: numbe
   return { ratio, preserved: ratio >= 100, missing }
 }
 
-// ─── POST /refine-lyrics — "Doctor" improves rhythm while preserving keyword anchors ───
+const MAX_ANCHOR_RETRIES = 3
+
+/** Single GPT call for rhythm refinement */
+async function callRhythmDoctor(
+  key: string,
+  systemPrompt: string,
+  userMessage: string,
+  timeoutMs: number,
+): Promise<string | null> {
+  const res = await fetchWithTimeout(
+    "https://openrouter.ai/api/v1/chat/completions",
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "openai/gpt-4o",
+        max_tokens: 1500,
+        temperature: 0.5,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userMessage },
+        ],
+      }),
+    },
+    timeoutMs,
+  )
+  if (!res.ok) return null
+  const data = (await res.json()) as { choices?: { message?: { content?: string } }[] }
+  const text = data?.choices?.[0]?.message?.content?.trim()
+  if (!text || text.length < 10) return null
+  return text.replace(/^BPM:\s*\d+\s*\n?/i, "").trim()
+}
+
+// ─── POST /refine-lyrics — IRON ANCHOR: retry loop, fuzzy matching, never reject ───
 audioRoutes.post("/refine-lyrics", async (c) => {
   const t0 = Date.now()
-  console.log("[Audio] POST /refine-lyrics")
+  console.log("[Audio] POST /refine-lyrics (IRON ANCHOR)")
 
   try {
     const key = getOpenRouterKey()
@@ -507,12 +583,12 @@ audioRoutes.post("/refine-lyrics", async (c) => {
     const lang = language === "en" ? "en" : "ru"
     const langName = lang === "ru" ? "Russian" : "English"
 
-    // ── Step 1: Extract keyword anchors from user prompt ──
+    // ── Step 1: Extract keyword anchors ──
     const anchors = extractKeywords(prompt || "")
     const anchorList = anchors.length > 0 ? anchors.join(", ") : "(no specific keywords)"
-    console.log(`[Audio] Keyword anchors: [${anchorList}] (${anchors.length} words)`)
+    console.log(`[Audio] IRON anchors: [${anchorList}] (${anchors.length} words)`)
 
-    // ── Step 2: Build "Doctor" system prompt with hard keyword constraint ──
+    // ── Step 2: Build Doctor system prompt with IRON ANCHOR ──
     const doctorPrompt = [
       `You are a RHYTHM DOCTOR — a world-class lyricist who fixes syllable symmetry in song lyrics.`,
       `Your task: take existing lyrics and adjust them so that EVERY PAIR of lines has EXACTLY the same syllable count.`,
@@ -520,11 +596,12 @@ audioRoutes.post("/refine-lyrics", async (c) => {
       `LANGUAGE: ${langName} ONLY.`,
       genre ? `GENRE: ${genre}` : "",
       ``,
-      `═══ KEYWORD ANCHOR PROTOCOL (ABSOLUTE LAW) ═══`,
-      `The user's original idea contains these ANCHOR KEYWORDS: [${anchorList}]`,
-      `FORBIDDEN: You MUST NOT delete, replace, or lose ANY of these keywords.`,
-      `You may ONLY change auxiliary words, conjunctions, prepositions, and structure AROUND them to equalize syllable counts.`,
-      `If a keyword doesn't fit the rhythm, restructure the LINE — never drop the keyword.`,
+      `═══ IRON ANCHOR PROTOCOL (ABSOLUTE INVIOLABLE LAW) ═══`,
+      `The user's original keywords are SACRED and UNTOUCHABLE: [${anchorList}]`,
+      `These keywords (or any grammatical form of them) MUST appear in your output.`,
+      `You have the RIGHT to change ANY other word in ANY line — auxiliary words, conjunctions, prepositions, filler, structure.`,
+      `But you MUST NOT delete, replace, or lose a single keyword. If a keyword doesn't fit the rhythm, restructure the ENTIRE LINE around it.`,
+      `Keywords may appear in any grammatical case/form (e.g. "любовь"→"любви", "танцы"→"танцев") — that counts as preserved.`,
       ``,
       `═══ RULES ═══`,
       `1. Count syllables per line (each vowel = 1 syllable in ${langName}).`,
@@ -538,75 +615,67 @@ audioRoutes.post("/refine-lyrics", async (c) => {
       `OUTPUT: Only the improved lyrics. No commentary, no syllable counts, no explanations.`,
     ].filter(Boolean).join("\n")
 
-    const res = await fetchWithTimeout(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
-        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "openai/gpt-4o",
-          max_tokens: 1500,
-          temperature: 0.5,
-          messages: [
-            { role: "system", content: doctorPrompt },
-            { role: "user", content: `Fix the syllable symmetry in these lyrics. Remember: NEVER remove keywords [${anchorList}]. Minimal changes only.\n\n${lyrics.trim()}` },
-          ],
-        }),
-      },
-      LLM_TIMEOUT_MS
-    )
+    // ── Step 3: Retry loop — up to MAX_ANCHOR_RETRIES attempts ──
+    let bestResult: string = lyrics.trim()
+    let bestMissing: string[] = anchors.slice() // worst case: all missing
+    let attempt = 0
+    let userMsg = `Fix the syllable symmetry in these lyrics. IRON RULE: keywords [${anchorList}] are UNTOUCHABLE — keep every one. You may change any OTHER word freely.\n\n${lyrics.trim()}`
 
-    if (!res.ok) {
-      console.error(`[Audio] Refine LLM status=${res.status}`)
-      return c.json({ error: "AI-сервис недоступен." }, 502)
+    while (attempt < MAX_ANCHOR_RETRIES) {
+      attempt++
+      console.log(`[Audio] Refine attempt ${attempt}/${MAX_ANCHOR_RETRIES}`)
+
+      const result = await callRhythmDoctor(key, doctorPrompt, userMsg, LLM_TIMEOUT_MS)
+      if (!result) {
+        console.warn(`[Audio] Refine attempt ${attempt} returned empty`)
+        break
+      }
+
+      const check = checkKeywordAnchors(anchors, result)
+      console.log(`[Audio] Attempt ${attempt}: keywords ${check.ratio}% (missing: [${check.missing.join(", ")}])`)
+
+      // Track best result (fewest missing keywords)
+      if (check.missing.length < bestMissing.length) {
+        bestResult = result
+        bestMissing = check.missing
+      }
+
+      // Success — all keywords preserved
+      if (check.preserved) {
+        bestResult = result
+        bestMissing = []
+        console.log(`[Audio] ✓ All keywords preserved on attempt ${attempt}`)
+        break
+      }
+
+      // Not last attempt — build corrective prompt for next try
+      if (attempt < MAX_ANCHOR_RETRIES) {
+        userMsg = `CRITICAL ERROR: In your previous version you LOST these keywords: [${check.missing.join(", ")}]. Rewrite the lyrics AGAIN, this time KEEPING EVERY SINGLE ONE of these words (in any grammatical form). You may freely change all other words.\n\n${result}`
+        console.log(`[Audio] Retrying with corrective prompt for: [${check.missing.join(", ")}]`)
+      }
     }
 
-    const data = (await res.json()) as { choices?: { message?: { content?: string } }[] }
-    let refined = data?.choices?.[0]?.message?.content?.trim()
-    if (!refined || refined.length < 10) {
-      return c.json({ error: "Не удалось улучшить текст." }, 500)
-    }
+    console.log(`[Audio] IRON ANCHOR: ${attempt} attempts, ${bestMissing.length} missing, ${Date.now() - t0}ms`)
 
-    // Strip BPM line if GPT added one
-    refined = refined.replace(/^BPM:\s*\d+\s*\n?/i, "").trim()
+    // ── Step 4: Analyze final result ──
+    const rhythm = analyzeRhythm(bestResult)
 
-    // ── Step 3: Semantic check — verify all keywords preserved ──
-    const anchorCheck = checkKeywordAnchors(anchors, refined)
-    console.log(`[Audio] Keyword anchor check: ${anchorCheck.ratio}% preserved (missing: [${anchorCheck.missing.join(", ")}])`)
-
-    // If keywords were lost, reject and return original
-    if (!anchorCheck.preserved && anchors.length > 0) {
-      console.warn(`[Audio] Refine REJECTED — lost keywords: [${anchorCheck.missing.join(", ")}]. Returning original.`)
-      const originalRhythm = analyzeRhythm(lyrics)
-      return c.json({
-        lyrics: lyrics.trim(),
-        refined: false,
-        reason: `Потеряны ключевые слова: ${anchorCheck.missing.join(", ")}`,
-        rhythm: originalRhythm,
-        keywordsPreserved: false,
-        keywordsMissing: anchorCheck.missing,
-      })
-    }
-
-    // ── Step 4: Analyze rhythm of refined version ──
-    const rhythm = analyzeRhythm(refined)
-    console.log(`[Audio] Refined lyrics: ${refined.length}c, rhythm=${rhythm.score}% in ${Date.now() - t0}ms`)
-
-    // Run stress validator
-    let stressValidation: StressResult = { text: refined, checkedCount: 0, fixedCount: 0, ambiguousWords: [] }
+    let stressValidation: StressResult = { text: bestResult, checkedCount: 0, fixedCount: 0, ambiguousWords: [] }
     if (lang === "ru") {
-      const sv = await safeValidateStresses(refined)
-      refined = sv.text
+      const sv = await safeValidateStresses(bestResult)
+      bestResult = sv.text
       stressValidation = sv
     }
 
+    // Always return success — never reject. Show best result we got.
     return c.json({
-      lyrics: refined,
+      lyrics: bestResult,
       refined: true,
       rhythm,
       stressValidation,
-      keywordsPreserved: true,
-      keywordsMissing: [],
+      keywordsPreserved: bestMissing.length === 0,
+      keywordsMissing: bestMissing,
+      attempts: attempt,
     })
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)

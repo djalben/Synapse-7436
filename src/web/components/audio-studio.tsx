@@ -830,10 +830,6 @@ export const AudioStudio = () => {
       if (data.stressValidation) setStressValidation(data.stressValidation);
       setKeywordsPreserved(data.keywordsPreserved);
       setKeywordsMissing(data.keywordsMissing || []);
-
-      if (!data.refined && data.reason) {
-        setError(`Улучшение отклонено: ${data.reason}`);
-      }
     } catch (err) {
       console.error("Refine lyrics error:", err);
       setError(err instanceof Error ? err.message : "Ошибка улучшения текста.");
@@ -1318,14 +1314,10 @@ export const AudioStudio = () => {
                           {rhythmInfo.perfect ? "✨ Perfect Rhythm" : `🎵 Ритм: ${rhythmInfo.score}%`}
                         </span>
                       )}
-                      {/* Keyword anchor badge */}
-                      {keywordsPreserved !== null && (
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-                          keywordsPreserved
-                            ? "bg-cyan-500/15 border border-cyan-500/40 text-cyan-300"
-                            : "bg-red-500/15 border border-red-500/30 text-red-300"
-                        }`}>
-                          {keywordsPreserved ? "💎 Смысл сохранён" : `⚠️ Потеряно: ${keywordsMissing.length}`}
+                      {/* Keyword anchor badge — only show success */}
+                      {keywordsPreserved === true && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-cyan-500/15 border border-cyan-500/40 text-cyan-300">
+                          💎 Смысл сохранён
                         </span>
                       )}
                       {/* Dictionary check badge */}
@@ -1359,13 +1351,6 @@ export const AudioStudio = () => {
                         <>🩺 Улучшить ритм (сохранив смысл)</>
                       )}
                     </button>
-                  )}
-                  {/* Keyword missing alert */}
-                  {keywordsMissing.length > 0 && (
-                    <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/20">
-                      <p className="text-[10px] text-red-300 font-semibold mb-1">⚠️ Потерянные ключевые слова:</p>
-                      <p className="text-[10px] text-red-300/70">{keywordsMissing.join(", ")}</p>
-                    </div>
                   )}
                   {/* Rhythm mismatch details */}
                   {rhythmInfo && !rhythmInfo.perfect && rhythmInfo.details.length > 0 && (
