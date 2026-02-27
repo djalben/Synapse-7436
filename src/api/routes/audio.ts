@@ -2,37 +2,9 @@ import { Hono } from "hono"
 
 export const audioRoutes = new Hono()
 
-// Safe stress validator — lazy load on first call, never crashes the app
-type StressResult = { text: string; checkedCount: number; fixedCount: number; ambiguousWords: { word: string; options: string[] }[] }
-let _validateStresses: ((text: string) => StressResult) | null | undefined = undefined // undefined = not loaded yet
-
-async function loadValidator(): Promise<void> {
-  if (_validateStresses !== undefined) return // already loaded (or failed)
-  try {
-    const mod = await import("../utils/stress-validator.js")
-    _validateStresses = mod.validateStresses
-    console.log("[Audio] Stress validator loaded OK")
-  } catch (e) {
-    _validateStresses = null
-    console.warn("[Audio] Stress validator failed to load — skipping:", e instanceof Error ? e.message : e)
-  }
-}
-
-async function safeValidateStresses(lyrics: string): Promise<StressResult> {
-  const empty: StressResult = { text: lyrics, checkedCount: 0, fixedCount: 0, ambiguousWords: [] }
-  await loadValidator()
-  if (!_validateStresses) return empty
-  try {
-    return _validateStresses(lyrics)
-  } catch (err) {
-    console.error("[Audio] Stress validator crashed (returning raw lyrics):", err instanceof Error ? err.message : err)
-    return empty
-  }
-}
-
 const REPLICATE_API = "https://api.replicate.com/v1"
 const REPLICATE_PREDICTIONS = `${REPLICATE_API}/predictions`
-const ELEVENLABS_MUSIC = `${REPLICATE_API}/models/elevenlabs/music/predictions` // official model, always warm
+const MINIMAX_MUSIC = `${REPLICATE_API}/models/minimax/music-1.5/predictions`
 const XTTS_VERSION = "684bc3855b37866c0c65add2ff39c78f3dea3f4ff103a436465326e0f438d55e"
 
 // ─── Budget-based timeouts (total must stay under Vercel 10s) ───
@@ -40,26 +12,24 @@ const TOTAL_BUDGET_MS = 8000   // hard ceiling for the whole handler
 const LLM_TIMEOUT_MS  = 4000  // GPT-4o-mini lyrics step
 const POLL_TIMEOUT_MS  = 5000 // status check timeout
 
-// Genre → Rich ElevenLabs music descriptors (instruments, mood, production)
+// Genre → MiniMax music style descriptors
 interface GenreDescriptor {
   style: string
   instruments: string
   mood: string
-  defaultBpm: number
-  defaultKey: string
 }
 const GENRE_DESC: Record<string, GenreDescriptor> = {
-  "Поп":         { style: "modern pop", instruments: "warm Rhodes piano, crisp acoustic guitar, tight programmed drums, layered synth pads, punchy bass", mood: "upbeat, catchy, radio-friendly", defaultBpm: 120, defaultKey: "C major" },
-  "Электроника": { style: "electronic dance", instruments: "driving analog synths, pulsing 808 kick, shimmering arpeggios, side-chain compressed pads, sub bass", mood: "energetic, euphoric, hypnotic", defaultBpm: 128, defaultKey: "A minor" },
-  "Хип-Хоп":    { style: "hip-hop trap", instruments: "booming 808 bass, crisp trap hi-hats, dark piano chords, vinyl crackle, ad-libs", mood: "confident, rhythmic, street", defaultBpm: 140, defaultKey: "D minor" },
-  "Классика":    { style: "orchestral classical", instruments: "lush string ensemble, concert grand piano, French horn, celesta, harp arpeggios", mood: "elegant, emotional, cinematic", defaultBpm: 72, defaultKey: "E flat major" },
-  "Рок":         { style: "rock", instruments: "overdriven Fender Stratocaster, Marshall amp crunch, driving drum kit, Rickenbacker bass, power chords", mood: "raw, energetic, rebellious", defaultBpm: 130, defaultKey: "E minor" },
-  "Джаз":        { style: "jazz", instruments: "warm tenor saxophone, walking upright bass, brushed ride cymbal, Fender Rhodes, muted trumpet", mood: "smooth, sophisticated, groovy", defaultBpm: 110, defaultKey: "B flat major" },
-  "Эмбиент":     { style: "ambient", instruments: "ethereal reverbed pads, granular textures, distant piano, field recordings, gentle tape delay", mood: "atmospheric, dreamy, meditative", defaultBpm: 70, defaultKey: "F major" },
-  "Шансон":      { style: "Russian acoustic folk-pop chanson", instruments: "nylon string classical guitar, accordion accents, gentle bayan, upright bass pizzicato, light percussion", mood: "nostalgic, emotional, soulful, storytelling", defaultBpm: 95, defaultKey: "A minor" },
-  "R&B":         { style: "modern R&B soul", instruments: "silky Wurlitzer keys, fingerpicked clean guitar, deep groove bass, crisp snare, lush vocal harmonies", mood: "sensual, intimate, smooth", defaultBpm: 85, defaultKey: "D flat major" },
-  "Метал":       { style: "heavy metal", instruments: "heavily distorted dual guitars, double bass drum blast, growling bass, orchestral stabs, epic choir", mood: "aggressive, powerful, epic", defaultBpm: 160, defaultKey: "E minor" },
-  "Кантри":      { style: "country", instruments: "warm acoustic Taylor guitar, pedal steel, fiddle, honky-tonk piano, brushed snare", mood: "warm, nostalgic, storytelling", defaultBpm: 100, defaultKey: "G major" },
+  "Поп":         { style: "modern pop", instruments: "warm Rhodes piano, crisp acoustic guitar, tight programmed drums, layered synth pads, punchy bass", mood: "upbeat, catchy, radio-friendly" },
+  "Электроника": { style: "electronic dance", instruments: "driving analog synths, pulsing 808 kick, shimmering arpeggios, side-chain compressed pads, sub bass", mood: "energetic, euphoric, hypnotic" },
+  "Хип-Хоп":    { style: "hip-hop trap", instruments: "booming 808 bass, crisp trap hi-hats, dark piano chords, vinyl crackle, ad-libs", mood: "confident, rhythmic, street" },
+  "Классика":    { style: "orchestral classical", instruments: "lush string ensemble, concert grand piano, French horn, celesta, harp arpeggios", mood: "elegant, emotional, cinematic" },
+  "Рок":         { style: "rock", instruments: "overdriven Fender Stratocaster, Marshall amp crunch, driving drum kit, Rickenbacker bass, power chords", mood: "raw, energetic, rebellious" },
+  "Джаз":        { style: "jazz", instruments: "warm tenor saxophone, walking upright bass, brushed ride cymbal, Fender Rhodes, muted trumpet", mood: "smooth, sophisticated, groovy" },
+  "Эмбиент":     { style: "ambient", instruments: "ethereal reverbed pads, granular textures, distant piano, field recordings, gentle tape delay", mood: "atmospheric, dreamy, meditative" },
+  "Шансон":      { style: "Russian acoustic folk-pop chanson", instruments: "nylon string classical guitar, accordion accents, gentle bayan, upright bass pizzicato, light percussion", mood: "nostalgic, emotional, soulful, storytelling" },
+  "R&B":         { style: "modern R&B soul", instruments: "silky Wurlitzer keys, fingerpicked clean guitar, deep groove bass, crisp snare, lush vocal harmonies", mood: "sensual, intimate, smooth" },
+  "Метал":       { style: "heavy metal", instruments: "heavily distorted dual guitars, double bass drum blast, growling bass, orchestral stabs, epic choir", mood: "aggressive, powerful, epic" },
+  "Кантри":      { style: "country", instruments: "warm acoustic Taylor guitar, pedal steel, fiddle, honky-tonk piano, brushed snare", mood: "warm, nostalgic, storytelling" },
 }
 
 function getApiToken(): string | undefined {
@@ -73,7 +43,6 @@ function getOpenRouterKey(): string | undefined {
 function getElevenLabsKey(): string | undefined {
   const raw = process.env.ELEVENLABS_API_KEY
   if (!raw) return undefined
-  // Strip any accidental quotes or whitespace
   const cleaned = raw.replace(/^["'\s]+|["'\s]+$/g, "")
   return cleaned || undefined
 }
@@ -87,48 +56,7 @@ function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<R
   ])
 }
 
-// ─── Syllable counting for Russian text (vowel-based) ───
-const RU_VOWELS = new Set("аеёиоуыэюяАЕЁИОУЫЭЮЯ")
-function countSyllables(line: string): number {
-  let count = 0
-  for (const ch of line) { if (RU_VOWELS.has(ch)) count++ }
-  return count
-}
-
-/** Analyze rhythm symmetry of lyrics — returns score 0-100 and per-section details */
-function analyzeRhythm(lyrics: string): { score: number; perfect: boolean; details: string[] } {
-  const lines = lyrics.split("\n").map(l => l.trim()).filter(Boolean)
-  const contentLines: { text: string; syllables: number }[] = []
-  for (const line of lines) {
-    if (/^\[.*\]$/.test(line)) continue // skip markers
-    if (line.startsWith("BPM:")) continue
-    const s = countSyllables(line)
-    if (s > 0) contentLines.push({ text: line, syllables: s })
-  }
-  if (contentLines.length < 2) return { score: 100, perfect: true, details: [] }
-
-  let matchedPairs = 0
-  let totalPairs = 0
-  const details: string[] = []
-
-  for (let i = 0; i < contentLines.length - 1; i += 2) {
-    totalPairs++
-    const a = contentLines[i].syllables
-    const b = contentLines[i + 1].syllables
-    if (a === b) {
-      matchedPairs++
-    } else {
-      details.push(`Строки ${i + 1}-${i + 2}: ${a} vs ${b} слогов`)
-    }
-  }
-
-  const score = totalPairs > 0 ? Math.round((matchedPairs / totalPairs) * 100) : 100
-  return { score, perfect: score >= 90, details: details.slice(0, 5) }
-}
-
-interface LyricsResult { lyrics: string; bpm: number }
-
-// ─── Generate song lyrics via GPT-4o (professional lyricist) ───
+// ─── Generate song lyrics via GPT-4o (soulful poetry) ───
 async function generateLyrics(
   keywords: string,
   genre: string,
@@ -136,9 +64,8 @@ async function generateLyrics(
   gender: string = "female",
   language: string = "ru",
   timeoutMs: number = LLM_TIMEOUT_MS
-): Promise<LyricsResult> {
-  const defaultBpm = (GENRE_DESC[genre] || GENRE_DESC["Поп"]).defaultBpm
-  const fallback = { lyrics: keywords, bpm: defaultBpm }
+): Promise<string> {
+  const fallback = keywords
   const key = getOpenRouterKey()
   if (!key) {
     console.warn("[Audio] No OPENROUTER_API_KEY — using keywords as lyrics")
@@ -157,32 +84,24 @@ async function generateLyrics(
   const genderPerspective = gender === "male" ? "male" : "female"
   const vocalistDesc = gender === "male" ? "Male vocalist" : "Female vocalist"
 
-  // Genre-specific writing instructions
   const genreGuide: Record<string, string> = {
-    "Pop": "Write simple but catchy phrases that stick in the head after first listen. Light, danceable rhythm. Think Макс Фадеев writing for Глюк'оZа.",
     "Поп": "Write simple but catchy phrases that stick in the head after first listen. Light, danceable rhythm. Think Макс Фадеев writing for Глюк'оZа.",
-    "Rock": "Add raw energy, edge, and rebellion. Shorter punchy lines, powerful imagery. Think ДДТ or Сплин — honest and hard-hitting.",
     "Рок": "Add raw energy, edge, and rebellion. Shorter punchy lines, powerful imagery. Think ДДТ or Сплин — honest and hard-hitting.",
-    "Hip-Hop": "Tight rhythmic flow, internal rhymes within lines, wordplay. Dense meaning per bar. Think Oxxxymiron or Скриптонит.",
     "Хип-Хоп": "Tight rhythmic flow, internal rhymes within lines, wordplay. Dense meaning per bar. Think Oxxxymiron or Скриптонит.",
     "R&B": "Smooth, sensual, intimate. Longer vowel sounds for melisma. Emotional vulnerability. Think The Weeknd vibes in Russian.",
-    "Electronic": "Minimalist but hypnotic. Repeat key phrases like mantras. Atmospheric and dreamy. Short evocative images.",
     "Электроника": "Minimalist but hypnotic. Repeat key phrases like mantras. Atmospheric and dreamy. Short evocative images.",
-    "Jazz": "Sophisticated vocabulary, subtle irony, conversational tone. Think poetry set to music.",
     "Джаз": "Sophisticated vocabulary, subtle irony, conversational tone. Think poetry set to music.",
-    "Country": "Storytelling with vivid rural/life imagery. Warm, nostalgic, grounded. Real-life scenes.",
     "Кантри": "Storytelling with vivid rural/life imagery. Warm, nostalgic, grounded. Real-life scenes.",
-    "Indie": "Poetic, introspective, slightly abstract. Unusual metaphors. Think Земфира or Дайте Танк (!).",
     "Классика": "Elegant, poetic language with rich imagery. Think classical art song — beautiful phrasing, noble emotion.",
     "Эмбиент": "Minimalist, atmospheric, dreamy. Short evocative phrases, repetition as meditation.",
-    "Шансон": "Write sincere, life-driven stories. Use simple but deep metaphors about fate, home, loyalty, and time. Avoid vulgarity — focus on soulfulness. Think Михаил Круг or Сергей Трофимов. Street wisdom, warm nostalgia, male camaraderie, prison of the soul (not literal). Conversational, as if telling a story to a friend over a guitar.",
-    "Метал": "Aggressive, powerful, epic imagery. War, fire, steel, storms. Short punchy lines with explosive choruses. Think Кипелов, Ария — dramatic and theatrical.",
+    "Шансон": "Write sincere, life-driven stories. Simple but deep metaphors about fate, home, loyalty, time. Soulful, conversational — as if telling a story to a friend over a guitar. Think Михаил Круг or Сергей Трофимов.",
+    "Метал": "Aggressive, powerful, epic imagery. War, fire, steel, storms. Short punchy lines with explosive choruses. Think Кипелов, Ария.",
   }
-  const genreName = genre || "Pop"
-  const genreInstruction = genreGuide[genreName] || genreGuide["Pop"]
+  const genreName = genre || "Поп"
+  const genreInstruction = genreGuide[genreName] || genreGuide["Поп"]
 
   const systemPrompt = [
-    `You are a TOP-TIER Russian songwriter at the level of Константин Меладзе and Макс Фадеев. You write lyrics with MATHEMATICAL PRECISION of rhythm and deep emotional authenticity. When people read your lyrics, they say: "This is about me." You NEVER write generic text.`,
+    `You are a TOP-TIER songwriter at the level of Константин Меладзе and Леонид Агутин. You write lyrics with deep emotional authenticity and natural musical flow. When people hear your lyrics, they say: "This is about me." You NEVER write generic text.`,
     ``,
     `LANGUAGE: Write EXCLUSIVELY in ${langName}. Every single word must be in ${langName}.`,
     `GENRE: ${genreName}`,
@@ -193,47 +112,26 @@ async function generateLyrics(
     `${structure}`,
     `Place each section marker ([Verse 1], [Chorus], [Verse 2], [Bridge], [Outro]) on its own separate line.`,
     ``,
-    `═══ MATHEMATICAL SONGWRITING (THE #1 PRIORITY) ═══`,
-    `You MUST count syllables for EVERY line and ensure PERFECT SYMMETRY:`,
-    `- Lines 1 and 2 MUST have EXACTLY the same syllable count.`,
-    `- Lines 3 and 4 MUST have EXACTLY the same syllable count.`,
-    `- This pattern continues for every pair: 5-6, 7-8, etc.`,
-    `- The chorus should have the SAME syllable pattern in each repetition.`,
-    ``,
-    `PROCESS: For each line, count vowels (each vowel = 1 syllable in Russian). Rewrite any line that breaks symmetry.`,
-    `Example of PERFECT 8-8-7-7 pattern:`,
-    `  Я ухожу по тихим улицам (8)`,
-    `  Где фонари горят устало (8)`,
-    `  Твоя тень рядом не идёт (7)`,
-    `  И сердце больше не зовёт (7)`,
-    ``,
-    `═══ BPM DETECTION ═══`,
-    `Based on the mood and genre, determine the ideal BPM (tempo) for this song.`,
-    `On the VERY FIRST LINE of your output, write: BPM: <number>`,
-    `Then start the lyrics from the next line.`,
-    `Guidelines: ballad = 60-80, mid-tempo = 90-110, upbeat = 115-130, dance = 125-140, rock = 120-150, hip-hop = 130-160.`,
-    ``,
-    `═══ ANTI-CLICHÉ BLACKLIST ═══`,
-    `BANNED rhyme pairs: тебя/меня, любовь/кровь, огонь/ладонь, вновь/любовь, слёзы/грёзы, розы/морозы, мечты/цветы, сердце/дверца, глаза/слеза, ночь/прочь, дождь/ложь, душа/хороша, счастье/ненастье`,
-    `BANNED phrases: "крылья за спиной", "лететь высоко", "растворяюсь в тебе", "половинка моя", "ты — мой мир", "без тебя не могу", "сердце бьётся", "море любви"`,
-    `USE: Fresh metaphors from real life — kitchen smells, city noise, phone screen glow, train windows, cold coffee, crumpled sheets. Be SPECIFIC.`,
-    ``,
-    `═══ CRAFT RULES ═══`,
+    `═══ SONGWRITING CRAFT ═══`,
+    `- Write naturally singable lyrics with good internal rhythm and flow.`,
     `- RHYME SCHEME: ABAB or AABB. Non-trivial, satisfying rhymes.`,
     `- HOOK: Chorus MUST have one killer hook phrase (2-5 words) that could be the song title. Repeat it.`,
     `- EMOTIONAL ARC: Verse = scene/story → Chorus = emotional explosion → Bridge = twist/revelation → Outro = resolution.`,
     `- SHOW DON'T TELL: Instead of "мне грустно", write "остывший чай стоит с утра, и шторы не открыты". Paint scenes.`,
     `- NO FILLER: Zero "la-la-la", "о-о-о", "на-на-на". Every line carries weight.`,
     `- CONVERSATIONAL TONE: Sound like talking to a close friend, not a greeting card.`,
-    `- Write lyrics in normal lowercase. Do NOT use uppercase letters for stress marks — our system handles accents automatically.`,
-    `- For proper names that need stress clarity, hyphenate syllables: А-ри-ад-на, Е-ка-те-ри-на.`,
     ``,
-    `═══ IRON ANCHOR (KEYWORD PRESERVATION) ═══`,
-    `The user's keywords are SACRED. Every meaningful word from the user's description MUST appear in your lyrics (in any grammatical form).`,
-    `You may build creative context AROUND these words but NEVER drop them. They are the soul of the song.`,
+    `═══ ANTI-CLICHÉ BLACKLIST ═══`,
+    `BANNED rhyme pairs: тебя/меня, любовь/кровь, огонь/ладонь, вновь/любовь, слёзы/грёзы, розы/морозы, мечты/цветы, сердце/дверца, глаза/слеза, ночь/прочь, душа/хороша`,
+    `BANNED phrases: "крылья за спиной", "лететь высоко", "растворяюсь в тебе", "половинка моя", "ты — мой мир", "без тебя не могу", "сердце бьётся", "море любви"`,
+    `USE: Fresh metaphors from real life — kitchen smells, city noise, phone screen glow, train windows, cold coffee, crumpled sheets. Be SPECIFIC.`,
+    ``,
+    `═══ KEYWORD PRESERVATION ═══`,
+    `The user's keywords are the soul of the song. Every meaningful word from the user's description MUST appear in your lyrics (in any grammatical form).`,
+    `Build creative context AROUND these words but NEVER drop them.`,
     ``,
     `LIMITS: Total lyrics UNDER ${maxChars} characters.`,
-    `OUTPUT: First line = "BPM: <number>". Then only lyrics. No title, no commentary, no syllable counts.`,
+    `OUTPUT: Only lyrics with section markers. No title, no commentary, no counts.`,
   ].join("\n")
 
   try {
@@ -251,7 +149,7 @@ async function generateLyrics(
           temperature: 0.85,
           messages: [
             { role: "system", content: systemPrompt },
-            { role: "user", content: `Write a ${genreName} song ${language === "ru" ? "in Russian" : "in English"} about: ${keywords}\n\nCRITICAL: Count syllables for every line pair. Lines 1-2 must match exactly, lines 3-4 must match exactly. Start with "BPM: <number>". Use fresh metaphors, no clichés. Make the listener feel "this is about me". IRON RULE: Every keyword from my description must appear in the lyrics.` },
+            { role: "user", content: `Write a ${genreName} song ${language === "ru" ? "in Russian" : "in English"} about: ${keywords}\n\nUse fresh metaphors, no clichés. Make the listener feel "this is about me". Every keyword from my description must appear in the lyrics.` },
           ],
         }),
       },
@@ -266,24 +164,16 @@ async function generateLyrics(
     const raw = data?.choices?.[0]?.message?.content?.trim()
     if (!raw) return fallback
 
-    // Parse BPM from first line (format: "BPM: 120")
-    let bpm = defaultBpm
-    let lyricsText = raw
-    const bpmMatch = raw.match(/^BPM:\s*(\d+)/i)
-    if (bpmMatch) {
-      bpm = Math.min(Math.max(parseInt(bpmMatch[1], 10), 40), 220)
-      lyricsText = raw.slice(bpmMatch[0].length).replace(/^\s*\n/, "").trim()
-      console.log(`[Audio] GPT detected BPM: ${bpm}`)
-    }
-
-    return { lyrics: lyricsText.slice(0, maxChars), bpm }
+    // Strip BPM line if GPT added one (legacy)
+    const cleaned = raw.replace(/^BPM:\s*\d+\s*\n?/i, "").trim()
+    return cleaned.slice(0, maxChars)
   } catch (err) {
     console.error("[Audio] Lyrics generation failed (fallback to keywords):", err instanceof Error ? err.message : err)
     return fallback
   }
 }
 
-// ─── POST /generate — 2-step async: GPT lyrics → ElevenLabs Music fire-and-forget ───
+// ─── POST /generate — 2-step async: GPT lyrics → MiniMax Music-1.5 fire-and-forget ───
 // Also aliased as /music for backward compat
 const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (data: any, status?: number) => Response }) => {
   const t0 = Date.now()
@@ -303,52 +193,46 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
     const genreName: string = genre || "Поп"
     const gender: string = vocalGender === "male" ? "male" : "female"
     const lang: string = language === "en" ? "en" : "ru"
-    const durationSec = Math.min(Math.max(duration || 60, 30), 300) // ElevenLabs supports up to 5 min
+    const durationSec = Math.min(Math.max(duration || 60, 30), 300)
     const gd = GENRE_DESC[genreName] || GENRE_DESC["Поп"]
 
     console.log(`[Audio] Creating track: genre=${genreName} gender=${gender} lang=${lang} dur=${durationSec}s`)
 
     // ── Step 1: Use pre-written lyrics OR generate via GPT-4o ──
     let lyrics: string
-    let detectedBpm = gd.defaultBpm
     if (prewrittenLyrics && typeof prewrittenLyrics === "string" && prewrittenLyrics.trim().length >= 10) {
       lyrics = prewrittenLyrics.trim()
       console.log(`[Audio] Using pre-written lyrics: ${lyrics.length}c (skipping GPT)`)
     } else {
       console.log(`[Audio] Step 1/2 — GPT lyrics: keywords="${prompt.trim().slice(0, 50)}" genre=${genreName} gender=${gender} dur=${durationSec}s`)
       const lyricsTimeout = Math.min(LLM_TIMEOUT_MS, TOTAL_BUDGET_MS - elapsed() - 2000)
-      const result = await generateLyrics(prompt.trim(), genreName, durationSec, gender, lang, Math.max(lyricsTimeout, 2000))
-      lyrics = result.lyrics
-      detectedBpm = result.bpm
+      lyrics = await generateLyrics(prompt.trim(), genreName, durationSec, gender, lang, Math.max(lyricsTimeout, 2000))
 
-      // Guarantee lyrics are never empty / too short (min 10 chars)
       if (!lyrics || lyrics.trim().length < 10) {
         const kw = prompt.trim()
         lyrics = `[Verse]\n${kw}\n${kw}\n[Chorus]\n${kw}, ${kw}`
         console.warn(`[Audio] Lyrics too short — padded with keywords: ${lyrics.length}c`)
       }
     }
-    console.log(`[Audio] Lyrics OK: ${lyrics.length}c bpm=${detectedBpm} in ${elapsed()}ms`)
+    console.log(`[Audio] Lyrics OK: ${lyrics.length}c in ${elapsed()}ms`)
 
-    // ── Step 2: Fire ElevenLabs Music prediction (official model, always warm) ──
+    // ── Step 2: Fire MiniMax Music-1.5 prediction via Replicate ──
     const fireTimeout = Math.max(2000, TOTAL_BUDGET_MS - elapsed() - 500)
-    const vocalDesc = gender === "male" ? "male vocalist with warm baritone" : "female vocalist with expressive tone"
-    const langHint = lang === "ru" ? "Vocalist singing in Russian language" : "Vocalist singing in English language"
-    // Rich music prompt with BPM (GPT-detected or genre default), key, specific instruments
-    const bpmHint = `${detectedBpm} BPM`
-    const musicPrompt = `A ${gd.style} song at ${bpmHint} in ${gd.defaultKey}. Instruments: ${gd.instruments}. Mood: ${gd.mood}. ${vocalDesc}. ${langHint}. About: ${prompt.trim()}. Lyrics:\n${lyrics}`
+    const vocalDesc = gender === "male" ? "male vocalist" : "female vocalist"
+    const langHint = lang === "ru" ? "sung in Russian" : "sung in English"
+    const stylePrompt = `${gd.style}, ${gd.instruments}, ${gd.mood}, ${vocalDesc}, ${langHint}`
 
     const input: Record<string, unknown> = {
-      prompt: musicPrompt,
-      music_length_ms: durationSec * 1000,
-      force_instrumental: false,
-      output_format: "mp3_standard",
+      lyrics,
+      prompt: stylePrompt,
+      bitrate: 256000,
+      audio_format: "mp3",
     }
 
-    console.log(`[Audio] Step 2/2 — elevenlabs/music: prompt=${musicPrompt.length}c dur=${durationSec}s (${durationSec * 1000}ms) timeout=${fireTimeout}ms`)
+    console.log(`[Audio] Step 2/2 — minimax/music-1.5: style=${stylePrompt.length}c lyrics=${lyrics.length}c timeout=${fireTimeout}ms`)
 
     const response = await fetchWithTimeout(
-      ELEVENLABS_MUSIC,
+      MINIMAX_MUSIC,
       {
         method: "POST",
         headers: {
@@ -382,7 +266,7 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
       return c.json({ error: "Не получен ID задачи." }, 500)
     }
 
-    console.log(`[Audio] ✓ Prediction ${data.id} (${data.status}) — total ${elapsed()}ms`)
+    console.log(`[Audio] ✓ MiniMax prediction ${data.id} (${data.status}) — total ${elapsed()}ms`)
 
     return c.json({
       id: data.id,
@@ -403,7 +287,7 @@ const generateHandler = async (c: { req: { json: () => Promise<any> }; json: (da
 audioRoutes.post("/generate", (c) => generateHandler(c as any))
 audioRoutes.post("/music", (c) => generateHandler(c as any))
 
-// ─── POST /generate-lyrics — GPT lyrics only (step 1 of 2-step flow) ───
+// ─── POST /generate-lyrics — GPT lyrics only (clean, soulful) ───
 audioRoutes.post("/generate-lyrics", async (c) => {
   const t0 = Date.now()
   console.log("[Audio] POST /generate-lyrics")
@@ -421,9 +305,7 @@ audioRoutes.post("/generate-lyrics", async (c) => {
 
     console.log(`[Audio] Generating lyrics: genre=${genreName} gender=${gender} lang=${lang} dur=${durationSec}s`)
 
-    const lyricsResult = await generateLyrics(prompt.trim(), genreName, durationSec, gender, lang, LLM_TIMEOUT_MS)
-    let lyrics = lyricsResult.lyrics
-    const bpm = lyricsResult.bpm
+    let lyrics = await generateLyrics(prompt.trim(), genreName, durationSec, gender, lang, LLM_TIMEOUT_MS)
 
     if (!lyrics || lyrics.trim().length < 10) {
       const kw = prompt.trim()
@@ -431,257 +313,13 @@ audioRoutes.post("/generate-lyrics", async (c) => {
       console.warn(`[Audio] Lyrics too short — padded with keywords`)
     }
 
-    // Run stress validator (Russian only) — safe, never crashes
-    let stressValidation: StressResult = { text: lyrics, checkedCount: 0, fixedCount: 0, ambiguousWords: [] }
-    if (lang === "ru") {
-      const result = await safeValidateStresses(lyrics)
-      lyrics = result.text
-      stressValidation = result
-      console.log(`[Audio] Stress validation: checked=${result.checkedCount} fixed=${result.fixedCount} ambiguous=${result.ambiguousWords.length}`)
-    }
-
-    // Analyze rhythm symmetry
-    const rhythm = analyzeRhythm(lyrics)
-    console.log(`[Audio] Rhythm score: ${rhythm.score}% (perfect=${rhythm.perfect}) bpm=${bpm}`)
-
-    // Check keyword anchors
-    const anchors = extractKeywords(prompt.trim())
-    const anchorCheck = checkKeywordAnchors(anchors, lyrics)
-    console.log(`[Audio] Keywords: ${anchorCheck.ratio}% preserved (${anchors.length} anchors)`)
-
     console.log(`[Audio] Lyrics generated: ${lyrics.length}c in ${Date.now() - t0}ms`)
-    return c.json({ lyrics, prompt: prompt.trim(), stressValidation, bpm, rhythm, keywordsPreserved: anchorCheck.preserved, keywordsMissing: anchorCheck.missing })
+    return c.json({ lyrics, prompt: prompt.trim() })
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
     console.error(`[Audio] GENERATE-LYRICS FAILED: ${msg}`)
     if (msg.includes("TIMEOUT")) return c.json({ error: "Сервис не отвечает." }, 504)
     return c.json({ error: "Генерация текста не удалась." }, 500)
-  }
-})
-
-// ─── IRON ANCHOR Protocol — extract, fuzzy-match & auto-retry keyword preservation ───
-const RU_STOPWORDS = new Set([
-  "и", "в", "на", "с", "не", "что", "а", "но", "к", "из", "за", "по", "о", "от",
-  "у", "для", "до", "же", "ни", "бы", "ли", "как", "то", "это", "уже", "или",
-  "мой", "моя", "мне", "меня", "твой", "твоя", "тебе", "тебя", "его", "её", "их",
-  "мы", "вы", "они", "он", "она", "оно", "я", "ты", "все", "всё", "вот", "там",
-  "тут", "так", "ещё", "еще", "очень", "про", "при", "над", "под", "без", "через",
-])
-
-// Russian morphological suffix stripping for fuzzy matching
-// Handles common noun/verb/adj endings: любовь→люб, любви→люб, танцы→танц, закате→закат
-const RU_SUFFIXES = [
-  "ость", "ести", "ться", "ение", "ание", "ённ", "енн", "анн",
-  "ому", "ого", "ами", "ями", "ией", "ьей", "ей", "ой", "ий",
-  "ых", "их", "ые", "ие", "ую", "юю", "ём", "ом", "ем", "им",
-  "ов", "ев", "ам", "ям", "ах", "ях", "ёт", "ет", "ит", "ут",
-  "ют", "ат", "ят", "ть", "ла", "ло", "ли", "ал", "ил", "ел",
-  "ёл", "ой", "ей", "ью", "ью", "ия", "ья", "ье", "ьё",
-  "и", "ы", "у", "е", "ё", "а", "о", "й",
-]
-
-/** Extract morphological stem from a Russian word (greedy suffix strip, min 3 chars) */
-function ruStem(word: string): string {
-  const w = word.toLowerCase().replace(/ё/g, "е")
-  for (const suf of RU_SUFFIXES) {
-    if (w.length > suf.length + 2 && w.endsWith(suf)) {
-      return w.slice(0, w.length - suf.length)
-    }
-  }
-  return w.length > 4 ? w.slice(0, w.length - 1) : w
-}
-
-/** Extract meaningful anchor keywords from user prompt */
-function extractKeywords(prompt: string): string[] {
-  const words = prompt
-    .toLowerCase()
-    .replace(/[^а-яёa-z0-9\s-]/gi, " ")
-    .split(/\s+/)
-    .filter(w => w.length >= 3 && !RU_STOPWORDS.has(w))
-  return [...new Set(words)]
-}
-
-/** Fuzzy check: does the lyrics text contain the keyword or a morphological variant? */
-function fuzzyContains(lyricsWords: string[], keyword: string): boolean {
-  const kwStem = ruStem(keyword)
-  const kwNorm = keyword.toLowerCase().replace(/ё/g, "е")
-  for (const lw of lyricsWords) {
-    const lwNorm = lw.replace(/ё/g, "е")
-    // Exact match
-    if (lwNorm === kwNorm) return true
-    // Stem match (both stems share a common root of 3+ chars)
-    const lwStem = ruStem(lw)
-    if (kwStem.length >= 3 && lwStem.length >= 3) {
-      // One stem starts with the other, or they're equal
-      if (lwStem.startsWith(kwStem) || kwStem.startsWith(lwStem)) return true
-    }
-  }
-  return false
-}
-
-/** Check keyword anchors with fuzzy morphological matching. */
-function checkKeywordAnchors(keywords: string[], lyrics: string): { ratio: number; preserved: boolean; missing: string[] } {
-  const lyricsWords = lyrics.toLowerCase().replace(/[^а-яёa-z0-9\s-]/gi, " ").split(/\s+/).filter(Boolean)
-  const missing: string[] = []
-  for (const kw of keywords) {
-    if (!fuzzyContains(lyricsWords, kw)) {
-      missing.push(kw)
-    }
-  }
-  const matched = keywords.length - missing.length
-  const ratio = keywords.length > 0 ? Math.round((matched / keywords.length) * 100) : 100
-  return { ratio, preserved: ratio >= 100, missing }
-}
-
-const MAX_ANCHOR_RETRIES = 3
-
-/** Single GPT call for rhythm refinement */
-async function callRhythmDoctor(
-  key: string,
-  systemPrompt: string,
-  userMessage: string,
-  timeoutMs: number,
-): Promise<string | null> {
-  const res = await fetchWithTimeout(
-    "https://openrouter.ai/api/v1/chat/completions",
-    {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "openai/gpt-4o",
-        max_tokens: 1500,
-        temperature: 0.5,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessage },
-        ],
-      }),
-    },
-    timeoutMs,
-  )
-  if (!res.ok) return null
-  const data = (await res.json()) as { choices?: { message?: { content?: string } }[] }
-  const text = data?.choices?.[0]?.message?.content?.trim()
-  if (!text || text.length < 10) return null
-  return text.replace(/^BPM:\s*\d+\s*\n?/i, "").trim()
-}
-
-// ─── POST /refine-lyrics — IRON ANCHOR: retry loop, fuzzy matching, never reject ───
-audioRoutes.post("/refine-lyrics", async (c) => {
-  const t0 = Date.now()
-  console.log("[Audio] POST /refine-lyrics (IRON ANCHOR)")
-
-  try {
-    const key = getOpenRouterKey()
-    if (!key) return c.json({ error: "AI-сервис не настроен." }, 503)
-
-    const { lyrics, prompt, genre, language } = await c.req.json()
-    if (!lyrics || typeof lyrics !== "string" || lyrics.trim().length < 10) {
-      return c.json({ error: "Текст слишком короткий для улучшения." }, 400)
-    }
-
-    const lang = language === "en" ? "en" : "ru"
-    const langName = lang === "ru" ? "Russian" : "English"
-
-    // ── Step 1: Extract keyword anchors ──
-    const anchors = extractKeywords(prompt || "")
-    const anchorList = anchors.length > 0 ? anchors.join(", ") : "(no specific keywords)"
-    console.log(`[Audio] IRON anchors: [${anchorList}] (${anchors.length} words)`)
-
-    // ── Step 2: Build Doctor system prompt with IRON ANCHOR ──
-    const doctorPrompt = [
-      `You are a RHYTHM DOCTOR — a world-class lyricist who fixes syllable symmetry in song lyrics.`,
-      `Your task: take existing lyrics and adjust them so that EVERY PAIR of lines has EXACTLY the same syllable count.`,
-      ``,
-      `LANGUAGE: ${langName} ONLY.`,
-      genre ? `GENRE: ${genre}` : "",
-      ``,
-      `═══ IRON ANCHOR PROTOCOL (ABSOLUTE INVIOLABLE LAW) ═══`,
-      `The user's original keywords are SACRED and UNTOUCHABLE: [${anchorList}]`,
-      `These keywords (or any grammatical form of them) MUST appear in your output.`,
-      `You have the RIGHT to change ANY other word in ANY line — auxiliary words, conjunctions, prepositions, filler, structure.`,
-      `But you MUST NOT delete, replace, or lose a single keyword. If a keyword doesn't fit the rhythm, restructure the ENTIRE LINE around it.`,
-      `Keywords may appear in any grammatical case/form (e.g. "любовь"→"любви", "танцы"→"танцев") — that counts as preserved.`,
-      ``,
-      `═══ RULES ═══`,
-      `1. Count syllables per line (each vowel = 1 syllable in ${langName}).`,
-      `2. Lines 1-2 MUST match. Lines 3-4 MUST match. Pattern continues: 5-6, 7-8, etc.`,
-      `3. Keep section markers ([Verse 1], [Chorus], etc.) exactly as they are.`,
-      `4. Preserve the emotional tone and meaning.`,
-      `5. Keep rhyme scheme intact (ABAB or AABB).`,
-      `6. Write in normal lowercase. No uppercase accent marks.`,
-      `7. Minimal changes — if a line pair already matches, don't touch it.`,
-      ``,
-      `OUTPUT: Only the improved lyrics. No commentary, no syllable counts, no explanations.`,
-    ].filter(Boolean).join("\n")
-
-    // ── Step 3: Retry loop — up to MAX_ANCHOR_RETRIES attempts ──
-    let bestResult: string = lyrics.trim()
-    let bestMissing: string[] = anchors.slice() // worst case: all missing
-    let attempt = 0
-    let userMsg = `Fix the syllable symmetry in these lyrics. IRON RULE: keywords [${anchorList}] are UNTOUCHABLE — keep every one. You may change any OTHER word freely.\n\n${lyrics.trim()}`
-
-    while (attempt < MAX_ANCHOR_RETRIES) {
-      attempt++
-      console.log(`[Audio] Refine attempt ${attempt}/${MAX_ANCHOR_RETRIES}`)
-
-      const result = await callRhythmDoctor(key, doctorPrompt, userMsg, LLM_TIMEOUT_MS)
-      if (!result) {
-        console.warn(`[Audio] Refine attempt ${attempt} returned empty`)
-        break
-      }
-
-      const check = checkKeywordAnchors(anchors, result)
-      console.log(`[Audio] Attempt ${attempt}: keywords ${check.ratio}% (missing: [${check.missing.join(", ")}])`)
-
-      // Track best result (fewest missing keywords)
-      if (check.missing.length < bestMissing.length) {
-        bestResult = result
-        bestMissing = check.missing
-      }
-
-      // Success — all keywords preserved
-      if (check.preserved) {
-        bestResult = result
-        bestMissing = []
-        console.log(`[Audio] ✓ All keywords preserved on attempt ${attempt}`)
-        break
-      }
-
-      // Not last attempt — build corrective prompt for next try
-      if (attempt < MAX_ANCHOR_RETRIES) {
-        userMsg = `CRITICAL ERROR: In your previous version you LOST these keywords: [${check.missing.join(", ")}]. Rewrite the lyrics AGAIN, this time KEEPING EVERY SINGLE ONE of these words (in any grammatical form). You may freely change all other words.\n\n${result}`
-        console.log(`[Audio] Retrying with corrective prompt for: [${check.missing.join(", ")}]`)
-      }
-    }
-
-    console.log(`[Audio] IRON ANCHOR: ${attempt} attempts, ${bestMissing.length} missing, ${Date.now() - t0}ms`)
-
-    // ── Step 4: Analyze final result ──
-    const rhythm = analyzeRhythm(bestResult)
-
-    let stressValidation: StressResult = { text: bestResult, checkedCount: 0, fixedCount: 0, ambiguousWords: [] }
-    if (lang === "ru") {
-      const sv = await safeValidateStresses(bestResult)
-      bestResult = sv.text
-      stressValidation = sv
-    }
-
-    // Always return success — never reject. Show best result we got.
-    return c.json({
-      lyrics: bestResult,
-      refined: true,
-      rhythm,
-      stressValidation,
-      keywordsPreserved: bestMissing.length === 0,
-      keywordsMissing: bestMissing,
-      attempts: attempt,
-    })
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    console.error(`[Audio] REFINE-LYRICS FAILED: ${msg}`)
-    if (msg.includes("TIMEOUT")) return c.json({ error: "Сервис не отвечает." }, 504)
-    return c.json({ error: "Улучшение текста не удалось." }, 500)
   }
 })
 
