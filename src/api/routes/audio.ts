@@ -48,7 +48,7 @@ function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<R
   ])
 }
 
-// ─── Generate song lyrics via GPT-4o-mini (fast, with fallback) ───
+// ─── Generate song lyrics via GPT-4o (professional lyricist) ───
 async function generateLyrics(
   keywords: string,
   genre: string,
@@ -65,12 +65,43 @@ async function generateLyrics(
 
   const structure =
     durationSec <= 30
-      ? "1 short verse (4-6 lines)"
+      ? "[Verse 1] (6-8 lines) → [Chorus] (4 lines)"
       : durationSec <= 60
-        ? "1 verse + 1 chorus (8-12 lines total)"
-        : "2 verses + 1 chorus + 1 bridge (16-20 lines total)"
+        ? "[Verse 1] (6-8 lines) → [Chorus] (4-6 lines) → [Verse 2] (6-8 lines) → [Chorus]"
+        : "[Verse 1] (6-8 lines) → [Chorus] (4-6 lines) → [Verse 2] (6-8 lines) → [Chorus] → [Bridge] (4 lines) → [Outro] (2-4 lines)"
 
-  const maxChars = 800
+  const maxChars = 1200
+  const langName = language === "ru" ? "Russian" : "English"
+  const genderPerspective = gender === "male" ? "male" : "female"
+  const vocalistDesc = gender === "male" ? "Male vocalist" : "Female vocalist"
+
+  const systemPrompt = [
+    `You are an elite songwriter who writes for A-list artists. Your lyrics are deep, sincere, poetic, and emotionally powerful. You avoid cheap rhymes, clichés, and generic phrases.`,
+    ``,
+    `LANGUAGE: Write EXCLUSIVELY in ${langName}. Every word must be in ${langName}.`,
+    `GENRE: ${genre || "pop"}`,
+    `VOCALIST: ${vocalistDesc} — write from a ${genderPerspective} perspective, with authentic ${genderPerspective} emotional voice.`,
+    ``,
+    `STRUCTURE (strictly follow this order):`,
+    `${structure}`,
+    `Place each section marker ([Verse 1], [Chorus], [Verse 2], [Bridge], [Outro]) on its own line.`,
+    ``,
+    `CRAFT RULES:`,
+    `- SYLLABLE MATCHING: Paired lines within a section MUST have the same syllable count. This is critical — mismatched syllables make the vocal stumble. Count carefully.`,
+    `- RHYME QUALITY: Use sophisticated rhyme schemes (ABAB or AABB). Avoid trivial rhymes (любовь/кровь, огонь/ладонь). Prefer unexpected, fresh rhymes.`,
+    `- IMAGERY: Use vivid metaphors, sensory details (light, texture, temperature, sound). Paint scenes, don't just state feelings.`,
+    `- CHORUS HOOK: The chorus must have a memorable, singable hook phrase that could become the song title. Repeat the hook line for impact.`,
+    `- EMOTIONAL ARC: Build tension from verse → chorus → bridge. The bridge should offer a twist, revelation, or emotional peak.`,
+    `- NO FILLER: Every line must carry meaning. No "la-la-la", no empty padding, no placeholder lines.`,
+    ``,
+    `ACCENT CONTROL (critical for vocal performance):`,
+    `- Mark stressed syllables using UPPERCASE letters organically within words: горжУсь, поздравлЯю, дочУрка, любОвь, свобОда, мечтАю.`,
+    `- For proper names, use hyphens to split syllables: А-ри-Ад-на, Е-ка-те-рИ-на.`,
+    `- Apply accents naturally — every content word should have its stress marked, but keep the text readable.`,
+    ``,
+    `LIMITS: Total lyrics UNDER ${maxChars} characters.`,
+    `OUTPUT: Only the lyrics. No title, no commentary, no explanations.`,
+  ].join("\n")
 
   try {
     const res = await fetchWithTimeout(
@@ -82,14 +113,11 @@ async function generateLyrics(
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "openai/gpt-4o-mini",
-          max_tokens: 400,
-          temperature: 0.9,
+          model: "openai/gpt-4o",
+          max_tokens: 700,
+          temperature: 0.85,
           messages: [
-            {
-              role: "system",
-              content: `You are a professional hit songwriter. Write song lyrics strictly in ${language === "ru" ? "Russian" : "English"}.\nGenre: ${genre || "pop"}\nVocalist: ${gender === "male" ? "Male singer" : "Female singer"} — write from a ${gender === "male" ? "male" : "female"} perspective.\nStructure: ${structure}\nRules:\n- Write ALL lyrics in ${language === "ru" ? "Russian" : "English"} language\n- Use section markers: [Verse], [Chorus], [Bridge] on separate lines\n- Keep total lyrics UNDER ${maxChars} characters\n- Make lyrics catchy, emotional, and singable\n- Use vivid imagery and a memorable hook in the chorus\n- ACCENT CONTROL: Always mark stressed syllables using UPPERCASE LETTERS (e.g. горжУсь, поздравлЯю, дочУрка, любОвь, свобОда). This is critical for correct vocal performance.\n- For complex proper names, split into syllables with hyphens to help the vocalist (e.g. А-ри-Ад-на, Е-ка-те-рИ-на).\n- Output ONLY the lyrics, no title, no explanations`,
-            },
+            { role: "system", content: systemPrompt },
             { role: "user", content: `Write a ${genre || "pop"} song ${language === "ru" ? "in Russian" : "in English"} about: ${keywords}` },
           ],
         }),
