@@ -41,7 +41,7 @@ const presetVoices: Voice[] = [
   { id: "robot-futuristic", name: "Робот - Футуристичный", type: "preset" },
 ];
 
-const genres = ["Поп", "Электроника", "Хип-Хоп", "Классика", "Рок", "Джаз", "Эмбиент"];
+const genres = ["Поп", "Электроника", "Хип-Хоп", "Классика", "Рок", "Джаз", "Эмбиент", "Шансон", "R&B", "Метал", "Кантри"];
 
 interface GeneratedAudio {
   id: string;

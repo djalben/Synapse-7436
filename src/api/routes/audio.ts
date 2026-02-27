@@ -1,7 +1,34 @@
 import { Hono } from "hono"
-import { validateStresses } from "../utils/stress-validator"
 
 export const audioRoutes = new Hono()
+
+// Safe stress validator — lazy load on first call, never crashes the app
+type StressResult = { text: string; checkedCount: number; fixedCount: number; ambiguousWords: { word: string; options: string[] }[] }
+let _validateStresses: ((text: string) => StressResult) | null | undefined = undefined // undefined = not loaded yet
+
+async function loadValidator(): Promise<void> {
+  if (_validateStresses !== undefined) return // already loaded (or failed)
+  try {
+    const mod = await import("../utils/stress-validator")
+    _validateStresses = mod.validateStresses
+    console.log("[Audio] Stress validator loaded OK")
+  } catch (e) {
+    _validateStresses = null
+    console.warn("[Audio] Stress validator failed to load — skipping:", e instanceof Error ? e.message : e)
+  }
+}
+
+async function safeValidateStresses(lyrics: string): Promise<StressResult> {
+  const empty: StressResult = { text: lyrics, checkedCount: 0, fixedCount: 0, ambiguousWords: [] }
+  await loadValidator()
+  if (!_validateStresses) return empty
+  try {
+    return _validateStresses(lyrics)
+  } catch (err) {
+    console.error("[Audio] Stress validator crashed (returning raw lyrics):", err instanceof Error ? err.message : err)
+    return empty
+  }
+}
 
 const REPLICATE_API = "https://api.replicate.com/v1"
 const REPLICATE_PREDICTIONS = `${REPLICATE_API}/predictions`
@@ -22,6 +49,10 @@ const GENRE_STYLE: Record<string, string> = {
   "Рок":         "rock song with electric guitars, powerful drums, raw energy",
   "Джаз":        "jazz piece with smooth saxophone, swing rhythm, groovy bass",
   "Эмбиент":     "ambient soundscape with atmospheric pads, ethereal textures",
+  "Шансон":      "Russian chanson with acoustic guitar, heartfelt male vocals, storytelling feel",
+  "R&B":         "smooth R&B with soulful vocals, groove bass, emotional melodies",
+  "Метал":       "heavy metal with distorted guitars, double bass drums, aggressive energy",
+  "Кантри":      "country song with acoustic guitar, warm storytelling vocals, Americana feel",
 }
 
 function getApiToken(): string | undefined {
@@ -79,13 +110,23 @@ async function generateLyrics(
   // Genre-specific writing instructions
   const genreGuide: Record<string, string> = {
     "Pop": "Write simple but catchy phrases that stick in the head after first listen. Light, danceable rhythm. Think Макс Фадеев writing for Глюк'оZа.",
+    "Поп": "Write simple but catchy phrases that stick in the head after first listen. Light, danceable rhythm. Think Макс Фадеев writing for Глюк'оZа.",
     "Rock": "Add raw energy, edge, and rebellion. Shorter punchy lines, powerful imagery. Think ДДТ or Сплин — honest and hard-hitting.",
+    "Рок": "Add raw energy, edge, and rebellion. Shorter punchy lines, powerful imagery. Think ДДТ or Сплин — honest and hard-hitting.",
     "Hip-Hop": "Tight rhythmic flow, internal rhymes within lines, wordplay. Dense meaning per bar. Think Oxxxymiron or Скриптонит.",
+    "Хип-Хоп": "Tight rhythmic flow, internal rhymes within lines, wordplay. Dense meaning per bar. Think Oxxxymiron or Скриптонит.",
     "R&B": "Smooth, sensual, intimate. Longer vowel sounds for melisma. Emotional vulnerability. Think The Weeknd vibes in Russian.",
     "Electronic": "Minimalist but hypnotic. Repeat key phrases like mantras. Atmospheric and dreamy. Short evocative images.",
+    "Электроника": "Minimalist but hypnotic. Repeat key phrases like mantras. Atmospheric and dreamy. Short evocative images.",
     "Jazz": "Sophisticated vocabulary, subtle irony, conversational tone. Think poetry set to music.",
+    "Джаз": "Sophisticated vocabulary, subtle irony, conversational tone. Think poetry set to music.",
     "Country": "Storytelling with vivid rural/life imagery. Warm, nostalgic, grounded. Real-life scenes.",
+    "Кантри": "Storytelling with vivid rural/life imagery. Warm, nostalgic, grounded. Real-life scenes.",
     "Indie": "Poetic, introspective, slightly abstract. Unusual metaphors. Think Земфира or Дайте Танк (!).",
+    "Классика": "Elegant, poetic language with rich imagery. Think classical art song — beautiful phrasing, noble emotion.",
+    "Эмбиент": "Minimalist, atmospheric, dreamy. Short evocative phrases, repetition as meditation.",
+    "Шансон": "Write sincere, life-driven stories. Use simple but deep metaphors about fate, home, loyalty, and time. Avoid vulgarity — focus on soulfulness. Think Михаил Круг or Сергей Трофимов. Street wisdom, warm nostalgia, male camaraderie, prison of the soul (not literal). Conversational, as if telling a story to a friend over a guitar.",
+    "Метал": "Aggressive, powerful, epic imagery. War, fire, steel, storms. Short punchy lines with explosive choruses. Think Кипелов, Ария — dramatic and theatrical.",
   }
   const genreName = genre || "Pop"
   const genreInstruction = genreGuide[genreName] || genreGuide["Pop"]
@@ -315,12 +356,12 @@ audioRoutes.post("/generate-lyrics", async (c) => {
       console.warn(`[Audio] Lyrics too short — padded with keywords`)
     }
 
-    // Run stress validator (Russian only)
-    let stressValidation = { checkedCount: 0, fixedCount: 0, ambiguousWords: [] as { word: string; options: string[] }[] }
+    // Run stress validator (Russian only) — safe, never crashes
+    let stressValidation: StressResult = { text: lyrics, checkedCount: 0, fixedCount: 0, ambiguousWords: [] }
     if (lang === "ru") {
-      const result = validateStresses(lyrics)
+      const result = await safeValidateStresses(lyrics)
       lyrics = result.text
-      stressValidation = { checkedCount: result.checkedCount, fixedCount: result.fixedCount, ambiguousWords: result.ambiguousWords }
+      stressValidation = result
       console.log(`[Audio] Stress validation: checked=${result.checkedCount} fixed=${result.fixedCount} ambiguous=${result.ambiguousWords.length}`)
     }
 
