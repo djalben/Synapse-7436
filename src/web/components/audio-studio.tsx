@@ -901,17 +901,37 @@ export const AudioStudio = () => {
           setIsGenerating(false); setStatusMessage(null); setGenProgress(0);
           return;
         }
-        setStatusMessage("Анализирую трек...");
-        startProgressSim(8_000, 20);
+        setStatusMessage("Загружаю трек...");
+        startProgressSim(5_000, 10);
 
-        const formData = new FormData();
-        formData.append("audio", djFile);
-        formData.append("preset", djPreset.id);
-        formData.append("style", djPreset.style);
+        // Step 1: Upload file directly to Vercel Blob from browser (bypasses 4.5MB Vercel limit)
+        let blobUrl: string;
+        try {
+          const { upload } = await import("@vercel/blob/client");
+          const blob = await upload(`dj-${Date.now()}-${djFile.name}`, djFile, {
+            access: "public",
+            handleUploadUrl: "/api/audio/blob-upload",
+          });
+          blobUrl = blob.url;
+        } catch (uploadErr) {
+          console.error("DJ blob upload failed:", uploadErr);
+          throw new Error("Не удалось загрузить файл. Попробуйте ещё раз.");
+        }
+
+        // Step 2: Send only the URL + preset to backend
+        setStatusMessage("Анализирую трек...");
+        stopProgressSim();
+        setGenProgress(15);
+        startProgressSim(8_000, 25, 15);
 
         response = await fetch("/api/audio/dj-remix", {
           method: "POST",
-          body: formData,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            audioUrl: blobUrl,
+            preset: djPreset.id,
+            style: djPreset.style,
+          }),
         });
       } else {
         if (!voiceText.trim()) {

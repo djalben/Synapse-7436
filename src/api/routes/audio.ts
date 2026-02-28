@@ -427,13 +427,17 @@ audioRoutes.post("/tts", async (c) => {
         console.warn(`[Audio] ElevenLabs balance check error (proceeding):`, balErr instanceof Error ? balErr.message : balErr)
       }
 
-      // Step 1: Call ElevenLabs TTS with retries
+      // Step 1: Call ElevenLabs TTS with retries + automatic fallback voice
+      const FALLBACK_VOICE_ID = "21m00Tcm4TlvDq8ikWAM" // Раиса — always-available default
+      let activeVoiceId = elevenlabsId
       let ttsRes: Response | null = null
+      let usedFallback = false
+
       for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
-          console.log(`[Audio] ElevenLabs TTS attempt ${attempt}/${MAX_RETRIES}`)
+          console.log(`[Audio] ElevenLabs TTS attempt ${attempt}/${MAX_RETRIES} voice=${activeVoiceId}`)
           ttsRes = await fetch(
-            `https://api.elevenlabs.io/v1/text-to-speech/${elevenlabsId}`,
+            `https://api.elevenlabs.io/v1/text-to-speech/${activeVoiceId}`,
             {
               method: "POST",
               headers: {
@@ -454,25 +458,36 @@ audioRoutes.post("/tts", async (c) => {
           if (ttsRes.ok) break // success
           const errText = await ttsRes.text()
           console.error(`[Audio] ElevenLabs TTS attempt ${attempt} HTTP ${ttsRes.status}: ${errText.slice(0, 300)}`)
-          // Don't retry on 4xx (client errors)
+
           if (ttsRes.status >= 400 && ttsRes.status < 500) {
+            // Hard failures that we can't recover from
+            if (ttsRes.status === 401) {
+              return c.json({ error: "Неверный API-ключ ElevenLabs. Обратитесь к администратору." }, 400 as any)
+            }
+            if (ttsRes.status === 429) {
+              return c.json({ error: "Слишком много запросов к ElevenLabs. Подождите минуту." }, 400 as any)
+            }
             const isQuota = errText.toLowerCase().includes("quota") || errText.toLowerCase().includes("limit")
-            const failError = ttsRes.status === 404
-              ? "Голос временно недоступен. Выберите другой голос."
-              : ttsRes.status === 401
-                ? "Неверный API-ключ ElevenLabs. Обратитесь к администратору."
-                : ttsRes.status === 429
-                  ? "Слишком много запросов к ElevenLabs. Подождите минуту."
-                  : isQuota
-                    ? "Недостаточно лимитов в ElevenLabs."
-                    : `Ошибка ElevenLabs (${ttsRes.status}). Попробуйте позже.`
-            return c.json({ error: failError }, 400 as any)
+            if (isQuota) {
+              return c.json({ error: "Недостаточно лимитов в ElevenLabs." }, 402 as any)
+            }
+
+            // 400/404 = voice issue → auto-fallback to default voice
+            if ((ttsRes.status === 400 || ttsRes.status === 404) && activeVoiceId !== FALLBACK_VOICE_ID) {
+              console.warn(`[Audio] Voice ${activeVoiceId} failed (${ttsRes.status}), falling back to ${FALLBACK_VOICE_ID}`)
+              activeVoiceId = FALLBACK_VOICE_ID
+              usedFallback = true
+              ttsRes = null
+              continue // retry immediately with fallback voice, no delay
+            }
+
+            // Unknown 4xx with fallback voice → give up
+            return c.json({ error: `Ошибка ElevenLabs (${ttsRes.status}). Попробуйте позже.` }, 400 as any)
           }
           ttsRes = null // mark for retry on 5xx
         } catch (fetchErr) {
           const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr)
-          const stack = fetchErr instanceof Error ? fetchErr.stack : ""
-          console.error(`[Audio] ElevenLabs TTS attempt ${attempt} fetch failed:\n  ${msg}\n  ${stack}`)
+          console.error(`[Audio] ElevenLabs TTS attempt ${attempt} fetch failed: ${msg}`)
           ttsRes = null
         }
         if (attempt < MAX_RETRIES) {
@@ -485,6 +500,10 @@ audioRoutes.post("/tts", async (c) => {
       if (!ttsRes || !ttsRes.ok) {
         console.error(`[Audio] ElevenLabs TTS FAILED after ${MAX_RETRIES} attempts in ${Date.now() - t0}ms`)
         return c.json({ error: "Сбой связи с ElevenLabs. Проверьте лимиты или попробуйте позже." }, 502)
+      }
+
+      if (usedFallback) {
+        console.log(`[Audio] TTS succeeded with fallback voice ${FALLBACK_VOICE_ID} (original: ${elevenlabsId})`)
       }
 
       // Step 2: Upload to Vercel Blob
@@ -779,7 +798,39 @@ audioRoutes.post("/clone-voice", async (c) => {
   }
 })
 
-// ─── POST /dj-remix — DJ remix: upload audio + style preset → MiniMax music ───
+// ─── POST /blob-upload — Client-side Vercel Blob upload callback ───
+// The browser uploads directly to Vercel Blob (bypassing our 4.5MB Vercel limit).
+// This endpoint handles token generation and upload-completed callbacks.
+audioRoutes.post("/blob-upload", async (c) => {
+  console.log("[Audio] POST /blob-upload (client upload callback)")
+  try {
+    const { handleUpload } = await import("@vercel/blob/client")
+    const body = await c.req.json()
+
+    const jsonResponse = await handleUpload({
+      body,
+      request: c.req.raw,
+      onBeforeGenerateToken: async (_pathname: string) => ({
+        allowedContentTypes: [
+          "audio/mpeg", "audio/mp3", "audio/wav", "audio/wave",
+          "audio/x-wav", "audio/ogg", "audio/flac", "audio/aac",
+        ],
+        maximumSizeInBytes: 500 * 1024 * 1024, // 500MB
+      }),
+      onUploadCompleted: async ({ blob }: { blob: { url: string; size: number } }) => {
+        console.log(`[Audio] Client blob upload completed: ${blob.url} (${blob.size} bytes)`)
+      },
+    })
+
+    return c.json(jsonResponse)
+  } catch (err) {
+    console.error("[Audio] blob-upload error:", err instanceof Error ? err.message : err)
+    return c.json({ error: "Ошибка загрузки файла." }, 500)
+  }
+})
+
+// ─── POST /dj-remix — DJ remix: receive blob URL + style preset → MiniMax music ───
+// File is already uploaded to Vercel Blob client-side; we only receive the URL.
 audioRoutes.post("/dj-remix", async (c) => {
   const t0 = Date.now()
   console.log("[Audio] POST /dj-remix")
@@ -788,26 +839,11 @@ audioRoutes.post("/dj-remix", async (c) => {
     const apiToken = getApiToken()
     if (!apiToken) return c.json({ error: "Replicate не настроен." }, 503)
 
-    const formData = await c.req.formData()
-    const audioFile = formData.get("audio") as File | null
-    const preset = formData.get("preset") as string | null
-    const style = formData.get("style") as string | null
-
-    if (!audioFile) return c.json({ error: "Загрузите аудиофайл." }, 400)
+    const { audioUrl, preset, style } = await c.req.json()
+    if (!audioUrl || typeof audioUrl !== "string") return c.json({ error: "Загрузите аудиофайл." }, 400)
     if (!preset || !style) return c.json({ error: "Выберите стиль ремикса." }, 400)
-    if (audioFile.size > 20 * 1024 * 1024) return c.json({ error: "Файл слишком большой (макс. 20 МБ)." }, 400)
 
-    // Upload audio to Vercel Blob for a public URL
-    let audioUrl: string
-    try {
-      const { put } = await import("@vercel/blob")
-      const blob = await put(`dj-upload-${Date.now()}.mp3`, audioFile, { access: "public" })
-      audioUrl = blob.url
-      console.log(`[Audio] DJ upload → blob: ${audioUrl}`)
-    } catch (blobErr) {
-      console.error("[Audio] DJ blob upload failed:", blobErr)
-      return c.json({ error: "Не удалось загрузить файл." }, 500)
-    }
+    console.log(`[Audio] DJ remix: audioUrl=${audioUrl.slice(0, 80)}… preset=${preset}`)
 
     // Build the style prompt for MiniMax
     const stylePrompt = `${style}. Remix of uploaded track. High energy, professional mix, modern production.`

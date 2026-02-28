@@ -12,13 +12,21 @@ function getSql() {
     console.warn("[conversations] No DATABASE_URL or POSTGRES_URL — DB unavailable")
     return null
   }
-  _sql = postgres(url, {
-    ssl: "prefer",
-    connect_timeout: 5,
-    idle_timeout: 20,
-    connection: { application_name: "synapse" },
-  })
-  return _sql
+  try {
+    // Pass raw URL directly — postgres.js parses it internally.
+    // NEVER apply decodeURIComponent or manual URL manipulation.
+    _sql = postgres(url, {
+      ssl: "prefer",
+      connect_timeout: 5,
+      idle_timeout: 20,
+      connection: { application_name: "synapse" },
+    })
+    console.log("[conversations] postgres client initialized OK")
+    return _sql
+  } catch (initErr) {
+    console.error("[conversations] postgres init FAILED:", initErr instanceof Error ? initErr.message : initErr)
+    return null
+  }
 }
 
 // Auto-migrate: create tables if they don't exist
