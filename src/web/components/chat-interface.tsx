@@ -461,7 +461,11 @@ async function apiListConversations(): Promise<ChatConversation[] | null> {
 
 async function apiLoadMessages(convId: string): Promise<StoredMessage[] | null> {
   try {
-    const res = await fetch(`/api/conversations/${encodeURIComponent(convId)}/messages`)
+    const res = await fetch("/api/conversations/get-messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: convId }),
+    })
     if (!res.ok) return null
     return await res.json()
   } catch { return null }
@@ -497,10 +501,10 @@ async function apiSaveMessages(convId: string, msgs: StoredMessage[], title?: st
       console.log(`[chat] trimmed to ${messagesToSave.length} messages (from ${msgs.length})`)
     }
 
-    const res = await fetch(`/api/conversations/${encodeURIComponent(convId)}/messages`, {
+    const res = await fetch("/api/conversations/save-messages", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: messagesToSave, title, model }),
+      body: JSON.stringify({ id: convId, messages: messagesToSave, title, model }),
     })
     if (!res.ok) {
       const errBody = await res.text().catch(() => "")
@@ -517,17 +521,21 @@ async function apiSaveMessages(convId: string, msgs: StoredMessage[], title?: st
 
 async function apiDeleteConversation(convId: string): Promise<boolean> {
   try {
-    const res = await fetch(`/api/conversations/${encodeURIComponent(convId)}`, { method: "DELETE" })
+    const res = await fetch("/api/conversations/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: convId }),
+    })
     return res.ok
   } catch { return false }
 }
 
 async function apiRenameConversation(convId: string, title: string): Promise<boolean> {
   try {
-    const res = await fetch(`/api/conversations/${encodeURIComponent(convId)}`, {
-      method: "PUT",
+    const res = await fetch("/api/conversations/update", {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title }),
+      body: JSON.stringify({ id: convId, title }),
     })
     return res.ok
   } catch { return false }

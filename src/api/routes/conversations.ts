@@ -76,12 +76,13 @@ conversationRoutes.get("/", async (c) => {
   }
 })
 
-// GET /api/conversations/:id/messages — get messages for a conversation
-conversationRoutes.get("/:id/messages", async (c) => {
+// POST /api/conversations/get-messages — get messages for a conversation (id in body)
+conversationRoutes.post("/get-messages", async (c) => {
   const sql = getSql()
   if (!sql) return c.json({ error: "db_unavailable" }, 503)
 
-  const convId = c.req.param("id")
+  const { id: convId } = await c.req.json<{ id: string }>()
+  if (!convId) return c.json({ error: "missing id" }, 400)
   try {
     await ensureTables(sql)
     const rows = await sql`
@@ -118,15 +119,16 @@ conversationRoutes.post("/", async (c) => {
   }
 })
 
-// PUT /api/conversations/:id — update title/model
-conversationRoutes.put("/:id", async (c) => {
+// POST /api/conversations/update — update title/model (id in body)
+conversationRoutes.post("/update", async (c) => {
   const sql = getSql()
   if (!sql) return c.json({ error: "db_unavailable" }, 503)
 
-  const convId = c.req.param("id")
   try {
     await ensureTables(sql)
-    const body = await c.req.json<{ title?: string; model?: string }>()
+    const body = await c.req.json<{ id: string; title?: string; model?: string }>()
+    const convId = body.id
+    if (!convId) return c.json({ error: "missing id" }, 400)
 
     if (body.title !== undefined && body.model !== undefined) {
       await sql`UPDATE conversations SET title = ${body.title}, model = ${body.model}, updated_at = NOW() WHERE id = ${convId}`
@@ -142,14 +144,15 @@ conversationRoutes.put("/:id", async (c) => {
   }
 })
 
-// DELETE /api/conversations/:id — delete conversation and its messages (CASCADE handles messages)
-conversationRoutes.delete("/:id", async (c) => {
+// POST /api/conversations/delete — delete conversation and its messages (id in body)
+conversationRoutes.post("/delete", async (c) => {
   const sql = getSql()
   if (!sql) return c.json({ error: "db_unavailable" }, 503)
 
-  const convId = c.req.param("id")
   try {
     await ensureTables(sql)
+    const { id: convId } = await c.req.json<{ id: string }>()
+    if (!convId) return c.json({ error: "missing id" }, 400)
     await sql`DELETE FROM conversations WHERE id = ${convId}`
     return c.json({ ok: true })
   } catch (err: any) {
@@ -158,21 +161,24 @@ conversationRoutes.delete("/:id", async (c) => {
   }
 })
 
-// POST /api/conversations/:id/messages — save messages (full replace)
-conversationRoutes.post("/:id/messages", async (c) => {
+// POST /api/conversations/save-messages — save messages (full replace, id in body)
+conversationRoutes.post("/save-messages", async (c) => {
   const sql = getSql()
   if (!sql) return c.json({ error: "db_unavailable" }, 503)
 
-  const convId = c.req.param("id")
+  let convId = ""
   let msgCount = 0
   let totalChars = 0
   try {
     await ensureTables(sql)
     const body = await c.req.json<{
+      id: string
       messages: { id: string; role: string; content: string }[]
       title?: string
       model?: string
     }>()
+    convId = body.id
+    if (!convId) return c.json({ error: "missing id" }, 400)
     msgCount = body.messages?.length ?? 0
     totalChars = body.messages?.reduce((s, m) => s + (m.content?.length ?? 0), 0) ?? 0
 

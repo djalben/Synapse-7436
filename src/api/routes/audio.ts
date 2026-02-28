@@ -433,13 +433,15 @@ audioRoutes.post("/tts", async (c) => {
           // Don't retry on 4xx (client errors)
           if (ttsRes.status >= 400 && ttsRes.status < 500) {
             const isQuota = errText.toLowerCase().includes("quota") || errText.toLowerCase().includes("limit")
-            const failError = ttsRes.status === 401
-              ? "Неверный API-ключ ElevenLabs. Обратитесь к администратору."
-              : ttsRes.status === 429
-                ? "Слишком много запросов к ElevenLabs. Подождите минуту."
-                : isQuota
-                  ? "Недостаточно лимитов в ElevenLabs."
-                  : `Ошибка ElevenLabs (${ttsRes.status}). Попробуйте позже.`
+            const failError = ttsRes.status === 404
+              ? "Голос временно недоступен. Выберите другой голос."
+              : ttsRes.status === 401
+                ? "Неверный API-ключ ElevenLabs. Обратитесь к администратору."
+                : ttsRes.status === 429
+                  ? "Слишком много запросов к ElevenLabs. Подождите минуту."
+                  : isQuota
+                    ? "Недостаточно лимитов в ElevenLabs."
+                    : `Ошибка ElevenLabs (${ttsRes.status}). Попробуйте позже.`
             return c.json({ error: failError }, 400 as any)
           }
           ttsRes = null // mark for retry on 5xx
