@@ -401,36 +401,89 @@ audioRoutes.post("/tts", async (c) => {
 
       console.log(`[Audio] ElevenLabs TTS ASYNC: job=${jobId} voice=${elevenlabsId} stability=${voiceStability} text=${text.trim().length}c`)
 
-      // Fire-and-forget: process in background, don't await
+      // Fire-and-forget: process in background with retries + balance check
       const processAsync = async () => {
-        try {
-          const ttsRes = await fetch(
-            `https://api.elevenlabs.io/v1/text-to-speech/${elevenlabsId}`,
-            {
-              method: "POST",
-              headers: {
-                "xi-api-key": elevenLabsKey,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                text: text.trim(),
-                model_id: "eleven_multilingual_v2",
-                voice_settings: {
-                  stability: voiceStability,
-                  similarity_boost: 0.8,
-                  style: 0.3,
-                },
-              }),
-            }
-          )
+        const MAX_RETRIES = 3
+        const trimmedText = text.trim()
 
-          if (!ttsRes.ok) {
-            const errText = await ttsRes.text()
-            console.error(`[Audio] ElevenLabs TTS error: ${ttsRes.status} ${errText.slice(0, 300)}`)
-            ttsJobs.set(jobId, { status: "failed", error: "Озвучка не удалась.", createdAt: Date.now() })
+        try {
+          // Step 0: Check ElevenLabs character balance
+          try {
+            const subRes = await fetch("https://api.elevenlabs.io/v1/user/subscription", {
+              headers: { "xi-api-key": elevenLabsKey },
+            })
+            if (subRes.ok) {
+              const sub = await subRes.json() as { character_count?: number; character_limit?: number }
+              const remaining = (sub.character_limit ?? 0) - (sub.character_count ?? 0)
+              console.log(`[Audio] ElevenLabs balance: ${remaining} chars remaining (need ${trimmedText.length})`)
+              if (remaining < trimmedText.length) {
+                console.error(`[Audio] ElevenLabs insufficient balance: ${remaining} < ${trimmedText.length}`)
+                ttsJobs.set(jobId, { status: "failed", error: "Недостаточно лимитов в ElevenLabs. Попробуйте позже или сократите текст.", createdAt: Date.now() })
+                return
+              }
+            } else {
+              console.warn(`[Audio] ElevenLabs balance check failed: ${subRes.status} (proceeding anyway)`)
+            }
+          } catch (balErr) {
+            console.warn(`[Audio] ElevenLabs balance check error (proceeding):`, balErr instanceof Error ? balErr.message : balErr)
+          }
+
+          // Step 1: Call ElevenLabs TTS with retries
+          let ttsRes: Response | null = null
+          for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            try {
+              console.log(`[Audio] ElevenLabs TTS attempt ${attempt}/${MAX_RETRIES}: job=${jobId}`)
+              ttsRes = await fetch(
+                `https://api.elevenlabs.io/v1/text-to-speech/${elevenlabsId}`,
+                {
+                  method: "POST",
+                  headers: {
+                    "xi-api-key": elevenLabsKey,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    text: trimmedText,
+                    model_id: "eleven_multilingual_v2",
+                    voice_settings: {
+                      stability: voiceStability,
+                      similarity_boost: 0.8,
+                      style: 0.3,
+                    },
+                  }),
+                }
+              )
+              if (ttsRes.ok) break // success
+              const errText = await ttsRes.text()
+              console.error(`[Audio] ElevenLabs TTS attempt ${attempt} HTTP ${ttsRes.status}: ${errText.slice(0, 300)}`)
+              // Don't retry on 4xx (client errors) — only on 5xx / network
+              if (ttsRes.status >= 400 && ttsRes.status < 500) {
+                const isQuota = errText.toLowerCase().includes("quota") || errText.toLowerCase().includes("limit")
+                ttsJobs.set(jobId, {
+                  status: "failed",
+                  error: isQuota ? "Недостаточно лимитов в ElevenLabs." : "Сбой связи с ElevenLabs. Проверьте лимиты или попробуйте позже.",
+                  createdAt: Date.now(),
+                })
+                return
+              }
+              ttsRes = null // mark for retry
+            } catch (fetchErr) {
+              console.error(`[Audio] ElevenLabs TTS attempt ${attempt} fetch failed:`, fetchErr instanceof Error ? `${fetchErr.message}\n${fetchErr.stack}` : fetchErr)
+              ttsRes = null
+            }
+            if (attempt < MAX_RETRIES) {
+              const delay = attempt * 2000 // 2s, 4s
+              console.log(`[Audio] Retrying in ${delay}ms...`)
+              await new Promise(r => setTimeout(r, delay))
+            }
+          }
+
+          if (!ttsRes || !ttsRes.ok) {
+            console.error(`[Audio] ElevenLabs TTS FAILED after ${MAX_RETRIES} attempts: job=${jobId}`)
+            ttsJobs.set(jobId, { status: "failed", error: "Сбой связи с ElevenLabs. Проверьте лимиты или попробуйте позже.", createdAt: Date.now() })
             return
           }
 
+          // Step 2: Upload to Vercel Blob
           const audioBuffer = Buffer.from(await ttsRes.arrayBuffer())
           console.log(`[Audio] ElevenLabs TTS: ${audioBuffer.length} bytes in ${Date.now() - t0}ms, uploading...`)
 
@@ -443,8 +496,10 @@ audioRoutes.post("/tts", async (c) => {
           console.log(`[Audio] ElevenLabs TTS DONE: job=${jobId} ${Date.now() - t0}ms → ${blob.url}`)
           ttsJobs.set(jobId, { status: "completed", url: blob.url, createdAt: Date.now() })
         } catch (err) {
-          console.error(`[Audio] ElevenLabs TTS background error: job=${jobId}`, err instanceof Error ? err.message : err)
-          ttsJobs.set(jobId, { status: "failed", error: "Озвучка не удалась.", createdAt: Date.now() })
+          const errMsg = err instanceof Error ? err.message : String(err)
+          const errStack = err instanceof Error ? err.stack : ""
+          console.error(`[Audio] ElevenLabs TTS background CRASH: job=${jobId}\n  message: ${errMsg}\n  stack: ${errStack}`)
+          ttsJobs.set(jobId, { status: "failed", error: "Сбой связи с ElevenLabs. Проверьте лимиты или попробуйте позже.", createdAt: Date.now() })
         }
       }
       processAsync() // fire-and-forget

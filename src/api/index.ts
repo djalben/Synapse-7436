@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { chatRoutes } from './routes/chat.js';
 import { imageRoutes } from './routes/image.js';
 import { videoRoutes } from './routes/video.js';
@@ -10,6 +11,9 @@ import { conversationRoutes } from './routes/conversations.js';
 import { monitoringRoutes } from './monitoring.js';
 
 const app = new Hono().basePath('/api');
+
+// ─── Body limit: 10MB (large chat histories, long texts)
+app.use('*', bodyLimit({ maxSize: 10 * 1024 * 1024 }));
 
 // ─── Only basic logging (all other MW disabled for isolation test)
 app.use('*', async (c, next) => {

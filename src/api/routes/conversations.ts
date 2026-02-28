@@ -164,6 +164,8 @@ conversationRoutes.post("/:id/messages", async (c) => {
   if (!sql) return c.json({ error: "db_unavailable" }, 503)
 
   const convId = c.req.param("id")
+  let msgCount = 0
+  let totalChars = 0
   try {
     await ensureTables(sql)
     const body = await c.req.json<{
@@ -171,6 +173,8 @@ conversationRoutes.post("/:id/messages", async (c) => {
       title?: string
       model?: string
     }>()
+    msgCount = body.messages?.length ?? 0
+    totalChars = body.messages?.reduce((s, m) => s + (m.content?.length ?? 0), 0) ?? 0
 
     console.log(`[conversations] save messages convId=${convId} count=${body.messages.length} title=${body.title ?? "(none)"}`)
 
@@ -217,7 +221,20 @@ conversationRoutes.post("/:id/messages", async (c) => {
     console.log(`[conversations] saved OK convId=${convId}`)
     return c.json({ ok: true })
   } catch (err: any) {
-    console.error("[conversations] save messages error:", err.code, err.message)
-    return c.json({ error: err.message }, 500)
+    console.error(`[conversations] save messages FAILED convId=${convId}:`, {
+      code: err.code,
+      message: err.message,
+      detail: err.detail,
+      hint: err.hint,
+      severity: err.severity,
+      msgCount,
+      totalChars,
+    })
+    const userError = err.code === "54000"
+      ? "Сообщение слишком большое для сохранения. Попробуйте начать новый чат."
+      : err.code === "08006" || err.code === "08001"
+        ? "Не удалось подключиться к базе данных. Попробуйте позже."
+        : `Ошибка сохранения: ${err.message?.slice(0, 100) || "неизвестная ошибка"}`
+    return c.json({ error: userError }, 500)
   }
 })
