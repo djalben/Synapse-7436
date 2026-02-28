@@ -779,6 +779,73 @@ audioRoutes.post("/clone-voice", async (c) => {
   }
 })
 
+// ─── POST /dj-remix — DJ remix: upload audio + style preset → MiniMax music ───
+audioRoutes.post("/dj-remix", async (c) => {
+  const t0 = Date.now()
+  console.log("[Audio] POST /dj-remix")
+
+  try {
+    const apiToken = getApiToken()
+    if (!apiToken) return c.json({ error: "Replicate не настроен." }, 503)
+
+    const formData = await c.req.formData()
+    const audioFile = formData.get("audio") as File | null
+    const preset = formData.get("preset") as string | null
+    const style = formData.get("style") as string | null
+
+    if (!audioFile) return c.json({ error: "Загрузите аудиофайл." }, 400)
+    if (!preset || !style) return c.json({ error: "Выберите стиль ремикса." }, 400)
+    if (audioFile.size > 20 * 1024 * 1024) return c.json({ error: "Файл слишком большой (макс. 20 МБ)." }, 400)
+
+    // Upload audio to Vercel Blob for a public URL
+    let audioUrl: string
+    try {
+      const { put } = await import("@vercel/blob")
+      const blob = await put(`dj-upload-${Date.now()}.mp3`, audioFile, { access: "public" })
+      audioUrl = blob.url
+      console.log(`[Audio] DJ upload → blob: ${audioUrl}`)
+    } catch (blobErr) {
+      console.error("[Audio] DJ blob upload failed:", blobErr)
+      return c.json({ error: "Не удалось загрузить файл." }, 500)
+    }
+
+    // Build the style prompt for MiniMax
+    const stylePrompt = `${style}. Remix of uploaded track. High energy, professional mix, modern production.`
+
+    // Create MiniMax music prediction
+    const predRes = await fetchWithTimeout(MINIMAX_MUSIC, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        input: {
+          prompt: stylePrompt,
+          audio_format: "mp3",
+          bitrate: 256000,
+        },
+      }),
+    }, TOTAL_BUDGET_MS)
+
+    if (!predRes.ok) {
+      const errText = await predRes.text()
+      console.error(`[Audio] DJ MiniMax error ${predRes.status}: ${errText.slice(0, 300)}`)
+      return c.json({ error: "Не удалось запустить ремикс." }, 502)
+    }
+
+    const pred = await predRes.json() as { id: string; status: string }
+    console.log(`[Audio] DJ remix started: id=${pred.id} preset=${preset} elapsed=${Date.now() - t0}ms`)
+
+    return c.json({ id: pred.id, status: pred.status, preset })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error(`[Audio] DJ-REMIX FAILED: ${msg}`)
+    if (msg.includes("TIMEOUT")) return c.json({ error: "Сервис не отвечает." }, 504)
+    return c.json({ error: "Ремикс не удался." }, 500)
+  }
+})
+
 // ─── POST /cancel/:id — cancel a Replicate prediction to save credits ───
 audioRoutes.post("/cancel/:id", async (c) => {
   const predictionId = c.req.param("id")

@@ -19,11 +19,13 @@ import {
   FileText,
   PenLine,
   ChevronDown,
+  Disc,
+  Headphones,
 } from "lucide-react";
 import { useUsage } from "./usage-context";
 import { addToHistory } from "./placeholder-pages";
 
-type AudioMode = "music" | "voice";
+type AudioMode = "music" | "voice" | "dj";
 type Duration = "30s" | "60s" | "2min";
 type VocalGender = "male" | "female";
 type SongLanguage = "ru" | "en";
@@ -47,27 +49,42 @@ const VOICE_CATEGORIES: { key: VoiceCategory; label: string }[] = [
   { key: "cartoon", label: "Мультяшные / Сказочные" },
 ];
 
+interface DjPreset {
+  id: string;
+  name: string;
+  description: string;
+  style: string;
+  color: string;
+}
+
+const DJ_PRESETS: DjPreset[] = [
+  { id: "club",   name: "Клубный микс",   description: "Мощный бас, энергичные дропы, клубная атмосфера",       style: "EDM club banger, heavy bass drops, four-on-the-floor, euphoric synths", color: "from-purple-500/20 to-pink-500/20" },
+  { id: "house",  name: "Летний хаус",    description: "Тёплый грув, солнечные мелодии, пляжные вайбы",        style: "Summer deep house, warm pads, groovy bassline, tropical vibes",          color: "from-amber-500/20 to-orange-500/20" },
+  { id: "cyber",  name: "Киберпанк",      description: "Тёмная электроника, глитч, неоновый андеграунд",       style: "Dark cyberpunk synthwave, glitch beats, dystopian atmosphere, neon",     color: "from-cyan-500/20 to-blue-500/20" },
+  { id: "lofi",   name: "Lo-Fi чилл",     description: "Уютные биты, виниловый хруст, расслабленная атмосфера", style: "Lo-fi hip hop, vinyl crackle, mellow piano, relaxing beats",              color: "from-green-500/20 to-emerald-500/20" },
+];
+
 const presetVoices: Voice[] = [
-  // Audiobook / Narrative — professional narrators
-  { id: "george",  name: "George (Диктор, авторитетный)",   type: "preset", elevenlabsId: "JBFqnCBtxuXPj74tWo9P", category: "narrative", stability: 0.6 },
-  { id: "rachel-n", name: "Rachel (Рассказчица, мягкая)",   type: "preset", elevenlabsId: "21m00Tcm4TlvDq8ikWAM", category: "narrative", stability: 0.5 },
-  { id: "drew",    name: "Drew (Нарратор, спокойный)",      type: "preset", elevenlabsId: "29vD33N1HAb8pX786n4k", category: "narrative", stability: 0.6 },
-  // Adults
-  { id: "clyde",   name: "Clyde (Мужской, глубокий)",      type: "preset", elevenlabsId: "2EiwWnXFnvU5JabPnv8n", category: "adults",   stability: 0.5 },
-  { id: "brian",   name: "Brian (Мужской, тёплый)",        type: "preset", elevenlabsId: "nPczCjzI2devNBz1zQrb", category: "adults",   stability: 0.5 },
-  { id: "rachel",  name: "Rachel (Женский, элегантный)",   type: "preset", elevenlabsId: "21m00Tcm4TlvDq8ikWAM", category: "adults",   stability: 0.5 },
-  { id: "sarah",   name: "Sarah (Женский, нежный)",        type: "preset", elevenlabsId: "EXAVITQu4vr4xnSDxMaL", category: "adults",   stability: 0.5 },
-  // Youth
-  { id: "antoni",  name: "Antoni (Парень, энергичный)",    type: "preset", elevenlabsId: "ErXwobaYiN019PkySvjV", category: "youth",    stability: 0.5 },
-  { id: "elli",    name: "Elli (Девушка, яркая)",          type: "preset", elevenlabsId: "MF3mGyEYCl7XYWbV9V6O", category: "youth",    stability: 0.5 },
-  // Children
-  { id: "liam",    name: "Liam (Мальчик)",                 type: "preset", elevenlabsId: "TX3LPaxmHKxFdv7VOQHJ", category: "children",  stability: 0.5 },
-  { id: "dorothy", name: "Dorothy (Девочка)",               type: "preset", elevenlabsId: "ThT5KcBeYPX3keUQqHPh", category: "children",  stability: 0.5 },
-  // Cartoon / Fairy Tale
-  { id: "fin",     name: "Fin (Старик-сказочник)",         type: "preset", elevenlabsId: "D38z5RcWu1voky8WS1ja", category: "cartoon",   stability: 0.7 },
-  { id: "clyde-c", name: "Clyde (Великан)",                type: "preset", elevenlabsId: "2EiwWnXFnvU5JabPnv8n", category: "cartoon",   stability: 0.7 },
-  { id: "glinda",  name: "Glinda (Фея)",                   type: "preset", elevenlabsId: "z9fAnlkpzviPz146aGWa", category: "cartoon",   stability: 0.7 },
-  { id: "gigi",    name: "Gigi (Мультяшная)",              type: "preset", elevenlabsId: "jBpfuIE2acCO8z3wKNLl", category: "cartoon",   stability: 0.7 },
+  // Аудиокниги / Нарратив
+  { id: "george",  name: "Георгий (Диктор, авторитетный)",  type: "preset", elevenlabsId: "JBFqnCBtxuXPj74tWo9P", category: "narrative", stability: 0.6 },
+  { id: "rachel-n", name: "Раиса (Рассказчица, мягкая)",   type: "preset", elevenlabsId: "21m00Tcm4TlvDq8ikWAM", category: "narrative", stability: 0.5 },
+  { id: "drew",    name: "Андрей (Нарратор, спокойный)",    type: "preset", elevenlabsId: "29vD33N1HAb8pX786n4k", category: "narrative", stability: 0.6 },
+  // Взрослые
+  { id: "clyde",   name: "Борис (Мужской, глубокий)",      type: "preset", elevenlabsId: "2EiwWnXFnvU5JabPnv8n", category: "adults",   stability: 0.5 },
+  { id: "brian",   name: "Виктор (Мужской, тёплый)",       type: "preset", elevenlabsId: "nPczCjzI2devNBz1zQrb", category: "adults",   stability: 0.5 },
+  { id: "rachel",  name: "Раиса (Женский, элегантный)",    type: "preset", elevenlabsId: "21m00Tcm4TlvDq8ikWAM", category: "adults",   stability: 0.5 },
+  { id: "sarah",   name: "Софья (Женский, нежный)",        type: "preset", elevenlabsId: "EXAVITQu4vr4xnSDxMaL", category: "adults",   stability: 0.5 },
+  // Молодёжь
+  { id: "antoni",  name: "Артём (Парень, энергичный)",     type: "preset", elevenlabsId: "ErXwobaYiN019PkySvjV", category: "youth",    stability: 0.5 },
+  { id: "elli",    name: "Элина (Девушка, яркая)",         type: "preset", elevenlabsId: "MF3mGyEYCl7XYWbV9V6O", category: "youth",    stability: 0.5 },
+  // Дети
+  { id: "liam",    name: "Лёша (Мальчик)",                 type: "preset", elevenlabsId: "TX3LPaxmHKxFdv7VOQHJ", category: "children",  stability: 0.5 },
+  { id: "dorothy", name: "Даша (Девочка)",                  type: "preset", elevenlabsId: "ThT5KcBeYPX3keUQqHPh", category: "children",  stability: 0.5 },
+  // Мультяшные / Сказочные
+  { id: "fin",     name: "Финист (Старик-сказочник)",       type: "preset", elevenlabsId: "D38z5RcWu1voky8WS1ja", category: "cartoon",   stability: 0.7 },
+  { id: "clyde-c", name: "Борис (Великан)",                type: "preset", elevenlabsId: "2EiwWnXFnvU5JabPnv8n", category: "cartoon",   stability: 0.7 },
+  { id: "glinda",  name: "Глаша (Фея)",                    type: "preset", elevenlabsId: "z9fAnlkpzviPz146aGWa", category: "cartoon",   stability: 0.7 },
+  { id: "gigi",    name: "Гоша (Мультяшный)",              type: "preset", elevenlabsId: "jBpfuIE2acCO8z3wKNLl", category: "cartoon",   stability: 0.7 },
 ];
 
 const genres = ["Поп", "Электроника", "Хип-Хоп", "Классика", "Рок", "Джаз", "Эмбиент", "Шансон", "R&B", "Метал", "Кантри"];
@@ -701,6 +718,12 @@ export const AudioStudio = () => {
     }
   }, [previewingVoiceId]);
 
+  // DJ state
+  const [djFile, setDjFile] = useState<File | null>(null);
+  const [djPreset, setDjPreset] = useState<DjPreset | null>(null);
+  const [djIsSpinning, setDjIsSpinning] = useState(false);
+  const djFileInputRef = useRef<HTMLInputElement>(null);
+
   const [musicPrompt, setMusicPrompt] = useState("");
   const [voiceText, setVoiceText] = useState("");
   const [editedLyrics, setEditedLyrics] = useState("");
@@ -718,7 +741,8 @@ export const AudioStudio = () => {
   
   const CREDIT_COST_MUSIC = 10;
   const CREDIT_COST_VOICE = 3;
-  const creditCost = mode === "music" ? CREDIT_COST_MUSIC : CREDIT_COST_VOICE;
+  const CREDIT_COST_DJ = 10;
+  const creditCost = mode === "music" ? CREDIT_COST_MUSIC : mode === "dj" ? CREDIT_COST_DJ : CREDIT_COST_VOICE;
   const { creditBalance, checkCredits, deductCredits } = useUsage();
 
   // Step logic: 1 = choose genre/settings, 2 = write lyrics, 3 = create music
@@ -872,6 +896,23 @@ export const AudioStudio = () => {
             lyrics: hasEditedLyrics ? editedLyrics.trim() : undefined,
           }),
         });
+      } else if (mode === "dj") {
+        if (!djFile || !djPreset) {
+          setIsGenerating(false); setStatusMessage(null); setGenProgress(0);
+          return;
+        }
+        setStatusMessage("Анализирую трек...");
+        startProgressSim(8_000, 20);
+
+        const formData = new FormData();
+        formData.append("audio", djFile);
+        formData.append("preset", djPreset.id);
+        formData.append("style", djPreset.style);
+
+        response = await fetch("/api/audio/dj-remix", {
+          method: "POST",
+          body: formData,
+        });
       } else {
         if (!voiceText.trim()) {
           setIsGenerating(false); setStatusMessage(null); setGenProgress(0);
@@ -881,7 +922,7 @@ export const AudioStudio = () => {
         const isLongText = voiceText.length > 1000;
         setStatusMessage(
           hasElevenLabs
-            ? (isLongText ? `${selectedVoice.name} озвучивает большой текст (до 1 мин)...` : `${selectedVoice.name} озвучивает текст...`)
+            ? (isLongText ? `${selectedVoice.name} озвучивает большой текст...` : `${selectedVoice.name} озвучивает текст...`)
             : "XTTS запускается..."
         );
         // ElevenLabs is synchronous now — the fetch itself takes 5-50s depending on text length
@@ -917,10 +958,10 @@ export const AudioStudio = () => {
       } else {
         // Phase 2: status-aware polling (Replicate/XTTS-v2 only)
         let phase: "starting" | "processing" | "done" = "starting";
-        if (mode === "music") {
+        if (mode === "music" || mode === "dj") {
           stopProgressSim();
           setGenProgress(20);
-          setStatusMessage("Подключаемся к студии...");
+          setStatusMessage(mode === "dj" ? "Анализирую трек..." : "Подключаемся к студии...");
           startProgressSim(120_000, 40, 20);
         } else {
           // XTTS-v2 voice mode
@@ -931,12 +972,13 @@ export const AudioStudio = () => {
         }
 
         audioUrl = await pollAudioStatus(createData.id, (status, elapsedSec) => {
-          if (mode === "music") {
+          if (mode === "music" || mode === "dj") {
+            const djMode = mode === "dj";
             if (status === "starting") {
               if (elapsedSec < 30) {
-                setStatusMessage("Подключаемся к студии...");
+                setStatusMessage(djMode ? "Анализирую трек..." : "Подключаемся к студии...");
               } else if (elapsedSec < 90) {
-                setStatusMessage("Нейросеть загружается (это нормально, ~1-2 мин)...");
+                setStatusMessage(djMode ? "Создаю шедевр..." : "Нейросеть загружается (это нормально, ~1-2 мин)...");
               } else {
                 setStatusMessage(`Модель всё ещё запускается (${Math.floor(elapsedSec / 60)}:${String(elapsedSec % 60).padStart(2, "0")})...`);
               }
@@ -945,15 +987,15 @@ export const AudioStudio = () => {
               phase = "processing";
               stopProgressSim();
               setGenProgress(40);
-              setStatusMessage("Нейросеть сочиняет музыку...");
+              setStatusMessage(djMode ? "Создаю шедевр..." : "Нейросеть сочиняет музыку...");
               const simMs = duration === "30s" ? 60_000 : duration === "60s" ? 120_000 : 180_000;
               startProgressSim(simMs, 92, 40);
             }
             if (status === "processing" && phase === "processing") {
               if (elapsedSec > 120) {
-                setStatusMessage("Сводим вокал и инструменты...");
+                setStatusMessage(djMode ? "Проверяю детали..." : "Сводим вокал и инструменты...");
               } else if (elapsedSec > 60) {
-                setStatusMessage("Нейросеть записывает вокал...");
+                setStatusMessage(djMode ? "Микширую треки..." : "Нейросеть записывает вокал...");
               }
             }
           } else {
@@ -1001,15 +1043,16 @@ export const AudioStudio = () => {
       
       const savedPrompt = musicPrompt;
       const savedText = voiceText;
+      const djPresetName = djPreset?.name || "";
       const newAudio: GeneratedAudio = {
         id: createData.id,
-        type: mode,
-        prompt: mode === "music" ? savedPrompt : undefined,
+        type: mode === "dj" ? "music" : mode,
+        prompt: mode === "music" ? savedPrompt : mode === "dj" ? `Ремикс: ${djPresetName}` : undefined,
         lyrics: mode === "music" ? createData.lyrics : undefined,
         text: mode === "voice" ? savedText : undefined,
-        duration: mode === "music"
-          ? (duration === "30s" ? "0:30" : duration === "60s" ? "1:00" : "2:00")
-          : `~${Math.ceil(savedText.split(/\s+/).length / 2.5)}с`,
+        duration: mode === "voice"
+          ? `~${Math.ceil(savedText.split(/\s+/).length / 2.5)}с`
+          : (duration === "30s" ? "0:30" : duration === "60s" ? "1:00" : "2:00"),
         createdAt: new Date(),
         audioUrl: finalAudioUrl,
       };
@@ -1020,8 +1063,8 @@ export const AudioStudio = () => {
       try {
         addToHistory({
           type: "audio",
-          prompt: mode === "music" ? savedPrompt : savedText || "",
-          model: mode === "music" ? (useMyVoice && clonedVoiceId ? "MiniMax Music-1.5 + S2S" : "MiniMax Music-1.5") : "XTTS-v2",
+          prompt: mode === "music" ? savedPrompt : mode === "dj" ? `DJ Ремикс: ${djPresetName}` : savedText || "",
+          model: mode === "dj" ? "Synapse DJ" : mode === "music" ? (useMyVoice && clonedVoiceId ? "MiniMax Music-1.5 + S2S" : "MiniMax Music-1.5") : "XTTS-v2",
           result: finalAudioUrl,
           credits: creditCost,
         });
@@ -1029,7 +1072,9 @@ export const AudioStudio = () => {
         console.warn("History save failed (non-blocking):", histErr);
       }
       
-      if (mode === "music") setMusicPrompt(""); else setVoiceText("");
+      if (mode === "music") setMusicPrompt("");
+      else if (mode === "dj") { setDjFile(null); setDjIsSpinning(false); }
+      else setVoiceText("");
     } catch (err) {
       console.error("Audio generation error:", err);
       setError(err instanceof Error ? err.message : "Ошибка генерации аудио.");
@@ -1071,39 +1116,35 @@ export const AudioStudio = () => {
           </div>
         </div>
 
-        {/* Mode Switcher — как переключатель режима во вкладке Изображения */}
+        {/* Mode Switcher — 3 tabs */}
         <div className="relative flex rounded-xl bg-[#0a0a0a] border border-[#333] p-1">
           <div
             className={`
-              absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-lg
+              absolute top-1 bottom-1 w-[calc(33.333%-3px)] rounded-lg
               bg-gradient-to-r from-indigo-600/30 to-blue-600/30
               border border-indigo-500/30
               transition-transform duration-300 ease-out
-              ${mode === "voice" ? "translate-x-[calc(100%+4px)]" : "translate-x-0"}
+              ${mode === "voice" ? "translate-x-[calc(100%+2px)]" : mode === "dj" ? "translate-x-[calc(200%+4px)]" : "translate-x-0"}
             `}
           />
-          <button
-            onClick={() => setMode("music")}
-            className={`
-              relative flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg text-sm font-medium
-              transition-all duration-300
-              ${mode === "music" ? "text-white" : "text-[#666] hover:text-[#888]"}
-            `}
-          >
-            <Music className="w-4 h-4" />
-            Генератор музыки
-          </button>
-          <button
-            onClick={() => setMode("voice")}
-            className={`
-              relative flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg text-sm font-medium
-              transition-all duration-300
-              ${mode === "voice" ? "text-white" : "text-[#666] hover:text-[#888]"}
-            `}
-          >
-            <Mic className="w-4 h-4" />
-            Озвучка
-          </button>
+          {([
+            { key: "music" as AudioMode, icon: <Music className="w-4 h-4" />, label: "Музыка" },
+            { key: "voice" as AudioMode, icon: <Mic className="w-4 h-4" />, label: "Озвучка" },
+            { key: "dj" as AudioMode, icon: <Disc className="w-4 h-4" />, label: "Диджей" },
+          ]).map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setMode(tab.key)}
+              className={`
+                relative flex-1 flex items-center justify-center gap-1.5 py-3 px-2 rounded-lg text-sm font-medium
+                transition-all duration-300
+                ${mode === tab.key ? "text-white" : "text-[#666] hover:text-[#888]"}
+              `}
+            >
+              {tab.icon}
+              <span className="hidden sm:inline">{tab.label}</span>
+            </button>
+          ))}
         </div>
 
         {/* Music Generator Controls — Step-by-step wizard */}
@@ -1671,6 +1712,126 @@ export const AudioStudio = () => {
             </div>
           </div>
         )}
+
+        {/* ═══ DJ Studio Tab ═══ */}
+        {mode === "dj" && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            {/* DJ Header */}
+            <div className="p-4 rounded-xl bg-gradient-to-br from-purple-900/40 to-indigo-900/40 backdrop-blur-md border border-purple-500/30">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-purple-500/20 border border-purple-500/30 flex items-center justify-center">
+                  <Headphones className="w-5 h-5 text-purple-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-white tracking-tight">Synapse Диджей</h3>
+                  <p className="text-xs text-purple-300/60">Ремиксы и стилизация треков с AI</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Vinyl Turntable */}
+            <div className="flex justify-center py-4">
+              <div className="relative w-48 h-48 md:w-56 md:h-56">
+                {/* Outer glow */}
+                <div className="absolute inset-[-8px] rounded-full bg-gradient-to-br from-purple-500/20 to-indigo-500/20 blur-xl animate-pulse-glow" />
+                {/* Vinyl disc */}
+                <div className={`relative w-full h-full rounded-full bg-gradient-to-br from-[#111] to-[#0a0a0a] border border-white/10 shadow-2xl vinyl-grooves ${djIsSpinning || isGenerating ? "animate-spin-slow" : "animate-spin-slow-paused"}`}>
+                  {/* Inner ring */}
+                  <div className="absolute inset-[15%] rounded-full bg-gradient-to-br from-[#1a1a1a] to-[#111] border border-white/[0.06]" />
+                  {/* Label center */}
+                  <div className="absolute inset-[30%] rounded-full bg-gradient-to-br from-indigo-600/40 to-purple-600/40 border border-indigo-400/30 flex items-center justify-center backdrop-blur-sm">
+                    <div className="text-center">
+                      <Disc className="w-6 h-6 md:w-8 md:h-8 text-white/80 mx-auto" />
+                      <span className="text-[8px] md:text-[10px] font-mono font-bold text-white/60 tracking-widest mt-1 block">SYNAPSE</span>
+                    </div>
+                  </div>
+                  {/* Spindle dot */}
+                  <div className="absolute inset-[46%] rounded-full bg-[#333] border border-white/10" />
+                </div>
+                {/* Tonearm */}
+                <div className={`absolute -top-2 -right-2 w-16 h-1 bg-gradient-to-r from-white/20 to-white/5 rounded-full transition-transform duration-700 origin-right ${djIsSpinning || isGenerating ? "rotate-[-25deg]" : "rotate-[5deg]"}`}>
+                  <div className="absolute left-0 top-[-2px] w-2 h-2 rounded-full bg-white/30 border border-white/20" />
+                </div>
+              </div>
+            </div>
+
+            {/* File Upload */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-slate-400 tracking-tight">Загрузите аудио для ремикса</label>
+              <input
+                ref={djFileInputRef}
+                type="file"
+                accept="audio/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) { setDjFile(file); setDjIsSpinning(true); }
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => djFileInputRef.current?.click()}
+                className={`w-full py-4 rounded-xl border-2 border-dashed transition-all duration-300 flex flex-col items-center gap-2 ${
+                  djFile
+                    ? "border-purple-500/50 bg-purple-500/10"
+                    : "border-[#333] bg-white/[0.02] hover:border-purple-500/30 hover:bg-white/[0.04]"
+                }`}
+              >
+                <Upload className={`w-6 h-6 ${djFile ? "text-purple-400" : "text-[#555]"}`} />
+                {djFile ? (
+                  <span className="text-sm text-purple-300 font-medium">{djFile.name}</span>
+                ) : (
+                  <span className="text-sm text-[#666]">Перетащите файл или нажмите для выбора</span>
+                )}
+                <span className="text-[10px] text-[#555]">MP3, WAV, OGG — до 20 МБ</span>
+              </button>
+            </div>
+
+            {/* Remix Presets */}
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-slate-400 tracking-tight">Выберите стиль ремикса</label>
+              <div className="grid grid-cols-2 gap-2">
+                {DJ_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => setDjPreset(djPreset?.id === preset.id ? null : preset)}
+                    className={`p-3 rounded-xl border text-left transition-all duration-300 ${
+                      djPreset?.id === preset.id
+                        ? `bg-gradient-to-br ${preset.color} border-purple-500/50 shadow-lg shadow-purple-500/10`
+                        : "bg-white/[0.02] border-[#333] hover:border-purple-500/30 hover:bg-white/[0.04]"
+                    }`}
+                  >
+                    <span className={`text-sm font-semibold block ${djPreset?.id === preset.id ? "text-white" : "text-slate-300"}`}>
+                      {preset.name}
+                    </span>
+                    <span className="text-[10px] text-slate-500 leading-relaxed block mt-0.5">{preset.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* DJ Slider Controls (decorative + functional) */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5 p-3 rounded-xl bg-white/[0.02] border border-[#222]">
+                <label className="text-[10px] font-medium text-[#666] uppercase tracking-wider">Энергия</label>
+                <input type="range" min={0} max={100} defaultValue={70} className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-slate-700/60 accent-purple-500" />
+              </div>
+              <div className="space-y-1.5 p-3 rounded-xl bg-white/[0.02] border border-[#222]">
+                <label className="text-[10px] font-medium text-[#666] uppercase tracking-wider">Темп</label>
+                <input type="range" min={60} max={180} defaultValue={128} className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-slate-700/60 accent-purple-500" />
+              </div>
+            </div>
+
+            {/* Info note */}
+            <div className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl bg-purple-500/5 border border-purple-500/15">
+              <Sparkles className="w-3.5 h-3.5 text-purple-400 shrink-0 mt-0.5" />
+              <p className="text-[11px] text-purple-300/70 leading-relaxed">
+                Загрузите трек и выберите стиль — AI создаст уникальный ремикс на основе вашего аудио.
+              </p>
+            </div>
+          </div>
+        )}
           </div>
         </div>
 
@@ -1700,32 +1861,37 @@ export const AudioStudio = () => {
           <button
             type="button"
             onClick={handleGenerate}
-            disabled={isGenerating || (mode === "music" ? !canCreateMusic : !voiceText.trim())}
+            disabled={isGenerating || (mode === "music" ? !canCreateMusic : mode === "dj" ? (!djFile || !djPreset) : !voiceText.trim())}
             className={`
               w-full py-3.5 rounded-xl font-medium text-sm
               transition-all duration-300 relative overflow-hidden
               active:scale-[0.98] group
               ${isGenerating
                 ? "bg-indigo-600/80 text-white cursor-wait"
-                : (mode === "music" ? canCreateMusic : voiceText.trim())
-                  ? "bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white shadow-lg shadow-[0_0_20px_rgba(34,197,94,0.3)]"
+                : (mode === "music" ? canCreateMusic : mode === "dj" ? (djFile && djPreset) : voiceText.trim())
+                  ? `bg-gradient-to-r ${mode === "dj" ? "from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 shadow-[0_0_20px_rgba(147,51,234,0.3)]" : "from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 shadow-[0_0_20px_rgba(34,197,94,0.3)]"} text-white shadow-lg`
                   : "bg-[#222] text-[#555] cursor-not-allowed"
               }
             `}
           >
-            {!isGenerating && (mode === "music" ? canCreateMusic : voiceText.trim()) && (
+            {!isGenerating && (mode === "music" ? canCreateMusic : mode === "dj" ? (djFile && djPreset) : voiceText.trim()) && (
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
             )}
             <span className="relative flex items-center justify-center gap-2">
               {isGenerating ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>{genProgress}% — {statusMessage || "Обработка..."}</span>
+                  <span>{genProgress}% — {statusMessage || "Анализирую..."}</span>
                 </>
               ) : mode === "music" ? (
                 <>
                   <Sparkles className="w-4 h-4" />
-                  <span>{canCreateMusic ? "Шаг 3: Записать хит 🎤" : !selectedGenre ? "Сначала выберите жанр" : !lyricsReady ? "Сначала сгенерируйте текст" : "Создать песню"}</span>
+                  <span>{canCreateMusic ? "Записать хит" : !selectedGenre ? "Сначала выберите жанр" : !lyricsReady ? "Сначала сгенерируйте текст" : "Создать песню"}</span>
+                </>
+              ) : mode === "dj" ? (
+                <>
+                  <Disc className="w-4 h-4" />
+                  <span>{djFile && djPreset ? "Создать ремикс" : !djFile ? "Загрузите аудио" : "Выберите стиль"}</span>
                 </>
               ) : (
                 <>
@@ -1736,7 +1902,7 @@ export const AudioStudio = () => {
             </span>
           </button>
           <p className="text-center text-[#555] text-xs mt-2">
-            {mode === "music" ? <><span className="text-indigo-400 font-medium">{CREDIT_COST_MUSIC}</span> кредитов за песню</> : <><span className="text-indigo-400 font-medium">{CREDIT_COST_VOICE}</span> кредита за запрос</>} · Осталось: <span className="text-white/90">{creditBalance.toFixed(0)}</span>
+            <span className="text-indigo-400 font-medium">{creditCost}</span> кредитов · Осталось: <span className="text-white/90">{creditBalance.toFixed(0)}</span>
           </p>
         </div>
       </div>
@@ -1761,14 +1927,14 @@ export const AudioStudio = () => {
         <button
           type="button"
           onClick={handleGenerate}
-          disabled={isGenerating || (mode === "music" ? !canCreateMusic : !voiceText.trim())}
+          disabled={isGenerating || (mode === "music" ? !canCreateMusic : mode === "dj" ? (!djFile || !djPreset) : !voiceText.trim())}
           className={`
             w-full py-4 px-6 rounded-xl font-medium text-base
             transition-all duration-300 relative overflow-hidden active:scale-[0.98] group
             ${isGenerating
               ? "bg-indigo-600/80 text-white cursor-wait"
-              : (mode === "music" ? canCreateMusic : voiceText.trim())
-                ? "bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white shadow-lg shadow-[0_0_24px_rgba(34,197,94,0.4)]"
+              : (mode === "music" ? canCreateMusic : mode === "dj" ? (djFile && djPreset) : voiceText.trim())
+                ? `bg-gradient-to-r ${mode === "dj" ? "from-purple-500 to-indigo-600 shadow-[0_0_24px_rgba(147,51,234,0.4)]" : "from-green-500 to-emerald-600 shadow-[0_0_24px_rgba(34,197,94,0.4)]"} text-white shadow-lg`
                 : "bg-[#222] text-[#555] cursor-not-allowed"
             }
           `}
@@ -1777,12 +1943,17 @@ export const AudioStudio = () => {
             {isGenerating ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-                <span>{genProgress}% — {statusMessage || "Обработка..."}</span>
+                <span>{genProgress}% — {statusMessage || "Анализирую..."}</span>
               </>
             ) : mode === "music" ? (
               <>
                 <Sparkles className="w-5 h-5" />
-                <span>{canCreateMusic ? "Записать хит 🎤" : !selectedGenre ? "Выберите жанр" : !lyricsReady ? "Сгенерируйте текст" : "Создать песню"}</span>
+                <span>{canCreateMusic ? "Записать хит" : !selectedGenre ? "Выберите жанр" : !lyricsReady ? "Сгенерируйте текст" : "Создать песню"}</span>
+              </>
+            ) : mode === "dj" ? (
+              <>
+                <Disc className="w-5 h-5" />
+                <span>{djFile && djPreset ? "Создать ремикс" : !djFile ? "Загрузите аудио" : "Выберите стиль"}</span>
               </>
             ) : (
               <>
