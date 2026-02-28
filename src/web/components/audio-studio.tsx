@@ -27,7 +27,7 @@ type Duration = "30s" | "60s" | "2min";
 type VocalGender = "male" | "female";
 type SongLanguage = "ru" | "en";
 
-type VoiceCategory = "adults" | "youth" | "children" | "cartoon" | "cloned";
+type VoiceCategory = "adults" | "youth" | "children" | "cartoon" | "narrative" | "cloned";
 
 interface Voice {
   id: string;
@@ -39,6 +39,7 @@ interface Voice {
 }
 
 const VOICE_CATEGORIES: { key: VoiceCategory; label: string }[] = [
+  { key: "narrative", label: "Аудиокниги (Narrative)" },
   { key: "adults", label: "Взрослые" },
   { key: "youth", label: "Молодёжь" },
   { key: "children", label: "Дети" },
@@ -46,6 +47,10 @@ const VOICE_CATEGORIES: { key: VoiceCategory; label: string }[] = [
 ];
 
 const presetVoices: Voice[] = [
+  // Audiobook / Narrative — professional narrators
+  { id: "george",  name: "George (Диктор, авторитетный)",   type: "preset", elevenlabsId: "JBFqnCBtxuXPj74tWo9P", category: "narrative", stability: 0.6 },
+  { id: "alice",   name: "Alice (Рассказчица, мягкая)",     type: "preset", elevenlabsId: "Xb7hH8T3jXm5u9X4L4eM", category: "narrative", stability: 0.5 },
+  { id: "narrator-bill", name: "Bill (Нарратор, глубокий)",  type: "preset", elevenlabsId: "pqHbhBjtC9H21H6A0A9L", category: "narrative", stability: 0.6 },
   // Adults
   { id: "marcus",  name: "Marcus (Мужской, глубокий)",   type: "preset", elevenlabsId: "pFZP5JQG7iQjIQuC4Bku", category: "adults",   stability: 0.5 },
   { id: "brian",   name: "Brian (Мужской, тёплый)",      type: "preset", elevenlabsId: "nPczCjzI2devNBz1zQrb", category: "adults",   stability: 0.5 },
@@ -657,6 +662,7 @@ export const AudioStudio = () => {
   const [useMyVoice, setUseMyVoice] = useState(false);
   const [clonedVoiceId, setClonedVoiceId] = useState<string | null>(null);
   const [selectedVoice, setSelectedVoice] = useState<Voice>(presetVoices[0]);
+  const [voiceStability, setVoiceStability] = useState(presetVoices[0].stability ?? 0.5);
   const [clonedVoices, setClonedVoices] = useState<Voice[]>([]);
   const [showCloneModal, setShowCloneModal] = useState(false);
   const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false);
@@ -854,7 +860,7 @@ export const AudioStudio = () => {
           body: JSON.stringify({
             text: voiceText.trim(),
             elevenlabsId: selectedVoice?.elevenlabsId || undefined,
-            stability: selectedVoice?.stability ?? 0.5,
+            stability: voiceStability,
           }),
         });
       }
@@ -1474,7 +1480,7 @@ export const AudioStudio = () => {
                             <button
                               key={voice.id}
                               type="button"
-                              onClick={() => { setSelectedVoice(voice); setVoiceDropdownOpen(false); }}
+                              onClick={() => { setSelectedVoice(voice); setVoiceStability(voice.stability ?? 0.5); setVoiceDropdownOpen(false); }}
                               className={`w-full text-left px-4 py-2 text-sm transition-colors ${
                                 selectedVoice?.id === voice.id
                                   ? "bg-indigo-500/20 text-indigo-300"
@@ -1496,7 +1502,7 @@ export const AudioStudio = () => {
                           <button
                             key={voice.id}
                             type="button"
-                            onClick={() => { setSelectedVoice(voice); setVoiceDropdownOpen(false); }}
+                            onClick={() => { setSelectedVoice(voice); setVoiceStability(voice.stability ?? 0.5); setVoiceDropdownOpen(false); }}
                             className={`w-full text-left px-4 py-2 text-sm transition-colors ${
                               selectedVoice?.id === voice.id
                                 ? "bg-indigo-500/20 text-indigo-300"
@@ -1511,6 +1517,70 @@ export const AudioStudio = () => {
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Stability / Emotion Slider */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-medium text-slate-400 tracking-tight">Уровень эмоций</label>
+                <span className="text-xs font-mono text-slate-500">{voiceStability.toFixed(2)}</span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={voiceStability}
+                onChange={(e) => setVoiceStability(parseFloat(e.target.value))}
+                className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-slate-700/60 accent-indigo-500"
+              />
+              <div className="flex items-center justify-between text-[10px] text-slate-500">
+                <span>← Больше эмоций (сказки: 0.3)</span>
+                <span>Стабильный диктор (0.7) →</span>
+              </div>
+              <div className="flex gap-2 mt-1">
+                <button
+                  type="button"
+                  onClick={() => setVoiceStability(0.35)}
+                  className={`flex-1 py-1.5 rounded-lg text-[11px] font-medium border transition-all ${
+                    voiceStability >= 0.25 && voiceStability <= 0.45
+                      ? "bg-amber-500/20 border-amber-500/40 text-amber-300"
+                      : "bg-white/[0.03] border-slate-700/50 text-slate-500 hover:text-slate-300 hover:border-slate-600"
+                  }`}
+                >
+                  🎭 Сказка
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVoiceStability(0.5)}
+                  className={`flex-1 py-1.5 rounded-lg text-[11px] font-medium border transition-all ${
+                    voiceStability >= 0.46 && voiceStability <= 0.59
+                      ? "bg-indigo-500/20 border-indigo-500/40 text-indigo-300"
+                      : "bg-white/[0.03] border-slate-700/50 text-slate-500 hover:text-slate-300 hover:border-slate-600"
+                  }`}
+                >
+                  🎙️ Баланс
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVoiceStability(0.7)}
+                  className={`flex-1 py-1.5 rounded-lg text-[11px] font-medium border transition-all ${
+                    voiceStability >= 0.6
+                      ? "bg-blue-500/20 border-blue-500/40 text-blue-300"
+                      : "bg-white/[0.03] border-slate-700/50 text-slate-500 hover:text-slate-300 hover:border-slate-600"
+                  }`}
+                >
+                  📖 Диктор
+                </button>
+              </div>
+            </div>
+
+            {/* S2S Tip */}
+            <div className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl bg-indigo-500/5 border border-indigo-500/15">
+              <Sparkles className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
+              <p className="text-[11px] text-indigo-300/70 leading-relaxed">
+                Для лучшего результата используйте <strong className="text-indigo-300">Speech-to-Speech</strong> — запишите текст своим голосом, и AI передаст ваши интонации выбранному персонажу.
+              </p>
             </div>
 
             {/* Voice Clone Section */}
