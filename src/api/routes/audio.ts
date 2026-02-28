@@ -845,13 +845,19 @@ audioRoutes.post("/dj-remix", async (c) => {
 
     console.log(`[Audio] DJ remix: audioUrl=${audioUrl.slice(0, 80)}… preset=${preset}`)
 
-    // Build the style prompt and lyrics for MiniMax (lyrics is required)
-    const stylePrompt = `${style}. Remix of uploaded track. High energy, professional mix, modern production.`
-    const lyrics = `[Instrumental remix]\n${style}\nHigh energy, professional mix, modern production`
+    // Build prompt that preserves original vocals/melody, only changes arrangement
+    const stylePrompt = [
+      `Keep the original vocals and melody intact.`,
+      `Change only the instrumentation and arrangement to: ${style}.`,
+      `Professional mix, high quality production.`,
+    ].join(" ")
+    // Lyrics field required by MiniMax — use instrumental marker
+    const lyrics = `[instrumental]\n${style}`
 
-    console.log(`[Audio] DJ remix payload: prompt=${stylePrompt.slice(0, 60)}… lyrics=${lyrics.slice(0, 60)}…`)
+    console.log(`[Audio] DJ remix payload: ref=${audioUrl.slice(0, 60)}… prompt=${stylePrompt.slice(0, 80)}…`)
 
-    // Create MiniMax music prediction
+    // Create MiniMax music prediction with reference_audio (the user's uploaded track)
+    // style_strength: 0.25 = low influence from prompt style, high preservation of original
     const predRes = await fetchWithTimeout(MINIMAX_MUSIC, {
       method: "POST",
       headers: {
@@ -862,6 +868,8 @@ audioRoutes.post("/dj-remix", async (c) => {
         input: {
           prompt: stylePrompt,
           lyrics,
+          reference_audio: audioUrl,
+          style_strength: 0.25,
           audio_format: "mp3",
           bitrate: 256000,
         },
