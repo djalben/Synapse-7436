@@ -83,8 +83,13 @@ const MessageBubble = ({ role, content, model, isStreaming }: MessageBubbleProps
       if (part.startsWith("```") && part.endsWith("```")) {
         const codeContent = part.slice(3, -3)
         const firstLineEnd = codeContent.indexOf("\n")
-        const language = firstLineEnd > 0 ? codeContent.slice(0, firstLineEnd).trim() : ""
+        const language = firstLineEnd > 0 ? codeContent.slice(0, firstLineEnd).trim().toLowerCase() : ""
         const code = firstLineEnd > 0 ? codeContent.slice(firstLineEnd + 1) : codeContent
+
+        // Markdown/md blocks: render as plain text, not as code
+        if (language === "markdown" || language === "md") {
+          return <span key={index}>{code}</span>
+        }
 
         return (
           <div key={index} className="my-3 rounded-lg overflow-hidden border border-[#333]">
@@ -910,7 +915,7 @@ const ChatSession = ({ conversationId, initialMessages, selectedModel, onModelCh
             ))}
 
             {status === "submitted" && (
-              <div className="flex justify-start mb-3 ml-11 animate-in fade-in slide-in-from-bottom-1 duration-200">
+              <div className="flex justify-start mb-3 pl-11 animate-in fade-in slide-in-from-bottom-1 duration-200">
                 <ThinkingIndicator />
               </div>
             )}
@@ -960,7 +965,7 @@ const ChatSession = ({ conversationId, initialMessages, selectedModel, onModelCh
           ${isLoaded ? "opacity-100" : "opacity-0"}
         `}
       >
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-3xl mx-auto">
           <ChatInputComponent
             value={inputValue}
             onChange={setInputValue}
