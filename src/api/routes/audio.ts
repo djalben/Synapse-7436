@@ -841,29 +841,58 @@ audioRoutes.post("/dj-remix", async (c) => {
     const apiToken = getApiToken()
     if (!apiToken) return c.json({ error: "Replicate не настроен." }, 503)
 
-    const { audioUrl, preset, style } = await c.req.json()
+    const { audioUrl, preset, style, remixMode } = await c.req.json()
     if (!audioUrl || typeof audioUrl !== "string") return c.json({ error: "Загрузите аудиофайл." }, 400)
     if (!preset || !style) return c.json({ error: "Выберите стиль ремикса." }, 400)
 
-    console.log(`[Audio] DJ remix: audioUrl=${audioUrl.slice(0, 80)}… preset=${preset}`)
+    const mode = (remixMode === "mashup" || remixMode === "vision") ? remixMode : "classic"
+    console.log(`[Audio] DJ remix: mode=${mode} audioUrl=${audioUrl.slice(0, 80)}… preset=${preset}`)
 
-    // Build prompt: keep original vocals, generate new backing track in the selected style
-    const remixPrompt = [
-      `Keep the original male vocal from the uploaded track.`,
-      `Extract the chorus hook. Do not generate new vocals.`,
-      `Overlay the original vocal onto a fresh ${style} track`,
-      `with deep bass and clean percussion. Professional mix, high quality production.`,
-    ].join(" ")
+    // ── Three prompt strategies based on remixMode ──
+    let remixPrompt: string
+    let cfg = 3      // classifier_free_guidance — how closely to follow prompt
+    let chroma = 1.0 // chord structure preservation from original
 
-    console.log(`[Audio] DJ remix prompt: ${remixPrompt.slice(0, 100)}…`)
+    if (mode === "classic") {
+      // Logic A: Keep ALL original vocals from start to end, only change the backing
+      remixPrompt = [
+        `Keep original male vocals from start to end.`,
+        `Remix the background only to ${style}.`,
+        `Preserve the vocal melody and timing exactly.`,
+        `Professional studio mix, warm and clean production.`,
+      ].join(" ")
+      cfg = 3
+      chroma = 1.0 // full chord preservation
+    } else if (mode === "mashup") {
+      // Logic B: High-energy instrumental, only the chorus used as a vocal drop
+      remixPrompt = [
+        `Generate high-energy ${style} instrumental.`,
+        `Use only the chorus as a vocal drop. Silence other vocals.`,
+        `Heavy bass drops, build-ups, and rhythmic percussion.`,
+        `Club-ready mix, loud and punchy, festival energy.`,
+      ].join(" ")
+      cfg = 4 // stronger prompt adherence for the energetic style
+      chroma = 0.7 // looser chord following — more creative freedom
+    } else {
+      // Logic C (vision): Use lyrics/mood but generate entirely new modern AI vocals
+      remixPrompt = [
+        `Use the lyrics and mood of the uploaded track.`,
+        `GENERATE NEW MODERN AI VOCALS in ${style}.`,
+        `Replace the original voice with a professional studio singer voice.`,
+        `Modern production, crisp vocals, radio-ready mix.`,
+      ].join(" ")
+      cfg = 5 // strongest prompt adherence — new vocal generation
+      chroma = 0.5 // loose chord following — full creative reinterpretation
+    }
+
+    console.log(`[Audio] DJ remix prompt (${mode}): ${remixPrompt.slice(0, 100)}… cfg=${cfg} chroma=${chroma}`)
 
     // Create MusicGen Remixer prediction
-    // - music_input: the user's uploaded track (demucs extracts vocals automatically)
+    // - music_input: user's uploaded track (demucs extracts vocals automatically)
     // - model_version: "large" for best quality
-    // - multi_band_diffusion: true for better audio fidelity
-    // - classifier_free_guidance: 3 = moderate adherence to prompt (default)
-    // - chroma_coefficient: 1.0 = full chord structure preservation from original
-    // - output_format: mp3
+    // - multi_band_diffusion: true for maximum audio fidelity
+    // - classifier_free_guidance: varies per mode
+    // - chroma_coefficient: varies per mode (chord structure from original)
     const predRes = await fetchWithTimeout(MUSICGEN_REMIXER, {
       method: "POST",
       headers: {
@@ -877,8 +906,8 @@ audioRoutes.post("/dj-remix", async (c) => {
           model_version: "large",
           multi_band_diffusion: true,
           normalization_strategy: "loudness",
-          chroma_coefficient: 1.0,
-          classifier_free_guidance: 3,
+          chroma_coefficient: chroma,
+          classifier_free_guidance: cfg,
           output_format: "mp3",
           top_k: 250,
           top_p: 0,

@@ -26,6 +26,7 @@ import { useUsage } from "./usage-context";
 import { addToHistory } from "./placeholder-pages";
 
 type AudioMode = "music" | "voice" | "dj";
+type DjRemixMode = "classic" | "mashup" | "vision";
 type Duration = "30s" | "60s" | "2min";
 type VocalGender = "male" | "female";
 type SongLanguage = "ru" | "en";
@@ -721,8 +722,15 @@ export const AudioStudio = () => {
   // DJ state
   const [djFile, setDjFile] = useState<File | null>(null);
   const [djPreset, setDjPreset] = useState<DjPreset | null>(null);
+  const [djRemixMode, setDjRemixMode] = useState<DjRemixMode>("classic");
   const [djIsSpinning, setDjIsSpinning] = useState(false);
   const djFileInputRef = useRef<HTMLInputElement>(null);
+
+  const DJ_REMIX_MODES: { key: DjRemixMode; label: string; desc: string; icon: string }[] = [
+    { key: "classic", label: "Классический Ремикс", desc: "Оригинальный вокал + новая аранжировка", icon: "🎵" },
+    { key: "mashup", label: "Клубный Машап", desc: "Только припев как вокальный дроп", icon: "🔥" },
+    { key: "vision", label: "Новое Видение", desc: "AI-вокал в новом стиле", icon: "✨" },
+  ];
 
   const [musicPrompt, setMusicPrompt] = useState("");
   const [voiceText, setVoiceText] = useState("");
@@ -931,6 +939,7 @@ export const AudioStudio = () => {
             audioUrl: blobUrl,
             preset: djPreset.id,
             style: djPreset.style,
+            remixMode: djRemixMode,
           }),
         });
       } else {
@@ -1064,10 +1073,11 @@ export const AudioStudio = () => {
       const savedPrompt = musicPrompt;
       const savedText = voiceText;
       const djPresetName = djPreset?.name || "";
+      const djModeName = DJ_REMIX_MODES.find(m => m.key === djRemixMode)?.label || "";
       const newAudio: GeneratedAudio = {
         id: createData.id,
         type: mode === "dj" ? "music" : mode,
-        prompt: mode === "music" ? savedPrompt : mode === "dj" ? `Ремикс: ${djPresetName}` : undefined,
+        prompt: mode === "music" ? savedPrompt : mode === "dj" ? `${djModeName}: ${djPresetName}` : undefined,
         lyrics: mode === "music" ? createData.lyrics : undefined,
         text: mode === "voice" ? savedText : undefined,
         duration: mode === "voice"
@@ -1083,8 +1093,8 @@ export const AudioStudio = () => {
       try {
         addToHistory({
           type: "audio",
-          prompt: mode === "music" ? savedPrompt : mode === "dj" ? `DJ Ремикс: ${djPresetName}` : savedText || "",
-          model: mode === "dj" ? "Synapse DJ" : mode === "music" ? (useMyVoice && clonedVoiceId ? "MiniMax Music-1.5 + S2S" : "MiniMax Music-1.5") : "XTTS-v2",
+          prompt: mode === "music" ? savedPrompt : mode === "dj" ? `${djModeName}: ${djPresetName}` : savedText || "",
+          model: mode === "dj" ? `Synapse DJ (${djModeName})` : mode === "music" ? (useMyVoice && clonedVoiceId ? "MiniMax Music-1.5 + S2S" : "MiniMax Music-1.5") : "XTTS-v2",
           result: finalAudioUrl,
           credits: creditCost,
         });
@@ -1746,6 +1756,31 @@ export const AudioStudio = () => {
                   <h3 className="text-sm font-semibold text-white tracking-tight">Synapse Диджей</h3>
                   <p className="text-xs text-purple-300/60">Ремиксы и стилизация треков с AI</p>
                 </div>
+              </div>
+            </div>
+
+            {/* Remix Mode Selector */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-slate-400 tracking-tight">Режим ремикса</label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {DJ_REMIX_MODES.map((rm) => (
+                  <button
+                    key={rm.key}
+                    type="button"
+                    onClick={() => setDjRemixMode(rm.key)}
+                    className={`p-2.5 rounded-xl border text-center transition-all duration-300 ${
+                      djRemixMode === rm.key
+                        ? "bg-gradient-to-br from-purple-500/20 to-indigo-500/20 border-purple-500/50 shadow-lg shadow-purple-500/10"
+                        : "bg-white/[0.02] border-[#333] hover:border-purple-500/30 hover:bg-white/[0.04]"
+                    }`}
+                  >
+                    <span className="text-base block mb-0.5">{rm.icon}</span>
+                    <span className={`text-[10px] font-semibold block leading-tight ${djRemixMode === rm.key ? "text-white" : "text-slate-400"}`}>
+                      {rm.label}
+                    </span>
+                    <span className="text-[9px] text-slate-500 leading-tight block mt-0.5">{rm.desc}</span>
+                  </button>
+                ))}
               </div>
             </div>
 
