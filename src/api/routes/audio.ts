@@ -5,6 +5,7 @@ export const audioRoutes = new Hono()
 const REPLICATE_API = "https://api.replicate.com/v1"
 const REPLICATE_PREDICTIONS = `${REPLICATE_API}/predictions`
 const MINIMAX_MUSIC = `${REPLICATE_API}/models/minimax/music-1.5/predictions`
+const MUSICGEN_REMIXER = `${REPLICATE_API}/models/sakemin/musicgen-remixer/predictions`
 const XTTS_VERSION = "684bc3855b37866c0c65add2ff39c78f3dea3f4ff103a436465326e0f438d55e"
 
 // ─── Budget-based timeouts ───
@@ -829,11 +830,12 @@ audioRoutes.post("/blob-upload", async (c) => {
   }
 })
 
-// ─── POST /dj-remix — DJ remix: receive blob URL + style preset → MiniMax music ───
+// ─── POST /dj-remix — DJ remix via MusicGen Remixer (vocal preservation) ───
+// Uses sakemin/musicgen-remixer: demucs separates vocals → new backing from prompt → overlays original vocals.
 // File is already uploaded to Vercel Blob client-side; we only receive the URL.
 audioRoutes.post("/dj-remix", async (c) => {
   const t0 = Date.now()
-  console.log("[Audio] POST /dj-remix")
+  console.log("[Audio] POST /dj-remix (MusicGen Remixer — vocal preservation)")
 
   try {
     const apiToken = getApiToken()
@@ -845,20 +847,24 @@ audioRoutes.post("/dj-remix", async (c) => {
 
     console.log(`[Audio] DJ remix: audioUrl=${audioUrl.slice(0, 80)}… preset=${preset}`)
 
-    // Build prompt that preserves original vocals/melody, only changes arrangement
-    const stylePrompt = [
-      `Keep the original vocals and melody intact.`,
-      `Change only the instrumentation and arrangement to: ${style}.`,
-      `Professional mix, high quality production.`,
+    // Build prompt: keep original vocals, generate new backing track in the selected style
+    const remixPrompt = [
+      `Keep the original male vocal from the uploaded track.`,
+      `Extract the chorus hook. Do not generate new vocals.`,
+      `Overlay the original vocal onto a fresh ${style} track`,
+      `with deep bass and clean percussion. Professional mix, high quality production.`,
     ].join(" ")
-    // Lyrics field required by MiniMax — use instrumental marker
-    const lyrics = `[instrumental]\n${style}`
 
-    console.log(`[Audio] DJ remix payload: ref=${audioUrl.slice(0, 60)}… prompt=${stylePrompt.slice(0, 80)}…`)
+    console.log(`[Audio] DJ remix prompt: ${remixPrompt.slice(0, 100)}…`)
 
-    // Create MiniMax music prediction with reference_audio (the user's uploaded track)
-    // style_strength: 0.25 = low influence from prompt style, high preservation of original
-    const predRes = await fetchWithTimeout(MINIMAX_MUSIC, {
+    // Create MusicGen Remixer prediction
+    // - music_input: the user's uploaded track (demucs extracts vocals automatically)
+    // - model_version: "large" for best quality
+    // - multi_band_diffusion: true for better audio fidelity
+    // - classifier_free_guidance: 3 = moderate adherence to prompt (default)
+    // - chroma_coefficient: 1.0 = full chord structure preservation from original
+    // - output_format: mp3
+    const predRes = await fetchWithTimeout(MUSICGEN_REMIXER, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiToken}`,
@@ -866,21 +872,27 @@ audioRoutes.post("/dj-remix", async (c) => {
       },
       body: JSON.stringify({
         input: {
-          prompt: stylePrompt,
-          lyrics,
-          reference_audio: audioUrl,
-          style_strength: 0.25,
-          audio_format: "mp3",
-          bitrate: 256000,
+          prompt: remixPrompt,
+          music_input: audioUrl,
+          model_version: "large",
+          multi_band_diffusion: true,
+          normalization_strategy: "loudness",
+          chroma_coefficient: 1.0,
+          classifier_free_guidance: 3,
+          output_format: "mp3",
+          top_k: 250,
+          top_p: 0,
+          temperature: 1.0,
+          seed: -1,
         },
       }),
     }, TOTAL_BUDGET_MS)
 
     if (!predRes.ok) {
       const errText = await predRes.text()
-      console.error(`[Audio] DJ MiniMax error ${predRes.status}: ${errText.slice(0, 300)}`)
+      console.error(`[Audio] DJ Remixer error ${predRes.status}: ${errText.slice(0, 300)}`)
       if (predRes.status === 422) {
-        return c.json({ error: "Ошибка параметров запроса. Проверьте текст и стиль." }, 422)
+        return c.json({ error: "Ошибка параметров. Убедитесь, что файл — MP3/WAV и содержит музыку." }, 422)
       }
       return c.json({ error: "Не удалось запустить ремикс." }, 502)
     }
