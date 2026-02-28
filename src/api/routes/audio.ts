@@ -458,11 +458,14 @@ audioRoutes.post("/tts", async (c) => {
               // Don't retry on 4xx (client errors) — only on 5xx / network
               if (ttsRes.status >= 400 && ttsRes.status < 500) {
                 const isQuota = errText.toLowerCase().includes("quota") || errText.toLowerCase().includes("limit")
-                ttsJobs.set(jobId, {
-                  status: "failed",
-                  error: isQuota ? "Недостаточно лимитов в ElevenLabs." : "Сбой связи с ElevenLabs. Проверьте лимиты или попробуйте позже.",
-                  createdAt: Date.now(),
-                })
+                const failError = ttsRes.status === 401
+                  ? "Неверный API-ключ ElevenLabs. Обратитесь к администратору."
+                  : ttsRes.status === 429
+                    ? "Слишком много запросов к ElevenLabs. Подождите минуту и попробуйте снова."
+                    : isQuota
+                      ? "Недостаточно лимитов в ElevenLabs."
+                      : `Ошибка ElevenLabs (${ttsRes.status}). Попробуйте позже.`
+                ttsJobs.set(jobId, { status: "failed", error: failError, createdAt: Date.now() })
                 return
               }
               ttsRes = null // mark for retry
@@ -647,6 +650,15 @@ audioRoutes.get("/status/:id", async (c) => {
       console.warn(`[Audio] TTS job not found: ${predictionId}`)
       return c.json({ id: predictionId, status: "failed", error: "Задача не найдена." })
     }
+
+    // Fail-fast: if job stuck processing for >2 min, force-fail it
+    const STALE_TIMEOUT_MS = 2 * 60_000
+    if (job.status === "processing" && (Date.now() - job.createdAt) > STALE_TIMEOUT_MS) {
+      console.error(`[Audio] TTS job ${predictionId} STALE: processing for ${Math.round((Date.now() - job.createdAt) / 1000)}s — forcing failed`)
+      ttsJobs.set(predictionId, { status: "failed", error: "Превышено время ожидания сервера. Попробуйте снова.", createdAt: job.createdAt })
+      return c.json({ id: predictionId, status: "failed", error: "Превышено время ожидания сервера. Попробуйте снова." })
+    }
+
     console.log(`[Audio] TTS job ${predictionId}: ${job.status} (${Date.now() - t0}ms)`)
     if (job.status === "completed" && job.url) {
       return c.json({ id: predictionId, status: "completed", url: job.url })

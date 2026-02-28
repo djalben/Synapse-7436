@@ -229,6 +229,7 @@ conversationRoutes.post("/:id/messages", async (c) => {
       severity: err.severity,
       msgCount,
       totalChars,
+      stack: err.stack,
     })
     const userError = err.code === "54000"
       ? "Сообщение слишком большое для сохранения. Попробуйте начать новый чат."

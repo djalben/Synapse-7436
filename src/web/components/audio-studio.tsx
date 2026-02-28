@@ -751,17 +751,9 @@ export const AudioStudio = () => {
         if (data.status === "completed" && data.url) return data.url;
         if (data.status === "failed") throw new Error(data.error || "Генерация не удалась.");
       } catch (err) {
-        // Re-throw all known failure messages (from backend /status responses)
-        if (err instanceof Error && (
-          err.message.includes("не удалась") ||
-          err.message.includes("ошибку") ||
-          err.message.includes("Сбой связи") ||
-          err.message.includes("Недостаточно лимитов") ||
-          err.message.includes("не найдена") ||
-          err.message.includes("Таймаут") ||
-          err.message.includes("слишком длинный")
-        )) throw err;
-        // Swallow transient network hiccups during polling
+        // Always re-throw errors with a message (from backend failed status or HTTP errors)
+        if (err instanceof Error && err.message) throw err;
+        // Only swallow truly silent network hiccups (no message at all)
       }
     }
     throw new Error("Таймаут генерации (~8 мин). Попробуйте снова.");

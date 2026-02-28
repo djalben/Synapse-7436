@@ -487,15 +487,33 @@ async function apiCreateConversation(conv: { id: string; title: string; model: s
 
 async function apiSaveMessages(convId: string, msgs: StoredMessage[], title?: string, model?: string): Promise<boolean> {
   try {
+    const MAX_PAYLOAD_BYTES = 100_000 // 100KB safety threshold
+
+    // Estimate payload size and trim if too large
+    let messagesToSave = msgs
+    const fullPayload = JSON.stringify({ messages: msgs, title, model })
+    if (fullPayload.length > MAX_PAYLOAD_BYTES) {
+      console.warn(`[chat] payload too large (${fullPayload.length} chars, ${msgs.length} msgs) for conv ${convId}, trimming...`)
+      // Keep trimming oldest messages until we fit
+      messagesToSave = [...msgs]
+      while (messagesToSave.length > 1) {
+        const trimmed = JSON.stringify({ messages: messagesToSave, title, model })
+        if (trimmed.length <= MAX_PAYLOAD_BYTES) break
+        messagesToSave.shift() // remove oldest
+      }
+      console.log(`[chat] trimmed to ${messagesToSave.length} messages (from ${msgs.length})`)
+    }
+
     const res = await fetch(`/api/conversations/${convId}/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: msgs, title, model }),
+      body: JSON.stringify({ messages: messagesToSave, title, model }),
     })
     if (!res.ok) {
-      console.error(`[chat] save failed: ${res.status} for conv ${convId} (${msgs.length} msgs)`)
+      const errBody = await res.text().catch(() => "")
+      console.error(`[chat] save failed: ${res.status} for conv ${convId} (${messagesToSave.length} msgs): ${errBody.slice(0, 200)}`)
     } else {
-      console.log(`[chat] saved ${msgs.length} messages for conv ${convId}`)
+      console.log(`[chat] saved ${messagesToSave.length} messages for conv ${convId}`)
     }
     return res.ok
   } catch (err) {
