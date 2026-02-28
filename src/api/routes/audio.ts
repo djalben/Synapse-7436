@@ -5,7 +5,7 @@ export const audioRoutes = new Hono()
 const REPLICATE_API = "https://api.replicate.com/v1"
 const REPLICATE_PREDICTIONS = `${REPLICATE_API}/predictions`
 const MINIMAX_MUSIC = `${REPLICATE_API}/models/minimax/music-1.5/predictions`
-const MUSICGEN_REMIXER = `${REPLICATE_API}/models/sakemin/musicgen-remixer/predictions`
+const MUSICGEN_REMIXER_VERSION = "0b769f28e399c7c30e4f2360691b9b11c294183e9ab2fd9f3398127b556c86d7"
 const XTTS_VERSION = "684bc3855b37866c0c65add2ff39c78f3dea3f4ff103a436465326e0f438d55e"
 
 // ─── Budget-based timeouts ───
@@ -887,19 +887,21 @@ audioRoutes.post("/dj-remix", async (c) => {
 
     console.log(`[Audio] DJ remix prompt (${mode}): ${remixPrompt.slice(0, 100)}… cfg=${cfg} chroma=${chroma}`)
 
-    // Create MusicGen Remixer prediction
+    // Create MusicGen Remixer prediction via VERSIONED predictions endpoint
+    // (avoids 404 from /models/ endpoint; same pattern as XTTS)
     // - music_input: user's uploaded track (demucs extracts vocals automatically)
     // - model_version: "large" for best quality
     // - multi_band_diffusion: true for maximum audio fidelity
     // - classifier_free_guidance: varies per mode
     // - chroma_coefficient: varies per mode (chord structure from original)
-    const predRes = await fetchWithTimeout(MUSICGEN_REMIXER, {
+    const predRes = await fetchWithTimeout(REPLICATE_PREDICTIONS, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiToken}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
+        version: MUSICGEN_REMIXER_VERSION,
         input: {
           prompt: remixPrompt,
           music_input: audioUrl,
@@ -920,16 +922,23 @@ audioRoutes.post("/dj-remix", async (c) => {
     if (!predRes.ok) {
       const errText = await predRes.text()
       console.error(`[Audio] DJ Remixer error ${predRes.status}: ${errText.slice(0, 300)}`)
+      if (predRes.status === 404) {
+        return c.json({ error: "Модель ремиксера временно недоступна. Попробуйте через минуту." }, 503)
+      }
       if (predRes.status === 422) {
         return c.json({ error: "Ошибка параметров. Убедитесь, что файл — MP3/WAV и содержит музыку." }, 422)
       }
-      return c.json({ error: "Не удалось запустить ремикс." }, 502)
+      if (predRes.status === 429) {
+        return c.json({ error: "Сервер нейросети временно занят, попробуйте через минуту." }, 429)
+      }
+      return c.json({ error: "Не удалось запустить ремикс. Попробуйте позже." }, 502)
     }
 
     const pred = await predRes.json() as { id: string; status: string }
-    console.log(`[Audio] DJ remix started: id=${pred.id} preset=${preset} elapsed=${Date.now() - t0}ms`)
+    console.log(`[Audio] DJ remix prediction created: id=${pred.id} status=${pred.status} preset=${preset} mode=${mode} elapsed=${Date.now() - t0}ms`)
 
-    return c.json({ id: pred.id, status: pred.status, preset })
+    // Return ID immediately — frontend polls /status/:id for progress
+    return c.json({ id: pred.id, status: "processing", preset })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error(`[Audio] DJ-REMIX FAILED: ${msg}`)
