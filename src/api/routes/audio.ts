@@ -845,8 +845,11 @@ audioRoutes.post("/dj-remix", async (c) => {
 
     console.log(`[Audio] DJ remix: audioUrl=${audioUrl.slice(0, 80)}… preset=${preset}`)
 
-    // Build the style prompt for MiniMax
+    // Build the style prompt and lyrics for MiniMax (lyrics is required)
     const stylePrompt = `${style}. Remix of uploaded track. High energy, professional mix, modern production.`
+    const lyrics = `[Instrumental remix]\n${style}\nHigh energy, professional mix, modern production`
+
+    console.log(`[Audio] DJ remix payload: prompt=${stylePrompt.slice(0, 60)}… lyrics=${lyrics.slice(0, 60)}…`)
 
     // Create MiniMax music prediction
     const predRes = await fetchWithTimeout(MINIMAX_MUSIC, {
@@ -858,6 +861,7 @@ audioRoutes.post("/dj-remix", async (c) => {
       body: JSON.stringify({
         input: {
           prompt: stylePrompt,
+          lyrics,
           audio_format: "mp3",
           bitrate: 256000,
         },
@@ -867,6 +871,9 @@ audioRoutes.post("/dj-remix", async (c) => {
     if (!predRes.ok) {
       const errText = await predRes.text()
       console.error(`[Audio] DJ MiniMax error ${predRes.status}: ${errText.slice(0, 300)}`)
+      if (predRes.status === 422) {
+        return c.json({ error: "Ошибка параметров запроса. Проверьте текст и стиль." }, 422)
+      }
       return c.json({ error: "Не удалось запустить ремикс." }, 502)
     }
 
