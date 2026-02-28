@@ -1,7 +1,7 @@
 import { Hono } from "hono"
 import { streamText, convertToModelMessages, UIMessage } from "ai"
 import { createOpenAI } from "@ai-sdk/openai"
-import { STRESS_INSTRUCTION } from "../utils/russian-linguist"
+import { STRESS_INSTRUCTION } from "../utils/russian-linguist.js"
 
 export const chatRoutes = new Hono()
 
