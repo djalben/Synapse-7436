@@ -4,6 +4,7 @@ import {
   Mic,
   Play,
   Pause,
+  Square,
   Download,
   Upload,
   Plus,
@@ -49,24 +50,24 @@ const VOICE_CATEGORIES: { key: VoiceCategory; label: string }[] = [
 const presetVoices: Voice[] = [
   // Audiobook / Narrative — professional narrators
   { id: "george",  name: "George (Диктор, авторитетный)",   type: "preset", elevenlabsId: "JBFqnCBtxuXPj74tWo9P", category: "narrative", stability: 0.6 },
-  { id: "alice",   name: "Alice (Рассказчица, мягкая)",     type: "preset", elevenlabsId: "Xb7hH8T3jXm5u9X4L4eM", category: "narrative", stability: 0.5 },
-  { id: "narrator-bill", name: "Bill (Нарратор, глубокий)",  type: "preset", elevenlabsId: "pqHbhBjtC9H21H6A0A9L", category: "narrative", stability: 0.6 },
+  { id: "rachel-n", name: "Rachel (Рассказчица, мягкая)",   type: "preset", elevenlabsId: "21m00Tcm4TlvDq8ikWAM", category: "narrative", stability: 0.5 },
+  { id: "drew",    name: "Drew (Нарратор, спокойный)",      type: "preset", elevenlabsId: "29vD33N1HAb8pX786n4k", category: "narrative", stability: 0.6 },
   // Adults
-  { id: "marcus",  name: "Marcus (Мужской, глубокий)",   type: "preset", elevenlabsId: "pFZP5JQG7iQjIQuC4Bku", category: "adults",   stability: 0.5 },
-  { id: "brian",   name: "Brian (Мужской, тёплый)",      type: "preset", elevenlabsId: "nPczCjzI2devNBz1zQrb", category: "adults",   stability: 0.5 },
-  { id: "rachel",  name: "Rachel (Женский, элегантный)", type: "preset", elevenlabsId: "21m00Tcm4TlvDq8ikWAM", category: "adults",   stability: 0.5 },
-  { id: "sarah",   name: "Sarah (Женский, нежный)",      type: "preset", elevenlabsId: "EXAVITQu4vr4xnSDxMaL", category: "adults",   stability: 0.5 },
+  { id: "clyde",   name: "Clyde (Мужской, глубокий)",      type: "preset", elevenlabsId: "2EiwWnXFnvU5JabPnv8n", category: "adults",   stability: 0.5 },
+  { id: "brian",   name: "Brian (Мужской, тёплый)",        type: "preset", elevenlabsId: "nPczCjzI2devNBz1zQrb", category: "adults",   stability: 0.5 },
+  { id: "rachel",  name: "Rachel (Женский, элегантный)",   type: "preset", elevenlabsId: "21m00Tcm4TlvDq8ikWAM", category: "adults",   stability: 0.5 },
+  { id: "sarah",   name: "Sarah (Женский, нежный)",        type: "preset", elevenlabsId: "EXAVITQu4vr4xnSDxMaL", category: "adults",   stability: 0.5 },
   // Youth
-  { id: "antoni",  name: "Antoni (Парень, энергичный)",  type: "preset", elevenlabsId: "ErXwobaYiN019PkySvjV", category: "youth",    stability: 0.5 },
-  { id: "serena",  name: "Serena (Девушка, яркая)",      type: "preset", elevenlabsId: "pMsXgVXv3BLzUgSXRplE", category: "youth",    stability: 0.5 },
+  { id: "antoni",  name: "Antoni (Парень, энергичный)",    type: "preset", elevenlabsId: "ErXwobaYiN019PkySvjV", category: "youth",    stability: 0.5 },
+  { id: "elli",    name: "Elli (Девушка, яркая)",          type: "preset", elevenlabsId: "MF3mGyEYCl7XYWbV9V6O", category: "youth",    stability: 0.5 },
   // Children
-  { id: "liam",    name: "Liam (Мальчик)",               type: "preset", elevenlabsId: "TX3LPaxmHKxFdv7VOQHJ", category: "children",  stability: 0.5 },
-  { id: "lily",    name: "Lily (Девочка)",                type: "preset", elevenlabsId: "pFZP5JQG7iQjIQuC4Bku", category: "children",  stability: 0.5 },
+  { id: "liam",    name: "Liam (Мальчик)",                 type: "preset", elevenlabsId: "TX3LPaxmHKxFdv7VOQHJ", category: "children",  stability: 0.5 },
+  { id: "dorothy", name: "Dorothy (Девочка)",               type: "preset", elevenlabsId: "ThT5KcBeYPX3keUQqHPh", category: "children",  stability: 0.5 },
   // Cartoon / Fairy Tale
-  { id: "fin",     name: "Fin (Старик-сказочник)",       type: "preset", elevenlabsId: "D38z5RcWu1voky8WS1ja", category: "cartoon",   stability: 0.7 },
-  { id: "bill",    name: "Bill (Великан)",                type: "preset", elevenlabsId: "pqHfZKP75CvOlQylNhV4", category: "cartoon",   stability: 0.7 },
-  { id: "glinda",  name: "Glinda (Фея)",                 type: "preset", elevenlabsId: "z9fAnlkpzviPz146aGWa", category: "cartoon",   stability: 0.7 },
-  { id: "gigi",    name: "Gigi (Мультяшная)",            type: "preset", elevenlabsId: "jBpfuIE2acCO8z3wKNLl", category: "cartoon",   stability: 0.7 },
+  { id: "fin",     name: "Fin (Старик-сказочник)",         type: "preset", elevenlabsId: "D38z5RcWu1voky8WS1ja", category: "cartoon",   stability: 0.7 },
+  { id: "clyde-c", name: "Clyde (Великан)",                type: "preset", elevenlabsId: "2EiwWnXFnvU5JabPnv8n", category: "cartoon",   stability: 0.7 },
+  { id: "glinda",  name: "Glinda (Фея)",                   type: "preset", elevenlabsId: "z9fAnlkpzviPz146aGWa", category: "cartoon",   stability: 0.7 },
+  { id: "gigi",    name: "Gigi (Мультяшная)",              type: "preset", elevenlabsId: "jBpfuIE2acCO8z3wKNLl", category: "cartoon",   stability: 0.7 },
 ];
 
 const genres = ["Поп", "Электроника", "Хип-Хоп", "Классика", "Рок", "Джаз", "Эмбиент", "Шансон", "R&B", "Метал", "Кантри"];
@@ -667,7 +668,39 @@ export const AudioStudio = () => {
   const [showCloneModal, setShowCloneModal] = useState(false);
   const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false);
   const voiceDropdownRef = useRef<HTMLDivElement>(null);
-  
+  const [previewingVoiceId, setPreviewingVoiceId] = useState<string | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const togglePreview = useCallback(async (voiceId: string, elevenlabsId?: string) => {
+    // Stop current preview
+    if (previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      previewAudioRef.current = null;
+    }
+    if (previewingVoiceId === voiceId) {
+      setPreviewingVoiceId(null);
+      return;
+    }
+    if (!elevenlabsId) return;
+    setPreviewingVoiceId(voiceId);
+    try {
+      const res = await fetch("/api/audio/preview-voice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voiceId: elevenlabsId }),
+      });
+      if (!res.ok) { setPreviewingVoiceId(null); return; }
+      const { preview_url } = await res.json() as { preview_url: string };
+      const audio = new Audio(preview_url);
+      audio.onended = () => setPreviewingVoiceId(null);
+      audio.onerror = () => setPreviewingVoiceId(null);
+      previewAudioRef.current = audio;
+      await audio.play();
+    } catch {
+      setPreviewingVoiceId(null);
+    }
+  }, [previewingVoiceId]);
+
   const [musicPrompt, setMusicPrompt] = useState("");
   const [voiceText, setVoiceText] = useState("");
   const [editedLyrics, setEditedLyrics] = useState("");
@@ -1477,18 +1510,33 @@ export const AudioStudio = () => {
                             <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">{cat.label}</span>
                           </div>
                           {voices.map((voice) => (
-                            <button
-                              key={voice.id}
-                              type="button"
-                              onClick={() => { setSelectedVoice(voice); setVoiceStability(voice.stability ?? 0.5); setVoiceDropdownOpen(false); }}
-                              className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                                selectedVoice?.id === voice.id
-                                  ? "bg-indigo-500/20 text-indigo-300"
-                                  : "text-slate-300 hover:bg-white/[0.06] hover:text-white"
-                              }`}
-                            >
-                              {voice.name}
-                            </button>
+                            <div key={voice.id} className={`flex items-center gap-1 px-4 py-2 transition-colors ${
+                              selectedVoice?.id === voice.id
+                                ? "bg-indigo-500/20"
+                                : "hover:bg-white/[0.06]"
+                            }`}>
+                              <button
+                                type="button"
+                                onClick={() => { setSelectedVoice(voice); setVoiceStability(voice.stability ?? 0.5); setVoiceDropdownOpen(false); }}
+                                className={`flex-1 text-left text-sm ${
+                                  selectedVoice?.id === voice.id ? "text-indigo-300" : "text-slate-300 hover:text-white"
+                                }`}
+                              >
+                                {voice.name}
+                              </button>
+                              {voice.elevenlabsId && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); togglePreview(voice.id, voice.elevenlabsId); }}
+                                  className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-slate-500 hover:text-indigo-400 hover:bg-white/[0.08] transition-colors"
+                                  title="Прослушать"
+                                >
+                                  {previewingVoiceId === voice.id
+                                    ? <Square className="w-3 h-3 fill-current" />
+                                    : <Play className="w-3 h-3 fill-current" />}
+                                </button>
+                              )}
+                            </div>
                           ))}
                         </div>
                       );
@@ -1499,18 +1547,33 @@ export const AudioStudio = () => {
                           <span className="text-[10px] font-semibold uppercase tracking-widest text-amber-500/80">Мои голоса</span>
                         </div>
                         {clonedVoices.map((voice) => (
-                          <button
-                            key={voice.id}
-                            type="button"
-                            onClick={() => { setSelectedVoice(voice); setVoiceStability(voice.stability ?? 0.5); setVoiceDropdownOpen(false); }}
-                            className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                              selectedVoice?.id === voice.id
-                                ? "bg-indigo-500/20 text-indigo-300"
-                                : "text-slate-300 hover:bg-white/[0.06] hover:text-white"
-                            }`}
-                          >
-                            {voice.name}
-                          </button>
+                          <div key={voice.id} className={`flex items-center gap-1 px-4 py-2 transition-colors ${
+                            selectedVoice?.id === voice.id
+                              ? "bg-indigo-500/20"
+                              : "hover:bg-white/[0.06]"
+                          }`}>
+                            <button
+                              type="button"
+                              onClick={() => { setSelectedVoice(voice); setVoiceStability(voice.stability ?? 0.5); setVoiceDropdownOpen(false); }}
+                              className={`flex-1 text-left text-sm ${
+                                selectedVoice?.id === voice.id ? "text-indigo-300" : "text-slate-300 hover:text-white"
+                              }`}
+                            >
+                              {voice.name}
+                            </button>
+                            {voice.elevenlabsId && (
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); togglePreview(voice.id, voice.elevenlabsId); }}
+                                className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-slate-500 hover:text-indigo-400 hover:bg-white/[0.08] transition-colors"
+                                title="Прослушать"
+                              >
+                                {previewingVoiceId === voice.id
+                                  ? <Square className="w-3 h-3 fill-current" />
+                                  : <Play className="w-3 h-3 fill-current" />}
+                              </button>
+                            )}
+                          </div>
                         ))}
                       </div>
                     )}

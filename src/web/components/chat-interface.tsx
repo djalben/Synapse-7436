@@ -420,7 +420,11 @@ interface ChatConversation {
 const CONVERSATIONS_KEY = "synapse_conversations"
 
 function genId(): string {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789"
+  const ts = Date.now().toString(36)
+  let rand = ""
+  for (let i = 0; i < 6; i++) rand += chars[Math.floor(Math.random() * chars.length)]
+  return ts + rand
 }
 
 // --- localStorage helpers (fallback) ---

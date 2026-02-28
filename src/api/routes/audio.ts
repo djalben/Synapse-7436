@@ -359,6 +359,30 @@ audioRoutes.post("/generate-lyrics", async (c) => {
   }
 })
 
+// ─── POST /preview-voice — fetch voice preview URL from ElevenLabs ───
+audioRoutes.post("/preview-voice", async (c) => {
+  const elevenLabsKey = getElevenLabsKey()
+  if (!elevenLabsKey) return c.json({ error: "ElevenLabs не настроен" }, 503)
+
+  try {
+    const { voiceId } = await c.req.json<{ voiceId: string }>()
+    if (!voiceId || typeof voiceId !== "string") return c.json({ error: "missing voiceId" }, 400)
+
+    const res = await fetch(`https://api.elevenlabs.io/v1/voices/${voiceId}`, {
+      headers: { "xi-api-key": elevenLabsKey },
+    })
+    if (res.status === 404) return c.json({ error: "Голос не найден" }, 404)
+    if (!res.ok) return c.json({ error: `ElevenLabs ${res.status}` }, 502)
+
+    const data = await res.json() as { preview_url?: string }
+    if (!data.preview_url) return c.json({ error: "Превью недоступно" }, 404)
+
+    return c.json({ preview_url: data.preview_url })
+  } catch {
+    return c.json({ error: "Не удалось загрузить превью" }, 502)
+  }
+})
+
 // ─── POST /tts — ASYNC text-to-speech: returns job ID immediately, processes in background ───
 audioRoutes.post("/tts", async (c) => {
   const t0 = Date.now()
