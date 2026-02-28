@@ -817,7 +817,7 @@ audioRoutes.post("/blob-upload", async (c) => {
         ],
         maximumSizeInBytes: 500 * 1024 * 1024, // 500MB
       }),
-      onUploadCompleted: async ({ blob }: { blob: { url: string; size: number } }) => {
+      onUploadCompleted: async ({ blob }) => {
         console.log(`[Audio] Client blob upload completed: ${blob.url} (${blob.size} bytes)`)
       },
     })
