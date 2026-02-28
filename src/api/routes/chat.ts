@@ -1,7 +1,6 @@
 import { Hono } from "hono"
 import { streamText, convertToModelMessages, UIMessage } from "ai"
 import { createOpenAI } from "@ai-sdk/openai"
-import { STRESS_INSTRUCTION } from "../utils/russian-linguist.js"
 
 export const chatRoutes = new Hono()
 
@@ -51,15 +50,9 @@ chatRoutes.post("/", async (c) => {
 
     const modelMessages = await convertToModelMessages(messages as UIMessage[])
 
-    const SYSTEM_PROMPT = [
-      "Ты — Synapse, продвинутый AI-ассистент. Отвечай точно, структурированно, дружелюбно.",
-      "Поддерживай русский и английский языки. Форматируй код в блоках ```.",
-      STRESS_INSTRUCTION,
-    ].join("\n")
-
     const result = streamText({
       model: openrouter.chat(modelId),
-      system: SYSTEM_PROMPT,
+      system: "Ты — Synapse, продвинутый AI-ассистент. Отвечай точно, структурированно, дружелюбно. Поддерживай русский и английский языки. Форматируй код в блоках ```.",
       messages: modelMessages,
     })
 

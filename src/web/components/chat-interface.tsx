@@ -45,52 +45,18 @@ const MODEL_NAMES: Record<string, string> = {
   "gpt-5-o1": "GPT-5.2 Chat",
 }
 
-// ─── Thinking Indicator — glassmorphism pulsing with cycling statuses ───
-const THINKING_PHASES = [
-  "Анализирую контекст...",
-  "Изучаю документацию...",
-  "Синтезирую решение...",
-  "Финальная проверка...",
-]
-
-const ThinkingIndicator = () => {
-  const [phase, setPhase] = useState(0)
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setPhase(p => (p + 1) % THINKING_PHASES.length)
-    }, 2800)
-    return () => clearInterval(interval)
-  }, [])
-
-  return (
-    <div className="flex items-center gap-3 px-4 py-3 rounded-2xl rounded-bl-md bg-[#0d0d0d]/80 backdrop-blur-md border border-[#222] min-w-[240px]">
-      {/* Pulsing brain icon */}
-      <div className="relative flex-shrink-0">
-        <div className="w-7 h-7 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
-          <svg viewBox="0 0 24 24" className="w-4 h-4 text-indigo-400 animate-pulse" fill="none" stroke="currentColor" strokeWidth={1.5}>
-            <path d="M9.5 2a4.5 4.5 0 0 0-4.4 5.5A3.5 3.5 0 0 0 6 14.5V16a1 1 0 0 0 1 1h2m5.5-15a4.5 4.5 0 0 1 4.4 5.5A3.5 3.5 0 0 1 18 14.5V16a1 1 0 0 1-1 1h-2m-3 0v2a2 2 0 0 1-2 2h0a2 2 0 0 1-2-2v-2m6 0v2a2 2 0 0 0 2 2h0a2 2 0 0 0 2-2v-2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
-        <div className="absolute inset-0 rounded-lg bg-indigo-500/20 animate-ping" style={{ animationDuration: "2s" }} />
-      </div>
-      {/* Cycling status text */}
-      <div className="flex flex-col gap-1 min-w-0">
-        <span
-          key={phase}
-          className="text-[13px] text-indigo-300/80 font-medium animate-in fade-in duration-500"
-        >
-          {THINKING_PHASES[phase]}
-        </span>
-        <div className="flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-          <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-          <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-        </div>
-      </div>
-    </div>
-  )
-}
+// ─── Thinking Indicator — compact pill with lightbulb ───
+const ThinkingIndicator = () => (
+  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#111]/80 backdrop-blur-sm border border-white/[0.06]">
+    <Lightbulb className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
+    <span className="text-xs text-[#888] font-medium">Думаю...</span>
+    <span className="flex items-center gap-1">
+      <span className="w-1 h-1 bg-indigo-400/60 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+      <span className="w-1 h-1 bg-indigo-400/60 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+      <span className="w-1 h-1 bg-indigo-400/60 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+    </span>
+  </div>
+)
 
 // Message component with markdown support
 interface MessageBubbleProps {
@@ -929,7 +895,7 @@ const ChatSession = ({ conversationId, initialMessages, selectedModel, onModelCh
             </div>
           </div>
         ) : (
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-3xl mx-auto">
             {messages.map((message) => (
               <MessageBubble
                 key={message.id}
@@ -944,13 +910,8 @@ const ChatSession = ({ conversationId, initialMessages, selectedModel, onModelCh
             ))}
 
             {status === "submitted" && (
-              <div className="flex justify-start mb-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[#1a1a1a] border border-[#333] flex items-center justify-center text-[#888]">
-                    {MODEL_LOGOS[selectedModel] || <Bot className="w-4 h-4" />}
-                  </div>
-                  <ThinkingIndicator />
-                </div>
+              <div className="flex justify-start mb-3 ml-11 animate-in fade-in slide-in-from-bottom-1 duration-200">
+                <ThinkingIndicator />
               </div>
             )}
 
