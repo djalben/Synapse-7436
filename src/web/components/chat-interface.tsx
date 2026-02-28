@@ -45,16 +45,11 @@ const MODEL_NAMES: Record<string, string> = {
   "gpt-5-o1": "GPT-5.2 Chat",
 }
 
-// ─── Thinking Indicator — compact pill with lightbulb ───
+// ─── Thinking Indicator — compact pulsing lightbulb ───
 const ThinkingIndicator = () => (
-  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#111]/80 backdrop-blur-sm border border-white/[0.06]">
-    <Lightbulb className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
-    <span className="text-xs text-[#888] font-medium">Думаю...</span>
-    <span className="flex items-center gap-1">
-      <span className="w-1 h-1 bg-indigo-400/60 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-      <span className="w-1 h-1 bg-indigo-400/60 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-      <span className="w-1 h-1 bg-indigo-400/60 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-    </span>
+  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#111]/80 backdrop-blur-sm border border-white/[0.06]">
+    <Lightbulb className="w-3 h-3 text-indigo-400 animate-pulse" />
+    <span className="text-[11px] text-[#666]">Думаю...</span>
   </div>
 )
 
@@ -915,7 +910,7 @@ const ChatSession = ({ conversationId, initialMessages, selectedModel, onModelCh
             ))}
 
             {status === "submitted" && (
-              <div className="flex justify-start mb-3 pl-11 animate-in fade-in slide-in-from-bottom-1 duration-200">
+              <div className="flex justify-start mb-3 animate-in fade-in slide-in-from-bottom-1 duration-200">
                 <ThinkingIndicator />
               </div>
             )}
