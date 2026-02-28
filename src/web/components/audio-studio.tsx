@@ -839,8 +839,14 @@ export const AudioStudio = () => {
           return;
         }
         const hasElevenLabs = !!selectedVoice?.elevenlabsId;
-        setStatusMessage(hasElevenLabs ? `${selectedVoice.name} озвучивает текст...` : "XTTS запускается...");
-        startProgressSim(hasElevenLabs ? 10_000 : 15_000, 80);
+        const isLongText = voiceText.length > 1000;
+        setStatusMessage(
+          hasElevenLabs
+            ? (isLongText ? `${selectedVoice.name} озвучивает большой текст (до 1 мин)...` : `${selectedVoice.name} озвучивает текст...`)
+            : "XTTS запускается..."
+        );
+        // ElevenLabs is synchronous now — the fetch itself takes 5-50s depending on text length
+        startProgressSim(hasElevenLabs ? (isLongText ? 55_000 : 20_000) : 15_000, 80);
 
         response = await fetch("/api/audio/tts", {
           method: "POST",
@@ -861,58 +867,64 @@ export const AudioStudio = () => {
       const createData = await response.json() as { id?: string; status?: string; lyrics?: string; error?: string; url?: string };
       if (!createData.id) throw new Error("Нет ID задачи.");
 
-      // Phase 2: status-aware polling with detailed progress
-      let phase: "starting" | "processing" | "done" = "starting";
-      if (mode === "music") {
-        stopProgressSim();
-        setGenProgress(20);
-        setStatusMessage("Подключаемся к студии...");
-        startProgressSim(120_000, 40, 20);
-      } else {
-        // Voice mode: adaptive message based on text length
-        const isLongText = voiceText.length > 500;
-        stopProgressSim();
-        setGenProgress(15);
-        setStatusMessage(isLongText ? "Озвучиваем большую сказку (может занять до 1 мин)..." : "Голос синтезируется...");
-        startProgressSim(isLongText ? 60_000 : 20_000, 90, 15);
-      }
+      let audioUrl: string;
 
-      const savedVoiceTextLen = voiceText.length;
-      const audioUrl = await pollAudioStatus(createData.id, (status, elapsedSec) => {
+      // ElevenLabs returns completed+url synchronously — skip polling
+      if (createData.status === "completed" && createData.url) {
+        audioUrl = createData.url;
+        stopProgressSim();
+        setGenProgress(95);
+        setStatusMessage("Готово!");
+      } else {
+        // Phase 2: status-aware polling (Replicate/XTTS-v2 only)
+        let phase: "starting" | "processing" | "done" = "starting";
         if (mode === "music") {
-          if (status === "starting") {
-            if (elapsedSec < 30) {
-              setStatusMessage("Подключаемся к студии...");
-            } else if (elapsedSec < 90) {
-              setStatusMessage("Нейросеть загружается (это нормально, ~1-2 мин)...");
-            } else {
-              setStatusMessage(`Модель всё ещё запускается (${Math.floor(elapsedSec / 60)}:${String(elapsedSec % 60).padStart(2, "0")})...`);
-            }
-          }
-          if (status === "processing" && phase === "starting") {
-            phase = "processing";
-            stopProgressSim();
-            setGenProgress(40);
-            setStatusMessage("Нейросеть сочиняет музыку...");
-            const simMs = duration === "30s" ? 60_000 : duration === "60s" ? 120_000 : 180_000;
-            startProgressSim(simMs, 92, 40);
-          }
-          if (status === "processing" && phase === "processing") {
-            if (elapsedSec > 120) {
-              setStatusMessage("Сводим вокал и инструменты...");
-            } else if (elapsedSec > 60) {
-              setStatusMessage("Нейросеть записывает вокал...");
-            }
-          }
+          stopProgressSim();
+          setGenProgress(20);
+          setStatusMessage("Подключаемся к студии...");
+          startProgressSim(120_000, 40, 20);
         } else {
-          // Voice mode status updates
-          if (elapsedSec > 30 && savedVoiceTextLen > 500) {
-            setStatusMessage("Озвучиваем длинный текст... почти готово");
-          } else if (elapsedSec > 15) {
-            setStatusMessage("Обрабатываем аудио...");
-          }
+          // XTTS-v2 voice mode
+          stopProgressSim();
+          setGenProgress(15);
+          setStatusMessage("Голос синтезируется...");
+          startProgressSim(20_000, 90, 15);
         }
-      });
+
+        audioUrl = await pollAudioStatus(createData.id, (status, elapsedSec) => {
+          if (mode === "music") {
+            if (status === "starting") {
+              if (elapsedSec < 30) {
+                setStatusMessage("Подключаемся к студии...");
+              } else if (elapsedSec < 90) {
+                setStatusMessage("Нейросеть загружается (это нормально, ~1-2 мин)...");
+              } else {
+                setStatusMessage(`Модель всё ещё запускается (${Math.floor(elapsedSec / 60)}:${String(elapsedSec % 60).padStart(2, "0")})...`);
+              }
+            }
+            if (status === "processing" && phase === "starting") {
+              phase = "processing";
+              stopProgressSim();
+              setGenProgress(40);
+              setStatusMessage("Нейросеть сочиняет музыку...");
+              const simMs = duration === "30s" ? 60_000 : duration === "60s" ? 120_000 : 180_000;
+              startProgressSim(simMs, 92, 40);
+            }
+            if (status === "processing" && phase === "processing") {
+              if (elapsedSec > 120) {
+                setStatusMessage("Сводим вокал и инструменты...");
+              } else if (elapsedSec > 60) {
+                setStatusMessage("Нейросеть записывает вокал...");
+              }
+            }
+          } else {
+            // XTTS-v2 voice status
+            if (elapsedSec > 15) {
+              setStatusMessage("Обрабатываем аудио...");
+            }
+          }
+        });
+      }
 
       // Speech-to-Speech: apply cloned voice if enabled
       let finalAudioUrl = audioUrl;

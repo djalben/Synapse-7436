@@ -193,11 +193,19 @@ conversationRoutes.post("/:id/messages", async (c) => {
     if (body.messages.length > 0) {
       const BATCH_SIZE = 20
       const MAX_CONTENT_LENGTH = 100_000 // 100KB per message safety limit
+
+      // Unicode-safe truncation: Array.from splits by codepoints, not UTF-16 code units
+      // This prevents broken surrogate pairs (emoji like 🎭, fairy-tale characters «»)
+      const safeTruncate = (s: string, maxLen: number): string => {
+        if (s.length <= maxLen) return s
+        return Array.from(s).slice(0, maxLen).join("")
+      }
+
       const rows = body.messages.map((m) => ({
         id: m.id,
         conversation_id: convId,
         role: m.role,
-        content: typeof m.content === "string" ? m.content.slice(0, MAX_CONTENT_LENGTH) : String(m.content || ""),
+        content: typeof m.content === "string" ? safeTruncate(m.content, MAX_CONTENT_LENGTH) : String(m.content || ""),
       }))
 
       for (let i = 0; i < rows.length; i += BATCH_SIZE) {
