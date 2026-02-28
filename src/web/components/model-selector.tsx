@@ -229,8 +229,9 @@ export const ModelSelector = ({
         className={`
           w-full text-left px-4 py-3 md:px-4 md:py-3 flex items-start gap-3
           transition-colors duration-200
-          hover:bg-white/10 active:bg-white/[0.12]
-          ${isSelected ? "bg-indigo-500/15 border-l-2 border-indigo-400 md:border-l-0 md:bg-indigo-500/15" : ""}
+          hover:bg-white/[0.08] active:bg-white/[0.12]
+          border-l-2 transition-all
+          ${isSelected ? "bg-indigo-500/15 border-indigo-500" : "border-transparent"}
         `}
       >
         <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-white/[0.06] border border-white/10 flex items-center justify-center [&_svg]:w-5 [&_svg]:h-5">
@@ -267,7 +268,7 @@ export const ModelSelector = ({
         overflow-hidden
       "
     >
-      <div className="max-h-[350px] overflow-y-auto overscroll-contain py-2 md:py-2 scroll-smooth">
+      <div className="max-h-[350px] overflow-y-auto overscroll-contain py-1 scroll-smooth divide-y divide-white/[0.04]">
         {listItems}
       </div>
     </div>

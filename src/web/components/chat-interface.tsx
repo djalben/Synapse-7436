@@ -45,22 +45,49 @@ const MODEL_NAMES: Record<string, string> = {
   "gpt-5-o1": "GPT-5.2 Chat",
 }
 
-// Typing indicator component
-const TypingIndicator = () => (
-  <div className="flex items-center gap-1.5 px-3 py-2">
-    <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-    <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-    <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-  </div>
-)
+// ─── Thinking Indicator — glassmorphism pulsing with cycling statuses ───
+const THINKING_PHASES = [
+  "Анализирую контекст...",
+  "Изучаю документацию...",
+  "Синтезирую решение...",
+  "Финальная проверка...",
+]
 
-// Thinking / reasoning block — barely visible, non-intrusive
-const ThinkingBlock = ({ collapsed }: { collapsed?: boolean }) => {
-  if (collapsed) return null
+const ThinkingIndicator = () => {
+  const [phase, setPhase] = useState(0)
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPhase(p => (p + 1) % THINKING_PHASES.length)
+    }, 2800)
+    return () => clearInterval(interval)
+  }, [])
+
   return (
-    <div className="flex items-center gap-2 px-1 py-1 mb-1.5">
-      <span className="text-xs opacity-20">🧠</span>
-      <span className="text-[11px] text-zinc-500/20 italic">ИИ анализирует контекст и формирует ответ...</span>
+    <div className="flex items-center gap-3 px-4 py-3 rounded-2xl rounded-bl-md bg-[#0d0d0d]/80 backdrop-blur-md border border-[#222] min-w-[240px]">
+      {/* Pulsing brain icon */}
+      <div className="relative flex-shrink-0">
+        <div className="w-7 h-7 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
+          <svg viewBox="0 0 24 24" className="w-4 h-4 text-indigo-400 animate-pulse" fill="none" stroke="currentColor" strokeWidth={1.5}>
+            <path d="M9.5 2a4.5 4.5 0 0 0-4.4 5.5A3.5 3.5 0 0 0 6 14.5V16a1 1 0 0 0 1 1h2m5.5-15a4.5 4.5 0 0 1 4.4 5.5A3.5 3.5 0 0 1 18 14.5V16a1 1 0 0 1-1 1h-2m-3 0v2a2 2 0 0 1-2 2h0a2 2 0 0 1-2-2v-2m6 0v2a2 2 0 0 0 2 2h0a2 2 0 0 0 2-2v-2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+        <div className="absolute inset-0 rounded-lg bg-indigo-500/20 animate-ping" style={{ animationDuration: "2s" }} />
+      </div>
+      {/* Cycling status text */}
+      <div className="flex flex-col gap-1 min-w-0">
+        <span
+          key={phase}
+          className="text-[13px] text-indigo-300/80 font-medium animate-in fade-in duration-500"
+        >
+          {THINKING_PHASES[phase]}
+        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+          <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+          <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+        </div>
+      </div>
     </div>
   )
 }
@@ -750,6 +777,22 @@ const ChatSession = ({ conversationId, initialMessages, selectedModel, onModelCh
 
   const isLoading = status === "streaming" || status === "submitted"
 
+  // Keep-alive watchdog: warn if "submitted" persists >30s without streaming
+  useEffect(() => {
+    if (status !== "submitted") return
+    const warnTimer = setTimeout(() => {
+      toast("Модель думает дольше обычного — соединение активно...", { duration: 5000 })
+    }, 30_000)
+    // Periodic lightweight ping to keep connection alive during long waits
+    const pingInterval = setInterval(() => {
+      fetch("/api/conversations", { method: "HEAD" }).catch(() => {})
+    }, 25_000)
+    return () => {
+      clearTimeout(warnTimer)
+      clearInterval(pingInterval)
+    }
+  }, [status])
+
   useEffect(() => {
     const timer = setTimeout(() => setIsLoaded(true), 100)
     return () => clearTimeout(timer)
@@ -901,31 +944,38 @@ const ChatSession = ({ conversationId, initialMessages, selectedModel, onModelCh
             ))}
 
             {status === "submitted" && (
-              <div className="flex justify-start mb-4">
+              <div className="flex justify-start mb-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="flex items-start gap-3">
                   <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[#1a1a1a] border border-[#333] flex items-center justify-center text-[#888]">
                     {MODEL_LOGOS[selectedModel] || <Bot className="w-4 h-4" />}
                   </div>
-                  <div>
-                    <ThinkingBlock />
-                    <div className="px-4 py-2 rounded-2xl rounded-bl-md bg-[#0d0d0d]/80 border border-[#222]">
-                      <TypingIndicator />
-                    </div>
-                  </div>
+                  <ThinkingIndicator />
                 </div>
               </div>
             )}
 
-            {status === "streaming" && messages.length > 0 && messages[messages.length - 1].role === "assistant" && (
-              <div className="max-w-4xl mx-auto -mt-3 mb-1">
-                <ThinkingBlock collapsed />
-              </div>
-            )}
-
             {error && (
-              <div className="flex justify-center mb-4">
-                <div className="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm max-w-md">
-                  {error.message || "Произошла ошибка. Попробуйте снова."}
+              <div className="flex justify-start mb-4 animate-in fade-in duration-300">
+                <div className="flex items-start gap-3 max-w-[85%]">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+                    <Bot className="w-4 h-4 text-red-400" />
+                  </div>
+                  <div className="px-4 py-3 rounded-2xl rounded-bl-md bg-[#0d0d0d]/80 backdrop-blur-sm border border-red-500/20">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
+                      <span className="text-xs font-medium text-red-400">Ошибка модели</span>
+                    </div>
+                    <p className="text-sm text-red-300/80 leading-relaxed">
+                      {error.message?.includes("rate") || error.message?.includes("429")
+                        ? "Модель временно перегружена. Подождите несколько секунд и повторите запрос."
+                        : error.message?.includes("unavailable") || error.message?.includes("model")
+                          ? "Модель временно недоступна, пробую переключиться на резервный канал..."
+                          : error.message?.includes("timeout") || error.message?.includes("TIMEOUT")
+                            ? "Превышено время ожидания ответа. Сервер перегружен — попробуйте снова."
+                            : "Модель временно перегружена, пробую переключиться на резервный канал..."}
+                    </p>
+                    <p className="text-[11px] text-[#555] mt-2">Попробуйте повторить запрос или сменить модель.</p>
+                  </div>
                 </div>
               </div>
             )}
