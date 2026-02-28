@@ -30,13 +30,18 @@ interface HistoryItem {
 // Filter type - новые категории
 type FilterType = "all" | "chat" | "gallery" | "media";
 
-// Storage key
-const HISTORY_KEY = "synapse_history";
+// Storage key — scoped to userId for per-user persistence
+const getHistoryKey = (): string => {
+  try {
+    const uid = localStorage.getItem("userId");
+    return uid ? `synapse_history_${uid}` : "synapse_history";
+  } catch { return "synapse_history"; }
+};
 
 // Helper to get history from localStorage
 const getHistory = (): HistoryItem[] => {
   try {
-    const stored = localStorage.getItem(HISTORY_KEY);
+    const stored = localStorage.getItem(getHistoryKey());
     return stored ? JSON.parse(stored) : [];
   } catch {
     return [];
@@ -45,7 +50,7 @@ const getHistory = (): HistoryItem[] => {
 
 // Helper to save history to localStorage
 const saveHistory = (history: HistoryItem[]) => {
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  localStorage.setItem(getHistoryKey(), JSON.stringify(history));
 };
 
 // Export for other components to use

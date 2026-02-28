@@ -445,10 +445,17 @@ function persistConversationsLocal(convs: ChatConversation[]) {
   } catch {}
 }
 
+// --- userId helper: reads from localStorage where auth-context persists it ---
+function getUserId(): string {
+  try { return localStorage.getItem("userId") || "anonymous" } catch { return "anonymous" }
+}
+
 // --- API helpers (D1 database, returns null on failure → use localStorage) ---
 async function apiListConversations(): Promise<ChatConversation[] | null> {
   try {
-    const res = await fetch("/api/conversations")
+    const res = await fetch("/api/conversations", {
+      headers: { "X-User-Id": getUserId() },
+    })
     if (!res.ok) return null
     const rows: any[] = await res.json()
     // API returns conversations without messages; load messages per-conversation lazily
@@ -479,7 +486,7 @@ async function apiCreateConversation(conv: { id: string; title: string; model: s
   try {
     const res = await fetch("/api/conversations", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-User-Id": getUserId() },
       body: JSON.stringify(conv),
     })
     return res.ok
@@ -507,7 +514,7 @@ async function apiSaveMessages(convId: string, msgs: StoredMessage[], title?: st
 
     const res = await fetch("/api/conversations/save-messages", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-User-Id": getUserId() },
       body: JSON.stringify({ id: convId, messages: messagesToSave, title, model }),
     })
     if (!res.ok) {
@@ -527,7 +534,7 @@ async function apiDeleteConversation(convId: string): Promise<boolean> {
   try {
     const res = await fetch("/api/conversations/delete", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-User-Id": getUserId() },
       body: JSON.stringify({ id: convId }),
     })
     return res.ok
@@ -538,7 +545,7 @@ async function apiRenameConversation(convId: string, title: string): Promise<boo
   try {
     const res = await fetch("/api/conversations/update", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-User-Id": getUserId() },
       body: JSON.stringify({ id: convId, title }),
     })
     return res.ok
