@@ -480,6 +480,15 @@ input, textarea, select, button {
   animation-play-state: paused;
 }
 
+/* Vinyl pulse — beat-detector effect for create mode */
+@keyframes vinyl-beat-pulse {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.04); filter: brightness(1.15); }
+}
+.vinyl-pulse {
+  animation: spin-slow 4s linear infinite, vinyl-beat-pulse 0.8s ease-in-out infinite;
+}
+
 /* Vinyl grooves */
 .vinyl-grooves {
   background: repeating-radial-gradient(

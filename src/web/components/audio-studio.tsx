@@ -21,12 +21,15 @@ import {
   ChevronDown,
   Disc,
   Headphones,
+  Zap,
 } from "lucide-react";
 import { useUsage } from "./usage-context";
 import { addToHistory } from "./placeholder-pages";
 
 type AudioMode = "music" | "voice" | "dj";
+type DjSubMode = "create" | "remix";
 type DjRemixMode = "classic" | "mashup" | "vision";
+type DjDuration = "60s" | "2min";
 type Duration = "30s" | "60s" | "2min";
 type VocalGender = "male" | "female";
 type SongLanguage = "ru" | "en";
@@ -57,6 +60,55 @@ interface DjPreset {
   style: string;
   color: string;
 }
+
+interface DjCreateGenre {
+  id: string;
+  name: string;
+  description: string;
+  prompt: string;
+  lyrics: string;
+  color: string;
+  icon: string;
+}
+
+const DJ_CREATE_GENRES: DjCreateGenre[] = [
+  {
+    id: "tech-house",
+    name: "Клубный Tech House",
+    description: "Грувовый бас, перкуссия, гипнотический ритм",
+    prompt: "Commercial tech house banger, driving four-on-the-floor kick, punchy bass groove, rolling hi-hats, filtered vocal chops, peak-time energy, Beatport Top 10 quality, professional mix and master",
+    lyrics: "[Instrumental]\n[Build-up]\n[Drop]\n[Groove]\n[Break]\n[Drop]",
+    color: "from-red-500/20 to-orange-500/20",
+    icon: "🔊",
+  },
+  {
+    id: "summer-house",
+    name: "Летний Хаус",
+    description: "Солнечные мелодии, тёплые пэды, пляжный грув",
+    prompt: "Summer deep house, warm analog pads, tropical pluck melody, groovy sub-bass, shaker percussion, sunset vibes, Ibiza beach club atmosphere, radio-ready production quality",
+    lyrics: "[Instrumental]\n[Melody]\n[Groove]\n[Tropical Break]\n[Melody]",
+    color: "from-amber-500/20 to-yellow-500/20",
+    icon: "☀️",
+  },
+  {
+    id: "slap-house",
+    name: "Slap House",
+    description: "Агрессивный бас, слэп-звук, фестивальная энергия",
+    prompt: "Slap house / car music, aggressive slap bass, distorted lead synth, heavy sidechain compression, festival energy drop, Brazilian bass influence, loud and punchy commercial mix",
+    lyrics: "[Instrumental]\n[Build-up]\n[Slap Drop]\n[Bass]\n[Build-up]\n[Final Drop]",
+    color: "from-pink-500/20 to-rose-500/20",
+    icon: "💥",
+  },
+  {
+    id: "melodic-techno",
+    name: "Мелодик Техно",
+    description: "Глубокие арпеджио, эмоциональные пэды, транс",
+    prompt: "Melodic techno, deep arpeggiated synths, emotional pad layers, driving kick drum, hypnotic percussion, Afterlife / Anjunadeep style, ethereal breakdown, cinematic atmosphere, studio quality",
+    lyrics: "[Instrumental]\n[Arpeggio]\n[Build]\n[Emotional Break]\n[Peak Drop]",
+    color: "from-indigo-500/20 to-violet-500/20",
+    icon: "🌌",
+  },
+];
 
 const DJ_PRESETS: DjPreset[] = [
   { id: "club",   name: "Клубный микс",   description: "Мощный бас, энергичные дропы, клубная атмосфера",       style: "EDM club banger, heavy bass drops, four-on-the-floor, euphoric synths", color: "from-purple-500/20 to-pink-500/20" },
@@ -720,9 +772,12 @@ export const AudioStudio = () => {
   }, [previewingVoiceId]);
 
   // DJ state
+  const [djSubMode, setDjSubMode] = useState<DjSubMode>("create");
   const [djFile, setDjFile] = useState<File | null>(null);
   const [djPreset, setDjPreset] = useState<DjPreset | null>(null);
   const [djRemixMode, setDjRemixMode] = useState<DjRemixMode>("classic");
+  const [djCreateGenre, setDjCreateGenre] = useState<DjCreateGenre | null>(null);
+  const [djDuration, setDjDuration] = useState<DjDuration>("60s");
   const [djIsSpinning, setDjIsSpinning] = useState(false);
   const djFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -905,43 +960,67 @@ export const AudioStudio = () => {
           }),
         });
       } else if (mode === "dj") {
-        if (!djFile || !djPreset) {
-          setIsGenerating(false); setStatusMessage(null); setGenProgress(0);
-          return;
-        }
-        setStatusMessage("Загружаю трек...");
-        startProgressSim(5_000, 10);
+        if (djSubMode === "create") {
+          // ── DJ Create New Hit ──
+          if (!djCreateGenre) {
+            setIsGenerating(false); setStatusMessage(null); setGenProgress(0);
+            return;
+          }
+          setStatusMessage("Генерируем трек...");
+          startProgressSim(8_000, 20);
+          setDjIsSpinning(true);
 
-        // Step 1: Upload file directly to Vercel Blob from browser (bypasses 4.5MB Vercel limit)
-        let blobUrl: string;
-        try {
-          const { upload } = await import("@vercel/blob/client");
-          const blob = await upload(`dj-${Date.now()}-${djFile.name}`, djFile, {
-            access: "public",
-            handleUploadUrl: "/api/audio/blob-upload",
+          const djDurationSeconds = djDuration === "60s" ? 60 : 120;
+          response = await fetch("/api/audio/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              prompt: djCreateGenre.prompt,
+              duration: djDurationSeconds,
+              genre: "Электроника",
+              lyrics: djCreateGenre.lyrics,
+            }),
           });
-          blobUrl = blob.url;
-        } catch (uploadErr) {
-          console.error("DJ blob upload failed:", uploadErr);
-          throw new Error("Не удалось загрузить файл. Попробуйте ещё раз.");
+        } else {
+          // ── DJ Remix from File ──
+          if (!djFile || !djPreset) {
+            setIsGenerating(false); setStatusMessage(null); setGenProgress(0);
+            return;
+          }
+          setStatusMessage("Загружаю трек...");
+          startProgressSim(5_000, 10);
+
+          // Step 1: Upload file directly to Vercel Blob from browser (bypasses 4.5MB Vercel limit)
+          let blobUrl: string;
+          try {
+            const { upload } = await import("@vercel/blob/client");
+            const blob = await upload(`dj-${Date.now()}-${djFile.name}`, djFile, {
+              access: "public",
+              handleUploadUrl: "/api/audio/blob-upload",
+            });
+            blobUrl = blob.url;
+          } catch (uploadErr) {
+            console.error("DJ blob upload failed:", uploadErr);
+            throw new Error("Не удалось загрузить файл. Попробуйте ещё раз.");
+          }
+
+          // Step 2: Send only the URL + preset to backend
+          setStatusMessage("Анализирую трек...");
+          stopProgressSim();
+          setGenProgress(15);
+          startProgressSim(8_000, 25, 15);
+
+          response = await fetch("/api/audio/dj-remix", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              audioUrl: blobUrl,
+              preset: djPreset.id,
+              style: djPreset.style,
+              remixMode: djRemixMode,
+            }),
+          });
         }
-
-        // Step 2: Send only the URL + preset to backend
-        setStatusMessage("Анализирую трек...");
-        stopProgressSim();
-        setGenProgress(15);
-        startProgressSim(8_000, 25, 15);
-
-        response = await fetch("/api/audio/dj-remix", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            audioUrl: blobUrl,
-            preset: djPreset.id,
-            style: djPreset.style,
-            remixMode: djRemixMode,
-          }),
-        });
       } else {
         if (!voiceText.trim()) {
           setIsGenerating(false); setStatusMessage(null); setGenProgress(0);
@@ -990,7 +1069,7 @@ export const AudioStudio = () => {
         if (mode === "music" || mode === "dj") {
           stopProgressSim();
           setGenProgress(20);
-          setStatusMessage(mode === "dj" ? "Анализирую трек..." : "Подключаемся к студии...");
+          setStatusMessage(mode === "dj" ? (djSubMode === "create" ? "Генерируем трек..." : "Анализирую трек...") : "Подключаемся к студии...");
           startProgressSim(120_000, 40, 20);
         } else {
           // XTTS-v2 voice mode
@@ -1005,9 +1084,9 @@ export const AudioStudio = () => {
             const djMode = mode === "dj";
             if (status === "starting") {
               if (elapsedSec < 30) {
-                setStatusMessage(djMode ? "Анализирую трек..." : "Подключаемся к студии...");
+                setStatusMessage(djMode ? (djSubMode === "create" ? "Генерируем бит..." : "Анализирую трек...") : "Подключаемся к студии...");
               } else if (elapsedSec < 90) {
-                setStatusMessage(djMode ? "Создаю шедевр..." : "Нейросеть загружается (это нормально, ~1-2 мин)...");
+                setStatusMessage(djMode ? (djSubMode === "create" ? "Нейросеть сочиняет..." : "Создаю шедевр...") : "Нейросеть загружается (это нормально, ~1-2 мин)...");
               } else {
                 setStatusMessage(`Модель всё ещё запускается (${Math.floor(elapsedSec / 60)}:${String(elapsedSec % 60).padStart(2, "0")})...`);
               }
@@ -1016,15 +1095,15 @@ export const AudioStudio = () => {
               phase = "processing";
               stopProgressSim();
               setGenProgress(40);
-              setStatusMessage(djMode ? "Создаю шедевр..." : "Нейросеть сочиняет музыку...");
+              setStatusMessage(djMode ? (djSubMode === "create" ? "Нейросеть сочиняет трек..." : "Создаю шедевр...") : "Нейросеть сочиняет музыку...");
               const simMs = duration === "30s" ? 60_000 : duration === "60s" ? 120_000 : 180_000;
               startProgressSim(simMs, 92, 40);
             }
             if (status === "processing" && phase === "processing") {
               if (elapsedSec > 120) {
-                setStatusMessage(djMode ? "Проверяю детали..." : "Сводим вокал и инструменты...");
+                setStatusMessage(djMode ? (djSubMode === "create" ? "Финальный микс..." : "Проверяю детали...") : "Сводим вокал и инструменты...");
               } else if (elapsedSec > 60) {
-                setStatusMessage(djMode ? "Микширую треки..." : "Нейросеть записывает вокал...");
+                setStatusMessage(djMode ? (djSubMode === "create" ? "Мастеринг трека..." : "Микширую треки...") : "Нейросеть записывает вокал...");
               }
             }
           } else {
@@ -1074,14 +1153,21 @@ export const AudioStudio = () => {
       const savedText = voiceText;
       const djPresetName = djPreset?.name || "";
       const djModeName = DJ_REMIX_MODES.find(m => m.key === djRemixMode)?.label || "";
+      const djGenreName = djCreateGenre?.name || "";
+      const djPromptLabel = mode === "dj"
+        ? (djSubMode === "create" ? `DJ: ${djGenreName}` : `${djModeName}: ${djPresetName}`)
+        : undefined;
+      const djDurationLabel = djDuration === "60s" ? "1:00" : "2:00";
       const newAudio: GeneratedAudio = {
         id: createData.id,
         type: mode === "dj" ? "music" : mode,
-        prompt: mode === "music" ? savedPrompt : mode === "dj" ? `${djModeName}: ${djPresetName}` : undefined,
+        prompt: mode === "music" ? savedPrompt : djPromptLabel,
         lyrics: mode === "music" ? createData.lyrics : undefined,
         text: mode === "voice" ? savedText : undefined,
         duration: mode === "voice"
           ? `~${Math.ceil(savedText.split(/\s+/).length / 2.5)}с`
+          : mode === "dj"
+          ? djDurationLabel
           : (duration === "30s" ? "0:30" : duration === "60s" ? "1:00" : "2:00"),
         createdAt: new Date(),
         audioUrl: finalAudioUrl,
@@ -1093,8 +1179,10 @@ export const AudioStudio = () => {
       try {
         addToHistory({
           type: "audio",
-          prompt: mode === "music" ? savedPrompt : mode === "dj" ? `${djModeName}: ${djPresetName}` : savedText || "",
-          model: mode === "dj" ? `Synapse DJ (${djModeName})` : mode === "music" ? (useMyVoice && clonedVoiceId ? "MiniMax Music-1.5 + S2S" : "MiniMax Music-1.5") : "XTTS-v2",
+          prompt: mode === "music" ? savedPrompt : mode === "dj" ? (djPromptLabel || "") : savedText || "",
+          model: mode === "dj"
+            ? (djSubMode === "create" ? `Synapse DJ (${djGenreName})` : `Synapse DJ (${djModeName})`)
+            : mode === "music" ? (useMyVoice && clonedVoiceId ? "MiniMax Music-1.5 + S2S" : "MiniMax Music-1.5") : "XTTS-v2",
           result: finalAudioUrl,
           credits: creditCost,
         });
@@ -1745,7 +1833,7 @@ export const AudioStudio = () => {
 
         {/* ═══ DJ Studio Tab ═══ */}
         {mode === "dj" && (
-          <div className="space-y-6 animate-in fade-in duration-300">
+          <div className="space-y-5 animate-in fade-in duration-300">
             {/* DJ Header */}
             <div className="p-4 rounded-xl bg-gradient-to-br from-purple-900/40 to-indigo-900/40 backdrop-blur-md border border-purple-500/30">
               <div className="flex items-center gap-3">
@@ -1754,50 +1842,77 @@ export const AudioStudio = () => {
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold text-white tracking-tight">Synapse Диджей</h3>
-                  <p className="text-xs text-purple-300/60">Ремиксы и стилизация треков с AI</p>
+                  <p className="text-xs text-purple-300/60">Создавайте хиты и ремиксы с AI</p>
                 </div>
               </div>
             </div>
 
-            {/* Remix Mode Selector */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-slate-400 tracking-tight">Режим ремикса</label>
-              <div className="grid grid-cols-3 gap-1.5">
-                {DJ_REMIX_MODES.map((rm) => (
+            {/* ── Smart Switch: Create / Remix ── */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setDjSubMode("create")}
+                className={`py-3 px-3 rounded-xl border text-center transition-all duration-300 ${
+                  djSubMode === "create"
+                    ? "bg-gradient-to-br from-purple-500/25 to-indigo-500/25 border-purple-500/50 shadow-lg shadow-purple-500/10"
+                    : "bg-white/[0.02] border-[#333] hover:border-purple-500/30"
+                }`}
+              >
+                <Zap className={`w-4 h-4 mx-auto mb-1 ${djSubMode === "create" ? "text-purple-400" : "text-slate-500"}`} />
+                <span className={`text-xs font-semibold block ${djSubMode === "create" ? "text-white" : "text-slate-400"}`}>Создать новый хит</span>
+                <span className="text-[9px] text-slate-500 block mt-0.5">Генерация с нуля</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setDjSubMode("remix")}
+                className={`py-3 px-3 rounded-xl border text-center transition-all duration-300 ${
+                  djSubMode === "remix"
+                    ? "bg-gradient-to-br from-purple-500/25 to-indigo-500/25 border-purple-500/50 shadow-lg shadow-purple-500/10"
+                    : "bg-white/[0.02] border-[#333] hover:border-purple-500/30"
+                }`}
+              >
+                <Disc className={`w-4 h-4 mx-auto mb-1 ${djSubMode === "remix" ? "text-purple-400" : "text-slate-500"}`} />
+                <span className={`text-xs font-semibold block ${djSubMode === "remix" ? "text-white" : "text-slate-400"}`}>Ремикс из файла</span>
+                <span className="text-[9px] text-slate-500 block mt-0.5">Загрузите свой трек</span>
+              </button>
+            </div>
+
+            {/* ── Duration Selector ── */}
+            <div className="flex items-center gap-2">
+              <Clock className="w-3.5 h-3.5 text-slate-500" />
+              <span className="text-[10px] text-slate-500 uppercase tracking-wider font-medium">Длительность:</span>
+              <div className="flex gap-1.5 ml-auto">
+                {(["60s", "2min"] as DjDuration[]).map((d) => (
                   <button
-                    key={rm.key}
+                    key={d}
                     type="button"
-                    onClick={() => setDjRemixMode(rm.key)}
-                    className={`p-2.5 rounded-xl border text-center transition-all duration-300 ${
-                      djRemixMode === rm.key
-                        ? "bg-gradient-to-br from-purple-500/20 to-indigo-500/20 border-purple-500/50 shadow-lg shadow-purple-500/10"
-                        : "bg-white/[0.02] border-[#333] hover:border-purple-500/30 hover:bg-white/[0.04]"
+                    onClick={() => setDjDuration(d)}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                      djDuration === d
+                        ? "bg-purple-500/20 text-purple-300 border border-purple-500/40"
+                        : "bg-white/[0.03] text-slate-500 border border-[#333] hover:border-purple-500/30"
                     }`}
                   >
-                    <span className="text-base block mb-0.5">{rm.icon}</span>
-                    <span className={`text-[10px] font-semibold block leading-tight ${djRemixMode === rm.key ? "text-white" : "text-slate-400"}`}>
-                      {rm.label}
-                    </span>
-                    <span className="text-[9px] text-slate-500 leading-tight block mt-0.5">{rm.desc}</span>
+                    {d === "60s" ? "60 сек" : "2 мин"}
                   </button>
                 ))}
               </div>
             </div>
 
             {/* Vinyl Turntable */}
-            <div className="flex justify-center py-4">
-              <div className="relative w-48 h-48 md:w-56 md:h-56">
+            <div className="flex justify-center py-3">
+              <div className="relative w-44 h-44 md:w-52 md:h-52">
                 {/* Outer glow */}
-                <div className="absolute inset-[-8px] rounded-full bg-gradient-to-br from-purple-500/20 to-indigo-500/20 blur-xl animate-pulse-glow" />
+                <div className={`absolute inset-[-8px] rounded-full bg-gradient-to-br from-purple-500/20 to-indigo-500/20 blur-xl ${isGenerating ? "animate-pulse" : "animate-pulse-glow"}`} />
                 {/* Vinyl disc */}
-                <div className={`relative w-full h-full rounded-full bg-gradient-to-br from-[#111] to-[#0a0a0a] border border-white/10 shadow-2xl vinyl-grooves ${djIsSpinning || isGenerating ? "animate-spin-slow" : "animate-spin-slow-paused"}`}>
+                <div className={`relative w-full h-full rounded-full bg-gradient-to-br from-[#111] to-[#0a0a0a] border border-white/10 shadow-2xl vinyl-grooves ${djIsSpinning || isGenerating ? "animate-spin-slow" : "animate-spin-slow-paused"} ${isGenerating && djSubMode === "create" ? "vinyl-pulse" : ""}`}>
                   {/* Inner ring */}
                   <div className="absolute inset-[15%] rounded-full bg-gradient-to-br from-[#1a1a1a] to-[#111] border border-white/[0.06]" />
                   {/* Label center */}
                   <div className="absolute inset-[30%] rounded-full bg-gradient-to-br from-indigo-600/40 to-purple-600/40 border border-indigo-400/30 flex items-center justify-center backdrop-blur-sm">
                     <div className="text-center">
-                      <Disc className="w-6 h-6 md:w-8 md:h-8 text-white/80 mx-auto" />
-                      <span className="text-[8px] md:text-[10px] font-mono font-bold text-white/60 tracking-widest mt-1 block">SYNAPSE</span>
+                      <Disc className="w-5 h-5 md:w-7 md:h-7 text-white/80 mx-auto" />
+                      <span className="text-[7px] md:text-[9px] font-mono font-bold text-white/60 tracking-widest mt-0.5 block">SYNAPSE</span>
                     </div>
                   </div>
                   {/* Spindle dot */}
@@ -1810,81 +1925,138 @@ export const AudioStudio = () => {
               </div>
             </div>
 
-            {/* File Upload */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-slate-400 tracking-tight">Загрузите аудио для ремикса</label>
-              <input
-                ref={djFileInputRef}
-                type="file"
-                accept="audio/*"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) { setDjFile(file); setDjIsSpinning(true); }
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => djFileInputRef.current?.click()}
-                className={`w-full py-4 rounded-xl border-2 border-dashed transition-all duration-300 flex flex-col items-center gap-2 ${
-                  djFile
-                    ? "border-purple-500/50 bg-purple-500/10"
-                    : "border-[#333] bg-white/[0.02] hover:border-purple-500/30 hover:bg-white/[0.04]"
-                }`}
-              >
-                <Upload className={`w-6 h-6 ${djFile ? "text-purple-400" : "text-[#555]"}`} />
-                {djFile ? (
-                  <span className="text-sm text-purple-300 font-medium">{djFile.name}</span>
-                ) : (
-                  <span className="text-sm text-[#666]">Перетащите файл или нажмите для выбора</span>
-                )}
-                <span className="text-[10px] text-[#555]">MP3, WAV, OGG — до 20 МБ</span>
-              </button>
-            </div>
+            {/* ═══ CREATE MODE: Genre Cards ═══ */}
+            {djSubMode === "create" && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="block text-xs font-medium text-slate-400 tracking-tight">Выберите жанр</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {DJ_CREATE_GENRES.map((g) => (
+                      <button
+                        key={g.id}
+                        type="button"
+                        onClick={() => setDjCreateGenre(djCreateGenre?.id === g.id ? null : g)}
+                        className={`p-3 rounded-xl border text-left transition-all duration-300 ${
+                          djCreateGenre?.id === g.id
+                            ? `bg-gradient-to-br ${g.color} border-purple-500/50 shadow-lg shadow-purple-500/10`
+                            : "bg-white/[0.02] border-[#333] hover:border-purple-500/30 hover:bg-white/[0.04]"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-base">{g.icon}</span>
+                          <span className={`text-sm font-semibold ${djCreateGenre?.id === g.id ? "text-white" : "text-slate-300"}`}>
+                            {g.name}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-slate-500 leading-relaxed block">{g.description}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-            {/* Remix Presets */}
-            <div className="space-y-2">
-              <label className="block text-xs font-medium text-slate-400 tracking-tight">Выберите стиль ремикса</label>
-              <div className="grid grid-cols-2 gap-2">
-                {DJ_PRESETS.map((preset) => (
+                {/* Info note — create */}
+                <div className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl bg-purple-500/5 border border-purple-500/15">
+                  <Sparkles className="w-3.5 h-3.5 text-purple-400 shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-purple-300/70 leading-relaxed">
+                    Выберите жанр и длительность — AI создаст коммерческий трек с профессиональным звучанием.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* ═══ REMIX MODE: Upload + Presets + Modes ═══ */}
+            {djSubMode === "remix" && (
+              <div className="space-y-4">
+                {/* Remix Mode Selector */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-slate-400 tracking-tight">Режим ремикса</label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {DJ_REMIX_MODES.map((rm) => (
+                      <button
+                        key={rm.key}
+                        type="button"
+                        onClick={() => setDjRemixMode(rm.key)}
+                        className={`p-2 rounded-xl border text-center transition-all duration-300 ${
+                          djRemixMode === rm.key
+                            ? "bg-gradient-to-br from-purple-500/20 to-indigo-500/20 border-purple-500/50 shadow-lg shadow-purple-500/10"
+                            : "bg-white/[0.02] border-[#333] hover:border-purple-500/30 hover:bg-white/[0.04]"
+                        }`}
+                      >
+                        <span className="text-base block mb-0.5">{rm.icon}</span>
+                        <span className={`text-[10px] font-semibold block leading-tight ${djRemixMode === rm.key ? "text-white" : "text-slate-400"}`}>
+                          {rm.label}
+                        </span>
+                        <span className="text-[9px] text-slate-500 leading-tight block mt-0.5">{rm.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* File Upload */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-slate-400 tracking-tight">Загрузите аудио</label>
+                  <input
+                    ref={djFileInputRef}
+                    type="file"
+                    accept="audio/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) { setDjFile(file); setDjIsSpinning(true); }
+                    }}
+                  />
                   <button
-                    key={preset.id}
                     type="button"
-                    onClick={() => setDjPreset(djPreset?.id === preset.id ? null : preset)}
-                    className={`p-3 rounded-xl border text-left transition-all duration-300 ${
-                      djPreset?.id === preset.id
-                        ? `bg-gradient-to-br ${preset.color} border-purple-500/50 shadow-lg shadow-purple-500/10`
-                        : "bg-white/[0.02] border-[#333] hover:border-purple-500/30 hover:bg-white/[0.04]"
+                    onClick={() => djFileInputRef.current?.click()}
+                    className={`w-full py-3.5 rounded-xl border-2 border-dashed transition-all duration-300 flex flex-col items-center gap-1.5 ${
+                      djFile
+                        ? "border-purple-500/50 bg-purple-500/10"
+                        : "border-[#333] bg-white/[0.02] hover:border-purple-500/30 hover:bg-white/[0.04]"
                     }`}
                   >
-                    <span className={`text-sm font-semibold block ${djPreset?.id === preset.id ? "text-white" : "text-slate-300"}`}>
-                      {preset.name}
-                    </span>
-                    <span className="text-[10px] text-slate-500 leading-relaxed block mt-0.5">{preset.description}</span>
+                    <Upload className={`w-5 h-5 ${djFile ? "text-purple-400" : "text-[#555]"}`} />
+                    {djFile ? (
+                      <span className="text-sm text-purple-300 font-medium truncate max-w-full px-3">{djFile.name}</span>
+                    ) : (
+                      <span className="text-sm text-[#666]">Нажмите для выбора файла</span>
+                    )}
+                    <span className="text-[10px] text-[#555]">MP3, WAV, OGG — до 20 МБ</span>
                   </button>
-                ))}
-              </div>
-            </div>
+                </div>
 
-            {/* DJ Slider Controls (decorative + functional) */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5 p-3 rounded-xl bg-white/[0.02] border border-[#222]">
-                <label className="text-[10px] font-medium text-[#666] uppercase tracking-wider">Энергия</label>
-                <input type="range" min={0} max={100} defaultValue={70} className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-slate-700/60 accent-purple-500" />
-              </div>
-              <div className="space-y-1.5 p-3 rounded-xl bg-white/[0.02] border border-[#222]">
-                <label className="text-[10px] font-medium text-[#666] uppercase tracking-wider">Темп</label>
-                <input type="range" min={60} max={180} defaultValue={128} className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-slate-700/60 accent-purple-500" />
-              </div>
-            </div>
+                {/* Remix Presets */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-slate-400 tracking-tight">Стиль ремикса</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {DJ_PRESETS.map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => setDjPreset(djPreset?.id === preset.id ? null : preset)}
+                        className={`p-2.5 rounded-xl border text-left transition-all duration-300 ${
+                          djPreset?.id === preset.id
+                            ? `bg-gradient-to-br ${preset.color} border-purple-500/50 shadow-lg shadow-purple-500/10`
+                            : "bg-white/[0.02] border-[#333] hover:border-purple-500/30 hover:bg-white/[0.04]"
+                        }`}
+                      >
+                        <span className={`text-sm font-semibold block ${djPreset?.id === preset.id ? "text-white" : "text-slate-300"}`}>
+                          {preset.name}
+                        </span>
+                        <span className="text-[10px] text-slate-500 leading-relaxed block mt-0.5">{preset.description}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-            {/* Info note */}
-            <div className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl bg-purple-500/5 border border-purple-500/15">
-              <Sparkles className="w-3.5 h-3.5 text-purple-400 shrink-0 mt-0.5" />
-              <p className="text-[11px] text-purple-300/70 leading-relaxed">
-                Загрузите трек и выберите стиль — AI создаст уникальный ремикс на основе вашего аудио.
-              </p>
-            </div>
+                {/* Info note — remix */}
+                <div className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl bg-purple-500/5 border border-purple-500/15">
+                  <Sparkles className="w-3.5 h-3.5 text-purple-400 shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-purple-300/70 leading-relaxed">
+                    Загрузите трек и выберите стиль — AI создаст уникальный ремикс с сохранением вокала.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         )}
           </div>
@@ -1913,49 +2085,58 @@ export const AudioStudio = () => {
               </div>
             </div>
           )}
-          <button
-            type="button"
-            onClick={handleGenerate}
-            disabled={isGenerating || (mode === "music" ? !canCreateMusic : mode === "dj" ? (!djFile || !djPreset) : !voiceText.trim())}
-            className={`
-              w-full py-3.5 rounded-xl font-medium text-sm
-              transition-all duration-300 relative overflow-hidden
-              active:scale-[0.98] group
-              ${isGenerating
-                ? "bg-indigo-600/80 text-white cursor-wait"
-                : (mode === "music" ? canCreateMusic : mode === "dj" ? (djFile && djPreset) : voiceText.trim())
-                  ? `bg-gradient-to-r ${mode === "dj" ? "from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 shadow-[0_0_20px_rgba(147,51,234,0.3)]" : "from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 shadow-[0_0_20px_rgba(34,197,94,0.3)]"} text-white shadow-lg`
-                  : "bg-[#222] text-[#555] cursor-not-allowed"
-              }
-            `}
-          >
-            {!isGenerating && (mode === "music" ? canCreateMusic : mode === "dj" ? (djFile && djPreset) : voiceText.trim()) && (
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-            )}
-            <span className="relative flex items-center justify-center gap-2">
-              {isGenerating ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>{genProgress}% — {statusMessage || "Анализирую..."}</span>
-                </>
-              ) : mode === "music" ? (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  <span>{canCreateMusic ? "Записать хит" : !selectedGenre ? "Сначала выберите жанр" : !lyricsReady ? "Сначала сгенерируйте текст" : "Создать песню"}</span>
-                </>
-              ) : mode === "dj" ? (
-                <>
-                  <Disc className="w-4 h-4" />
-                  <span>{djFile && djPreset ? "Создать ремикс" : !djFile ? "Загрузите аудио" : "Выберите стиль"}</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  <span>Озвучить текст</span>
-                </>
+          {(() => {
+            const djReady = djSubMode === "create" ? !!djCreateGenre : (!!djFile && !!djPreset);
+            const canGo = mode === "music" ? canCreateMusic : mode === "dj" ? djReady : !!voiceText.trim();
+            return (
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={isGenerating || !canGo}
+              className={`
+                w-full py-3.5 rounded-xl font-medium text-sm
+                transition-all duration-300 relative overflow-hidden
+                active:scale-[0.98] group
+                ${isGenerating
+                  ? "bg-indigo-600/80 text-white cursor-wait"
+                  : canGo
+                    ? `bg-gradient-to-r ${mode === "dj" ? "from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 shadow-[0_0_20px_rgba(147,51,234,0.3)]" : "from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 shadow-[0_0_20px_rgba(34,197,94,0.3)]"} text-white shadow-lg`
+                    : "bg-[#222] text-[#555] cursor-not-allowed"
+                }
+              `}
+            >
+              {!isGenerating && canGo && (
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
               )}
-            </span>
-          </button>
+              <span className="relative flex items-center justify-center gap-2">
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>{genProgress}% — {statusMessage || "Анализирую..."}</span>
+                  </>
+                ) : mode === "music" ? (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    <span>{canCreateMusic ? "Записать хит" : !selectedGenre ? "Сначала выберите жанр" : !lyricsReady ? "Сначала сгенерируйте текст" : "Создать песню"}</span>
+                  </>
+                ) : mode === "dj" ? (
+                  <>
+                    <Disc className="w-4 h-4" />
+                    <span>{djSubMode === "create"
+                      ? (djCreateGenre ? "Создать хит" : "Выберите жанр")
+                      : (djFile && djPreset ? "Создать ремикс" : !djFile ? "Загрузите аудио" : "Выберите стиль")
+                    }</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    <span>Озвучить текст</span>
+                  </>
+                )}
+              </span>
+            </button>
+            );
+          })()}
           <p className="text-center text-[#555] text-xs mt-2">
             <span className="text-indigo-400 font-medium">{creditCost}</span> кредитов · Осталось: <span className="text-white/90">{creditBalance.toFixed(0)}</span>
           </p>
@@ -1979,45 +2160,54 @@ export const AudioStudio = () => {
             </div>
           </div>
         )}
-        <button
-          type="button"
-          onClick={handleGenerate}
-          disabled={isGenerating || (mode === "music" ? !canCreateMusic : mode === "dj" ? (!djFile || !djPreset) : !voiceText.trim())}
-          className={`
-            w-full py-4 px-6 rounded-xl font-medium text-base
-            transition-all duration-300 relative overflow-hidden active:scale-[0.98] group
-            ${isGenerating
-              ? "bg-indigo-600/80 text-white cursor-wait"
-              : (mode === "music" ? canCreateMusic : mode === "dj" ? (djFile && djPreset) : voiceText.trim())
-                ? `bg-gradient-to-r ${mode === "dj" ? "from-purple-500 to-indigo-600 shadow-[0_0_24px_rgba(147,51,234,0.4)]" : "from-green-500 to-emerald-600 shadow-[0_0_24px_rgba(34,197,94,0.4)]"} text-white shadow-lg`
-                : "bg-[#222] text-[#555] cursor-not-allowed"
-            }
-          `}
-        >
-          <span className="relative flex items-center justify-center gap-2">
-            {isGenerating ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span>{genProgress}% — {statusMessage || "Анализирую..."}</span>
-              </>
-            ) : mode === "music" ? (
-              <>
-                <Sparkles className="w-5 h-5" />
-                <span>{canCreateMusic ? "Записать хит" : !selectedGenre ? "Выберите жанр" : !lyricsReady ? "Сгенерируйте текст" : "Создать песню"}</span>
-              </>
-            ) : mode === "dj" ? (
-              <>
-                <Disc className="w-5 h-5" />
-                <span>{djFile && djPreset ? "Создать ремикс" : !djFile ? "Загрузите аудио" : "Выберите стиль"}</span>
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-5 h-5" />
-                <span>Озвучить текст</span>
-              </>
-            )}
-          </span>
-        </button>
+        {(() => {
+          const djReady = djSubMode === "create" ? !!djCreateGenre : (!!djFile && !!djPreset);
+          const canGo = mode === "music" ? canCreateMusic : mode === "dj" ? djReady : !!voiceText.trim();
+          return (
+          <button
+            type="button"
+            onClick={handleGenerate}
+            disabled={isGenerating || !canGo}
+            className={`
+              w-full py-4 px-6 rounded-xl font-medium text-base
+              transition-all duration-300 relative overflow-hidden active:scale-[0.98] group
+              ${isGenerating
+                ? "bg-indigo-600/80 text-white cursor-wait"
+                : canGo
+                  ? `bg-gradient-to-r ${mode === "dj" ? "from-purple-500 to-indigo-600 shadow-[0_0_24px_rgba(147,51,234,0.4)]" : "from-green-500 to-emerald-600 shadow-[0_0_24px_rgba(34,197,94,0.4)]"} text-white shadow-lg`
+                  : "bg-[#222] text-[#555] cursor-not-allowed"
+              }
+            `}
+          >
+            <span className="relative flex items-center justify-center gap-2">
+              {isGenerating ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>{genProgress}% — {statusMessage || "Анализирую..."}</span>
+                </>
+              ) : mode === "music" ? (
+                <>
+                  <Sparkles className="w-5 h-5" />
+                  <span>{canCreateMusic ? "Записать хит" : !selectedGenre ? "Выберите жанр" : !lyricsReady ? "Сгенерируйте текст" : "Создать песню"}</span>
+                </>
+              ) : mode === "dj" ? (
+                <>
+                  <Disc className="w-5 h-5" />
+                  <span>{djSubMode === "create"
+                    ? (djCreateGenre ? "Создать хит" : "Выберите жанр")
+                    : (djFile && djPreset ? "Создать ремикс" : !djFile ? "Загрузите аудио" : "Выберите стиль")
+                  }</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-5 h-5" />
+                  <span>Озвучить текст</span>
+                </>
+              )}
+            </span>
+          </button>
+          );
+        })()}
         <p className="text-center text-[#666] text-xs mt-2">
           <span className="text-indigo-400 font-medium">{creditCost}</span> кредитов · Осталось: <span className="text-white/90">{creditBalance.toFixed(0)}</span>
         </p>
