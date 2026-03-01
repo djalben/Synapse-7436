@@ -710,9 +710,19 @@ audioRoutes.get("/status/:id", async (c) => {
       console.error(`[Audio] ❌ Prediction ${predictionId} ${data.status}: ${data.error || "no error message"}`)
       console.error(`[Audio] ❌ Model: ${data.model || "unknown"}, created: ${data.created_at || "?"}`)
       const errStr = data.error || ""
-      const isLyricsTooLong = errStr.includes("E006") || (errStr.toLowerCase().includes("lyrics") && errStr.toLowerCase().includes("too long"))
+      const errLower = errStr.toLowerCase()
+      const isLyricsTooLong = errStr.includes("E006") || (errLower.includes("lyrics") && errLower.includes("too long"))
+      const isOOM = errLower.includes("out of memory") || errLower.includes("oom")
+      const isInputError = errLower.includes("must provide") || errLower.includes("validation") || errLower.includes("invalid")
+      const isTimeout = errLower.includes("timed out") || errLower.includes("timeout")
       const userError = isLyricsTooLong
         ? "Текст слишком длинный (макс. 600 символов). Сократите текст и попробуйте снова."
+        : isOOM
+        ? "Файл слишком большой для обработки. Попробуйте трек короче 5 минут."
+        : isInputError
+        ? "Ошибка параметров нейросети. Убедитесь, что файл — MP3/WAV."
+        : isTimeout
+        ? "Сервер нейросети временно занят, попробуйте через минуту."
         : data.error || "Генерация не удалась."
       return c.json({ id: predictionId, status: "failed", error: userError })
     }
@@ -888,12 +898,9 @@ audioRoutes.post("/dj-remix", async (c) => {
     console.log(`[Audio] DJ remix prompt (${mode}): ${remixPrompt.slice(0, 100)}… cfg=${cfg} chroma=${chroma}`)
 
     // Create MusicGen Remixer prediction via VERSIONED predictions endpoint
-    // (avoids 404 from /models/ endpoint; same pattern as XTTS)
-    // - music_input: user's uploaded track (demucs extracts vocals automatically)
-    // - model_version: "large" for best quality
-    // - multi_band_diffusion: true for maximum audio fidelity
-    // - classifier_free_guidance: varies per mode
-    // - chroma_coefficient: varies per mode (chord structure from original)
+    // Valid model_version choices: "stereo-chord" | "stereo-chord-large" | "chord" | "chord-large"
+    // Using "chord-large" (non-stereo) so multi_band_diffusion works (incompatible with stereo)
+    // chroma_coefficient range: 0.5–2.0; classifier_free_guidance: int
     const predRes = await fetchWithTimeout(REPLICATE_PREDICTIONS, {
       method: "POST",
       headers: {
@@ -905,14 +912,15 @@ audioRoutes.post("/dj-remix", async (c) => {
         input: {
           prompt: remixPrompt,
           music_input: audioUrl,
-          model_version: "large",
+          model_version: "chord-large",
           multi_band_diffusion: true,
+          large_chord_voca: true,
           normalization_strategy: "loudness",
           chroma_coefficient: chroma,
           classifier_free_guidance: cfg,
           output_format: "mp3",
           top_k: 250,
-          top_p: 0,
+          top_p: 0.0,
           temperature: 1.0,
           seed: -1,
         },
