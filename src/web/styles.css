@@ -1,5 +1,6 @@
-/* Geist Mono for headings, Inter for body */
+/* Geist Mono for headings, Inter for body, Sora for landing */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@200;300;400;500;600;700&display=swap');
 
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -498,4 +499,46 @@ input, textarea, select, button {
     rgba(255,255,255,0.03) 3px,
     rgba(255,255,255,0.03) 4px
   );
+}
+
+/* =============================================
+   LANDING PAGE — Cosmic Premium Design System
+   ============================================= */
+
+.landing-font-display {
+  font-family: 'Sora', system-ui, sans-serif;
+  font-weight: 300;
+}
+
+.landing-text-gradient-cosmic {
+  background: linear-gradient(135deg, #00d4ff 0%, #a855f7 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.landing-text-cosmic-silver {
+  color: #8b9dc3;
+}
+
+.landing-cosmic-card {
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 1rem;
+  transition: all 0.5s ease;
+}
+
+.landing-cosmic-card:hover {
+  border-color: rgba(0, 212, 255, 0.15);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Mobile Video Handling for landing */
+@media (max-width: 768px) {
+  .landing-video-cover {
+    object-fit: cover;
+    min-height: 100vh;
+  }
 }
