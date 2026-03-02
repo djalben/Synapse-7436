@@ -3,7 +3,7 @@ import postgres from "postgres"
 
 export const conversationRoutes = new Hono()
 
-// Lazy singleton PostgreSQL connection
+// Lazy singleton PostgreSQL connection with auto-reconnect
 let _sql: ReturnType<typeof postgres> | null = null
 function getSql() {
   if (_sql) return _sql
@@ -19,13 +19,31 @@ function getSql() {
       ssl: "prefer",
       connect_timeout: 5,
       idle_timeout: 20,
+      max: 3,
+      max_lifetime: 60 * 5,
       connection: { application_name: "synapse" },
+      onclose: () => {
+        console.warn("[conversations] postgres connection closed — will reconnect on next query")
+        _sql = null
+        _migrated = false
+      },
     })
     console.log("[conversations] postgres client initialized OK")
     return _sql
   } catch (initErr) {
     console.error("[conversations] postgres init FAILED:", initErr instanceof Error ? initErr.message : initErr)
+    _sql = null
     return null
+  }
+}
+
+// Reset connection on fatal errors so next request gets a fresh connection
+function resetConnection(err: any) {
+  const fatal = ["CONNECTION_ENDED", "CONNECTION_DESTROYED", "CONNECTION_CLOSED", "CONNECT_TIMEOUT", "57P01", "57P03", "08006", "08001"]
+  if (err?.code && fatal.includes(err.code)) {
+    console.warn(`[conversations] Fatal DB error ${err.code} — resetting connection`)
+    _sql = null
+    _migrated = false
   }
 }
 
@@ -79,6 +97,7 @@ conversationRoutes.get("/", async (c) => {
     `
     return c.json(rows)
   } catch (err: any) {
+    resetConnection(err)
     console.error("[conversations] list error:", err.code, err.message)
     return c.json({ error: err.message }, 500)
   }
@@ -102,6 +121,7 @@ conversationRoutes.post("/get-messages", async (c) => {
     console.log(`[conversations] load messages convId=${convId} count=${rows.length}`)
     return c.json(rows)
   } catch (err: any) {
+    resetConnection(err)
     console.error("[conversations] messages error:", err.code, err.message)
     return c.json({ error: err.message }, 500)
   }
@@ -122,6 +142,7 @@ conversationRoutes.post("/", async (c) => {
     `
     return c.json({ ok: true, id: body.id })
   } catch (err: any) {
+    resetConnection(err)
     console.error("[conversations] create error:", err.code, err.message)
     return c.json({ error: err.message }, 500)
   }
@@ -147,6 +168,7 @@ conversationRoutes.post("/update", async (c) => {
     }
     return c.json({ ok: true })
   } catch (err: any) {
+    resetConnection(err)
     console.error("[conversations] update error:", err.code, err.message)
     return c.json({ error: err.message }, 500)
   }
@@ -164,6 +186,7 @@ conversationRoutes.post("/delete", async (c) => {
     await sql`DELETE FROM conversations WHERE id = ${convId}`
     return c.json({ ok: true })
   } catch (err: any) {
+    resetConnection(err)
     console.error("[conversations] delete error:", err.code, err.message)
     return c.json({ error: err.message }, 500)
   }
@@ -258,6 +281,7 @@ conversationRoutes.post("/save-messages", async (c) => {
       : err.code === "08006" || err.code === "08001"
         ? "Не удалось подключиться к базе данных. Попробуйте позже."
         : `Ошибка сохранения: ${err.message?.slice(0, 100) || "неизвестная ошибка"}`
+    resetConnection(err)
     return c.json({ error: userError }, 500)
   }
 })

@@ -3,7 +3,8 @@ import { Hono } from "hono"
 export const imageRoutes = new Hono()
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-const TIMEOUT_MS = 45000 // 45s — safely under Vercel's 60s limit
+const TIMEOUT_MS = 40000 // 40s — leaves 20s budget for blob uploads within Vercel's 60s limit
+const HARD_DEADLINE_MS = 55000 // 55s — absolute max before we must respond
 
 // Model routing by engine ID
 const ENGINE_MODELS: Record<string, string> = {
@@ -253,22 +254,31 @@ imageRoutes.post("/", async (c) => {
 
     console.log(`[Image] ${rawImages.length} raw images extracted. Processing thumbnails + blob...`)
 
-    // ── Process each image: thumbnail + blob upload ──
+    // ── Process each image: thumbnail + blob upload (with hard deadline guard) ──
     const variants: Array<{ id: string; preview: string; link: string }> = []
+    const elapsed = Date.now() - startTime
 
-    await Promise.all(rawImages.map(async (imgData, i) => {
-      const buf = await imageToBuffer(imgData)
-      console.log(`[Image] Variant ${i} buffer: ${buf.length} bytes`)
+    if (elapsed > HARD_DEADLINE_MS) {
+      // Past hard deadline — return raw base64 URLs directly, skip blob
+      console.warn(`[Image] Past hard deadline (${elapsed}ms) — returning raw URLs`)
+      rawImages.forEach((imgData, i) => {
+        variants.push({ id: `v${i}`, preview: imgData, link: imgData })
+      })
+    } else {
+      await Promise.all(rawImages.map(async (imgData, i) => {
+        const buf = await imageToBuffer(imgData)
+        console.log(`[Image] Variant ${i} buffer: ${buf.length} bytes`)
 
-      // Upload original to Vercel Blob (mandatory)
-      const link = await uploadToBlob(buf, i)
+        // Upload original to Vercel Blob (mandatory)
+        const link = await uploadToBlob(buf, i)
 
-      // Create thumbnail (small Base64 JPEG ~15-30 KB)
-      const thumbnail = await createThumbnail(buf)
-      const preview = thumbnail || link // fallback to Blob URL if sharp unavailable
+        // Create thumbnail (small Base64 JPEG ~15-30 KB)
+        const thumbnail = await createThumbnail(buf)
+        const preview = thumbnail || link // fallback to Blob URL if sharp unavailable
 
-      variants.push({ id: `v${i}`, preview, link })
-    }))
+        variants.push({ id: `v${i}`, preview, link })
+      }))
+    }
 
     // Sort to maintain order
     variants.sort((a, b) => a.id.localeCompare(b.id))
