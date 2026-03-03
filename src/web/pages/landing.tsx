@@ -147,7 +147,7 @@ const HeroSection = () => {
           muted
           playsInline
           preload="auto"
-          poster="/synapse-hero-front-view-UnrcvKNXrST4se0sLsebg.png"
+          poster="/synapse-hero-front-view-UnrcvKNXrST4se0sLsebg.webp"
           className="absolute inset-0 w-full h-full object-cover"
           style={{ willChange: 'transform', transform: 'translateZ(0)' }}
           onError={() => setVideoError(true)}
@@ -156,7 +156,7 @@ const HeroSection = () => {
         </video>
       ) : (
         <img
-          src="/synapse-hero-front-view-UnrcvKNXrST4se0sLsebg.png"
+          src="/synapse-hero-front-view-UnrcvKNXrST4se0sLsebg.webp"
           alt="Synapse AI - Neural Light DJ"
           className="absolute inset-0 w-full h-full object-cover"
         />
@@ -280,22 +280,22 @@ const ImageGallerySection = () => {
   const [selectedImage, setSelectedImage] = useState<{ image: string; model: string } | null>(null);
 
   const galleryImages = [
-    { image: "/gallery-midjourney-portrait-jEO3BpR6DvGsKctPPIKQ9.png", model: "Midjourney" },
-    { image: "/gallery-dalle-surreal-PtmmEZGYYZGyiWlkuGXZR.png", model: "DALL-E 3" },
-    { image: "/gallery-flux-anime-BCMlc9xCa0TLIhMjO6NLO.png", model: "Flux Pro" },
-    { image: "/gallery-midjourney-cyberpunk-MtSvoq4LsMu9JroD00hUt.png", model: "Midjourney" },
-    { image: "/gallery-midjourney-fantasy-Sc6NabZtsvEDEIxCFFFE1.png", model: "Midjourney" },
-    { image: "/gallery-dalle-product-8Vgj0BARscICQqdW1WFdz.png", model: "DALL-E 3" },
-    { image: "/gallery-flux-architecture-gznTgilmyBhS5L3G84Br0.png", model: "Flux Pro" },
-    { image: "/gallery-sd-landscape-XLB5PvxnCXPNHKeHmvWB5.png", model: "Stable Diffusion" },
-    { image: "/gallery-dalle-abstract-Zeb1MlIBAJ9qtqQ-U1XHr.png", model: "DALL-E 3" },
-    { image: "/gallery-midjourney-nature-8TwNeH8q22C0gAASQvQzu.png", model: "Midjourney" },
-    { image: "/gallery-flux-portrait-74LBIomz1_cSN3hDRg3kq.png", model: "Flux Pro" },
-    { image: "/gallery-imagen-interior-hlJthoXDAHUTX0FLzrDik.png", model: "Imagen 3" },
-    { image: "/gallery-dalle-food-6OG5YHTbYMGU2AcI2Tke6.png", model: "DALL-E 3" },
-    { image: "/gallery-sd-character-NqPCMkuS27QSFCiP_mZOJ.png", model: "Stable Diffusion" },
-    { image: "/gallery-flux-scifi-iQqZE9G__xOgOWd0kCEna.png", model: "Flux Pro" },
-    { image: "/gallery-imagen-fashion-ITc7z1b3AXEioMUKe--0n.png", model: "Imagen 3" },
+    { image: "/gallery-midjourney-portrait-jEO3BpR6DvGsKctPPIKQ9.webp", model: "Midjourney" },
+    { image: "/gallery-dalle-surreal-PtmmEZGYYZGyiWlkuGXZR.webp", model: "DALL-E 3" },
+    { image: "/gallery-flux-anime-BCMlc9xCa0TLIhMjO6NLO.webp", model: "Flux Pro" },
+    { image: "/gallery-midjourney-cyberpunk-MtSvoq4LsMu9JroD00hUt.webp", model: "Midjourney" },
+    { image: "/gallery-midjourney-fantasy-Sc6NabZtsvEDEIxCFFFE1.webp", model: "Midjourney" },
+    { image: "/gallery-dalle-product-8Vgj0BARscICQqdW1WFdz.webp", model: "DALL-E 3" },
+    { image: "/gallery-flux-architecture-gznTgilmyBhS5L3G84Br0.webp", model: "Flux Pro" },
+    { image: "/gallery-sd-landscape-XLB5PvxnCXPNHKeHmvWB5.webp", model: "Stable Diffusion" },
+    { image: "/gallery-dalle-abstract-Zeb1MlIBAJ9qtqQ-U1XHr.webp", model: "DALL-E 3" },
+    { image: "/gallery-midjourney-nature-8TwNeH8q22C0gAASQvQzu.webp", model: "Midjourney" },
+    { image: "/gallery-flux-portrait-74LBIomz1_cSN3hDRg3kq.webp", model: "Flux Pro" },
+    { image: "/gallery-imagen-interior-hlJthoXDAHUTX0FLzrDik.webp", model: "Imagen 3" },
+    { image: "/gallery-dalle-food-6OG5YHTbYMGU2AcI2Tke6.webp", model: "DALL-E 3" },
+    { image: "/gallery-sd-character-NqPCMkuS27QSFCiP_mZOJ.webp", model: "Stable Diffusion" },
+    { image: "/gallery-flux-scifi-iQqZE9G__xOgOWd0kCEna.webp", model: "Flux Pro" },
+    { image: "/gallery-imagen-fashion-ITc7z1b3AXEioMUKe--0n.webp", model: "Imagen 3" },
   ];
 
   return (
@@ -568,17 +568,17 @@ const ShowcaseSection = () => {
     {
       title: "Фотореализм",
       description: "Создавай невероятно реалистичные изображения. Портреты, пейзажи, продуктовые фото — всё выглядит как настоящая фотография.",
-      image: "/showcase-photorealism-jl5VrcmSvi7V0nRC1fju5.png",
+      image: "/showcase-photorealism-jl5VrcmSvi7V0nRC1fju5.webp",
     },
     {
       title: "DJ-Ремиксы",
       description: "Генерируй музыку от электронных битов до симфоний. Создавай уникальные треки за секунды без музыкального образования.",
-      image: "/showcase-dj-remix-WMUS9BnLfPF1mL_Y7XyPb.png",
+      image: "/showcase-dj-remix-WMUS9BnLfPF1mL_Y7XyPb.webp",
     },
     {
       title: "Кино-видео",
       description: "Превращай идеи в кинематографические видео. Голливудское качество, фантастические сцены — всё доступно в пару кликов.",
-      image: "/showcase-cinema-video-oSbumCdO6uc018suXf29z.png",
+      image: "/showcase-cinema-video-oSbumCdO6uc018suXf29z.webp",
     },
   ];
 
