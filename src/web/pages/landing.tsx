@@ -138,7 +138,7 @@ const HeroSection = () => {
   }, []);
 
   return (
-    <section className="relative h-screen flex items-center overflow-hidden">
+    <section className="relative h-screen flex items-end overflow-hidden">
       {!videoError ? (
         <video
           ref={videoRef}
@@ -163,21 +163,21 @@ const HeroSection = () => {
       <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-transparent" />
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
 
-      <div className="relative z-10 px-6 md:px-12 lg:px-20 w-full">
-        <div className="max-w-2xl">
+      <div className="relative z-10 px-6 md:px-12 lg:px-20 w-full pb-28 sm:pb-32 md:pb-36">
+        <div className="max-w-2xl" style={{ textShadow: '0 2px 20px rgba(0,0,0,0.7), 0 0 40px rgba(0,0,0,0.5)' }}>
           <motion.h1
-            className="landing-font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-light mb-8 leading-tight tracking-tight"
+            className="landing-font-display text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-light mb-5 leading-snug tracking-tight"
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1.2, ease: "easeOut" }}
           >
-            <span className="block landing-text-gradient-cosmic">
+            <span className="block landing-text-gradient-cosmic" style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.6))' }}>
               Твоя нейронная студия будущего
             </span>
           </motion.h1>
 
           <motion.p
-            className="text-base md:text-lg landing-text-cosmic-silver mb-12 leading-relaxed max-w-lg font-light"
+            className="text-sm sm:text-base md:text-lg landing-text-cosmic-silver mb-8 leading-relaxed max-w-lg font-light"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1, delay: 0.3 }}
